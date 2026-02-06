@@ -13,20 +13,20 @@ import uk.gov.hmrc.http.HttpReads.Implicits.readRaw
 
 class HealthEndpointIntegrationSpec
   extends AnyWordSpec
-     with Matchers
-     with ScalaFutures
-     with IntegrationPatience
-     with GuiceOneServerPerSuite:
+    with Matchers
+    with ScalaFutures
+    with IntegrationPatience
+    with GuiceOneServerPerSuite:
 
   private val httpClient = app.injector.instanceOf[HttpClientV2]
-  private val baseUrl  = s"http://localhost:$port"
+  private val baseUrl = s"http://localhost:$port"
 
   override def fakeApplication(): Application =
     GuiceApplicationBuilder()
       .build()
 
-  "service health endpoint" should:
-    "respond with 200 status" in:
+  "service health endpoint" should {
+    "respond with 200 status" in {
       val response =
         httpClient
           .get(url"$baseUrl/ping/ping")(HeaderCarrier())
@@ -34,3 +34,5 @@ class HealthEndpointIntegrationSpec
           .futureValue
 
       response.status shouldBe 200
+    }
+  }
