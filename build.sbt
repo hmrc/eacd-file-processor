@@ -4,6 +4,17 @@ ThisBuild / majorVersion := 0
 ThisBuild / scalaVersion := "3.3.6"
 ThisBuild / scalacOptions += "-Wconf:msg=Flag.*repeatedly:s"
 
+lazy val scoverageSettings = {
+  import scoverage.ScoverageKeys._
+  Seq(
+    coverageExcludedPackages :=
+      "<empty>;Reverse.*;views.*;testOnlyDoNotUseInAppConf;uk.gov.hmrc.BuildInfo;app.*;prod.*;config.*;com.*;modules.*;dev.*;models.*",
+    coverageMinimumStmtTotal := 85,
+    coverageFailOnMinimum := true,
+    coverageHighlighting := true
+  )
+}
+
 lazy val microservice = Project("eacd-file-processor", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin)
   .disablePlugins(JUnitXmlReportPlugin) //Required to prevent https://github.com/scalatest/scalatest/issues/1427
@@ -19,4 +30,5 @@ lazy val it = project
   .enablePlugins(PlayScala)
   .dependsOn(microservice % "test->test")
   .settings(DefaultBuildSettings.itSettings())
+  .settings(scoverageSettings: _*)
   .settings(libraryDependencies ++= AppDependencies.it)
