@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor
+package uk.gov.hmrc.eacdfileprocessor.models.upscan
 
-import org.mongodb.scala.model.Indexes.ascending
-import org.mongodb.scala.model.{IndexModel, IndexOptions}
+import play.api.libs.json.{Format, Json, Reads, Writes}
 
-package object repository {
-  val referenceIndex: IndexModel = IndexModel(
-    ascending("reference"),
-    IndexOptions()
-      .name("reference")
-      .unique(true)
-      .sparse(false)
+case class Reference(value: String)
+
+object Reference {
+  given Format[Reference] = Format(
+    Reads.StringReads.map(Reference(_)),
+    Writes(ref => Json.toJson(ref.value))
   )
 }

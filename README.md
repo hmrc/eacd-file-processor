@@ -1,7 +1,16 @@
 
 # eacd-file-processor
 
-This is a placeholder README.md for a new repository
+This service will be used as part of bulk de-enrolment processing
+
+A helpdesk user will upload a document and this service will retrieve and store this document
+
+
+# Running tests
+sbt clean coverage test it/test coverageReport
+
+# Running service
+sbt "run 9000"
 
 ### Running the test suite
 ```

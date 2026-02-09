@@ -14,17 +14,6 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor
+package uk.gov.hmrc.eacdfileprocessor.services
 
-import org.mongodb.scala.model.Indexes.ascending
-import org.mongodb.scala.model.{IndexModel, IndexOptions}
-
-package object repository {
-  val referenceIndex: IndexModel = IndexModel(
-    ascending("reference"),
-    IndexOptions()
-      .name("reference")
-      .unique(true)
-      .sparse(false)
-  )
-}
+class FileService
