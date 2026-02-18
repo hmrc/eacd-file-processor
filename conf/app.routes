@@ -1,3 +1,4 @@
 # microservice specific routes
 
 GET        /hello-world             uk.gov.hmrc.eacdfileprocessor.controllers.MicroserviceHelloWorldController.hello
+POST       /callback                uk.gov.hmrc.eacdfileprocessor.controllers.CallbackController.callback

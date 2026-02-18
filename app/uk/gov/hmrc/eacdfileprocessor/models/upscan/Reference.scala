@@ -14,18 +14,14 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.config
+package uk.gov.hmrc.eacdfileprocessor.models.upscan
 
-import javax.inject.{Inject, Singleton}
-import play.api.Configuration
+import play.api.libs.json.{Format, Json, Reads, Writes}
 
-@Singleton
-class AppConfig @Inject()(config: Configuration) {
+case class Reference(value: String)
 
-  val appName: String = config.get[String]("appName")
-  val timeToLive: String = getString("time-to-live.time")
-
-  def getString(key: String): String =
-    config.getOptional[String](key).filter(!_.isBlank)
-      .getOrElse(throw new RuntimeException(s"Could not find config key '$key'"))
-}
+object Reference:
+  given Format[Reference] = Format(
+    Reads.StringReads.map(Reference(_)),
+    Writes(ref => Json.toJson(ref.value))
+  )
