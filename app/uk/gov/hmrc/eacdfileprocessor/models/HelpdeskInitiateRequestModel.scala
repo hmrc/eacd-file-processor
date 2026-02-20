@@ -22,9 +22,9 @@ import java.time.LocalDateTime
 
 case class HelpdeskInitiateRequestModel(
                                   reference: String,
-                                  requesterPID: String,
-                                  requesterEmail: String,
-                                  requesterName: String,
+                                  requestorPID: String,
+                                  requestorEmail: String,
+                                  requestorName: String,
                                   fileStatus: String = "initial",
                                   timestamp: LocalDateTime = LocalDateTime.now()
                                 )

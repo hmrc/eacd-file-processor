@@ -37,11 +37,11 @@ class initiateFileStorageController@Inject()(val fileRepo: FileRepository,
     implicit request =>
       val body = request.body.asJson.get
       val reference = (body \ "reference").as[String]
-      val requesterPID = (body \ "requesterPID").as[String]
-      val requesterEmail = (body \ "requesterEmail").as[String]
-      val requesterName = (body \ "requesterName").as[String]
+      val requestorPID = (body \ "requestorPID").as[String]
+      val requestorEmail = (body \ "requestorEmail").as[String]
+      val requestorName = (body \ "requestorName").as[String]
 
-      fileRepo.createFileRecord(HelpdeskInitiateRequestModel(reference, requesterPID, requesterEmail, requesterName))
+      fileRepo.createFileRecord(HelpdeskInitiateRequestModel(reference, requestorPID, requestorEmail, requestorName))
       Future.successful(Created)
   }
 }
