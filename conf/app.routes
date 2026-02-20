@@ -2,3 +2,4 @@
 
 POST       /callback                uk.gov.hmrc.eacdfileprocessor.controllers.CallbackController.callback
 POST       /initiate                         uk.gov.hmrc.eacdfileprocessor.controllers.initiateFileStorageController.initiate()
+POST       /initiate                         uk.gov.hmrc.eacdfileprocessor.controllers.initiateFileStorageController.initiateFileRecordStore()
