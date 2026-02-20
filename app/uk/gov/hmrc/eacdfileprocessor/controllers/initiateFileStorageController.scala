@@ -42,7 +42,7 @@ class initiateFileStorageController@Inject()(val fileRepo: FileRepository,
       val requesterName = (body \ "requesterName").as[String]
 
       fileRepo.createFileRecord(HelpdeskInitiateRequestModel(reference, requesterPID, requesterEmail, requesterName))
-      Future.successful(Ok)
+      Future.successful(Created)
   }
 }
   
