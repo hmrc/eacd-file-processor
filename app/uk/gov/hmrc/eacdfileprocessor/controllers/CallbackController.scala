@@ -35,7 +35,22 @@ class CallbackController @Inject()(
   val callback: Action[JsValue] =
     Action.async(parse.json): request =>
       given Request[JsValue] = request
+
       logger.info(s"Received callback notification [${Json.stringify(request.body)}]")
-      withJsonBody[CallbackBody]: feedback =>
-        upscanCallbackService.handleCallback(feedback).map(_ => Ok)
+      for {
+        result <- withJsonBody[CallbackBody] {
+          callbackBody =>
+            upscanCallbackService.handleCallback(callbackBody)
+              .map(_ => NoContent)
+              .recover {
+                case e =>
+                  logger.warn(s"${e.getMessage}")
+                  NoContent
+              }
+        }
+      } yield result.header.status match
+        case BAD_REQUEST =>
+          NoContent
+        case _ =>
+          NoContent
 }

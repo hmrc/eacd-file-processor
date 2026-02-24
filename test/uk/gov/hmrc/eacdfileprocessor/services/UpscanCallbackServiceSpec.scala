@@ -18,30 +18,41 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.verify
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers.shouldBe
+import play.api.test.Helpers
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.http.BadRequestException
+import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier}
+
+import scala.concurrent.ExecutionContext
 
 class UpscanCallbackServiceSpec extends TestSupport with TestData:
-  val mockUploadProgressTracker: UploadProgressTracker = mock[UploadProgressTracker]
-  val callbackService: UpscanCallbackService = new UpscanCallbackService(mockUploadProgressTracker)
+  private implicit val ec: ExecutionContext = Helpers.stubControllerComponents().executionContext
+  implicit val hc: HeaderCarrier = HeaderCarrier()
+
+  trait Setup {
+    val mockUploadProgressTracker: UploadProgressTracker = mock[UploadProgressTracker]
+    val callbackService: UpscanCallbackService = new UpscanCallbackService(mockUploadProgressTracker)
+  }
 
   "UpscanCallbackService" should {
-    "handle ready callback correctly" in {
+    "handle ready callback correctly" in new Setup {
       callbackService.handleCallback(readyCallbackBody)
-      verify(mockUploadProgressTracker).registerUploadResult(any(), any())
+      verify(mockUploadProgressTracker).registerUploadResult(any(), any())(any())
     }
 
-    "handle failed callback correctly" in {
+    "handle failed callback correctly" in new Setup {
       callbackService.handleCallback(failedCallbackBody)
-      verify(mockUploadProgressTracker).registerUploadResult(any(), any())
+      verify(mockUploadProgressTracker).registerUploadResult(any(), any())(any())
     }
 
-    "throws exception when MIME doesn't match" in {
-      val exception = intercept[BadRequestException] {
-        callbackService.handleCallback(wrongMIMEReadyCallbackBody)
+    "throws exception when MIME doesn't match" in new Setup {
+      val expectedException = BadRequestException("Incorrect file type uploaded, preferred file type was: text/csv")
+      val failedResult = callbackService.handleCallback(wrongMIMEReadyCallbackBody)
+      ScalaFutures.whenReady(failedResult.failed) {
+        e =>
+          e.getClass shouldBe expectedException.getClass
+          e.getMessage shouldBe expectedException.getMessage
       }
-
-      exception.getMessage shouldBe "Incorrect file type uploaded, preferred file type was: image/png"
     }
   }

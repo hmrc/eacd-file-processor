@@ -49,11 +49,19 @@ class FileUploadRepoSpec extends TestSupport with TestData:
       }
       "missing reference" in {
         val missingRefUploadDetails = failedUploadedDetails.copy(reference = Reference(null))
-        val exception = intercept[IllegalArgumentException] {
+        val exception = intercept[IllegalStateException] {
           await(repository.insert(missingRefUploadDetails))
         }
 
         exception.getMessage contains "Value can not be null" shouldBe true
+      }
+      "correctly update status" in {
+        val reference = Reference("3b8f08a6-c1fd-45d4-9af0-94a583b505cf")
+        await(repository.insert(scannedUploadedDetails))
+        await(repository.updateStatus(reference, "stored"))
+
+        val actual = await(repository.findByReference(reference)).get
+        actual shouldBe scannedUploadedDetails.copy(status = "stored", createdAt = actual.createdAt)
       }
     }
   }

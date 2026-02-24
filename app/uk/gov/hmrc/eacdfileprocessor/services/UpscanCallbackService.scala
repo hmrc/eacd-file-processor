@@ -16,37 +16,37 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
-import uk.gov.hmrc.eacdfileprocessor.models.upscan.{CallbackBody, FailedCallbackBody, ReadyCallbackBody, Details}
-import uk.gov.hmrc.http.BadRequestException
+import uk.gov.hmrc.eacdfileprocessor.models.upscan.{CallbackBody, Details, FailedCallbackBody, ReadyCallbackBody}
+import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier}
 
 import javax.inject.Inject
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
-class UpscanCallbackService @Inject() (sessionStorage: UploadProgressTracker) {
+class UpscanCallbackService @Inject()(sessionStorage: UploadProgressTracker) {
   private val allowedMimeTypes: Set[String] = Set(
-    "application/pdf",
     "text/csv", // .csv
   )
 
-  def handleCallback(callback: CallbackBody): Future[Unit] =
+  def handleCallback(callback: CallbackBody)(implicit ex: ExecutionContext, hc: HeaderCarrier): Future[Unit] =
 
     val uploadStatus =
       callback match
-        case s: ReadyCallbackBody =>
-          if (allowedMimeTypes.contains(s.uploadDetails.fileMimeType)) {
-            Details.UploadedSuccessfully(
-              name = s.uploadDetails.fileName,
-              mimeType = s.uploadDetails.fileMimeType,
-              downloadUrl = s.downloadUrl,
-              size = Some(s.uploadDetails.size),
-              checksum = s.uploadDetails.checksum
-            )
-          } else {
-            throw new BadRequestException(s"Incorrect file type uploaded, preferred file type was: ${s.uploadDetails.fileMimeType}")
-          }
+        case s: ReadyCallbackBody if allowedMimeTypes.contains(s.uploadDetails.fileMimeType) =>
+          Some(Details.UploadedSuccessfully(
+            name = s.uploadDetails.fileName,
+            mimeType = s.uploadDetails.fileMimeType,
+            downloadUrl = s.downloadUrl,
+            size = Some(s.uploadDetails.size),
+            checksum = s.uploadDetails.checksum
+          ))
         case f: FailedCallbackBody =>
-          Details.UploadedFailed(failureReason = f.failureDetails.failureReason,
-            message = f.failureDetails.message)
+          Some(Details.UploadedFailed(
+            failureReason = f.failureDetails.failureReason,
+            message = f.failureDetails.message
+          ))
+        case _ => None
 
-    sessionStorage.registerUploadResult(callback.reference, uploadStatus)
+    uploadStatus match
+      case Some(status) => sessionStorage.registerUploadResult(callback.reference, status)
+      case None => Future(throw new BadRequestException("Incorrect file type uploaded, preferred file type was: text/csv"))
 }

@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.eacdfileprocessor.models.upscan
 
+import play.api.Logging
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.utils.HttpUrlFormat
@@ -27,23 +28,25 @@ sealed trait CallbackBody:
   def reference: Reference
 
 case class ReadyCallbackBody(
-                              reference    : Reference,
-                              downloadUrl  : URL,
+                              reference: Reference,
+                              downloadUrl: URL,
                               uploadDetails: UploadDetails
                             ) extends CallbackBody
 
 case class FailedCallbackBody(
-                               reference     : Reference,
+                               reference: Reference,
                                failureDetails: ErrorDetails
                              ) extends CallbackBody
 
-object CallbackBody:
+object CallbackBody extends Logging:
 
-  given Reads[UploadDetails]      = Json.reads[UploadDetails]
-  given Reads[ErrorDetails]       = Json.reads[ErrorDetails]
+  given Reads[UploadDetails] = Json.reads[UploadDetails]
 
-  given Reads[ReadyCallbackBody]  =
+  given Reads[ErrorDetails] = Json.reads[ErrorDetails]
+
+  given Reads[ReadyCallbackBody] =
     given Format[URL] = HttpUrlFormat.format
+
     Json.reads[ReadyCallbackBody]
 
   given Reads[FailedCallbackBody] = Json.reads[FailedCallbackBody]
@@ -51,20 +54,37 @@ object CallbackBody:
   given Reads[CallbackBody] =
     (json: JsValue) =>
       json \ "fileStatus" match
-        case JsDefined(JsString("READY"))  => json.validate[ReadyCallbackBody]
-        case JsDefined(JsString("FAILED")) => json.validate[FailedCallbackBody]
-        case JsDefined(value)              => JsError(s"Invalid type discriminator: $value")
-        case _                             => JsError(s"Missing type discriminator")
+        case JsDefined(JsString("READY")) =>
+          json.validate[ReadyCallbackBody] match
+            case JsError(errors) =>
+              errors.head._1.toString match
+                case "/reference" =>
+                  logger.warn("INVALID_FILE_REF File reference doesn't exist")
+                case "/downloadUrl" =>
+                  logger.warn("MISSING_DOWNLOAD_URL DownloadUrl cannot be empty")
+              JsError(errors)
+
+        case JsDefined(JsString("FAILED")) =>
+          json.validate[FailedCallbackBody] match
+            case JsError(errors) =>
+              errors.head._1.toString match
+                case "/reference" =>
+                  logger.warn("INVALID_FILE_REF File reference doesn't exist")
+              JsError(errors)
+
+        case _ =>
+          logger.warn("INVALID_STATUS File status empty or not recognised")
+          JsError(s"File status empty or not recognised")
 
 case class UploadDetails(
                           uploadTimestamp: Instant,
-                          checksum       : String,
-                          fileMimeType   : String,
-                          fileName       : String,
-                          size           : Long
+                          checksum: String,
+                          fileMimeType: String,
+                          fileName: String,
+                          size: Long
                         )
 
 case class ErrorDetails(
                          failureReason: String,
-                         message      : String
+                         message: String
                        )

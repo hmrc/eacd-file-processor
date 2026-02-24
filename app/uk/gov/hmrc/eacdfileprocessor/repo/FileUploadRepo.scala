@@ -21,6 +21,8 @@ import org.bson.types.ObjectId
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.model.Updates.set
+import play.api.Logging
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
@@ -35,6 +37,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 object FileUploadRepoFormat {
 
@@ -98,19 +101,34 @@ class FileUploadRepo @Inject()(
       )
     ),
     replaceIndexes = true
-  ):
-
-  //  import FileUploadRepoFormat.given
+  ) with Logging:
 
   override lazy val requiresTtlIndex: Boolean = false
 
-  def insert(details: UploadedDetails): Future[Unit] =
+  def insert(details: UploadedDetails): Future[Boolean] =
     collection.insertOne(details)
-      .toFuture()
-      .map(_ => ())
+      .toFuture().transformWith {
+        case Success(result) =>
+          logger.info(s"Uploaded file has been upsert for reference: ${details.reference.value}")
+          result.wasAcknowledged()
+          Future.successful(true)
+        case Failure(exception) =>
+          val errorMsg = s"Uploaded file is not inserted for reference: ${details.reference.value}"
+          logger.error(errorMsg)
+          Future.failed(new IllegalStateException(s"$errorMsg: ${exception.getMessage} ${exception.getCause}"))
+      }
 
   def findByReference(reference: Reference): Future[Option[UploadedDetails]] = {
     collection.find(
       equal("reference.value", reference.value)
     ).headOption()
-  }  
+  }
+
+  def updateStatus(reference: Reference, status: String): Future[Option[UploadedDetails]] =
+    collection
+      .findOneAndUpdate(
+        filter = equal("reference.value", reference.value),
+        update = Seq(set("status", status), set("createdAt", Instant.now())),
+        options = FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
+      )
+      .toFutureOption()

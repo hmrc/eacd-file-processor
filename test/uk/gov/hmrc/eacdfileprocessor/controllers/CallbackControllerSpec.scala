@@ -17,13 +17,14 @@
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{times, verify, when}
 import org.scalatestplus.mockito.MockitoSugar.mock
-import play.api.http.Status.{BAD_REQUEST, OK}
+import play.api.http.Status.NO_CONTENT
 import play.api.test.Helpers.POST
 import play.api.test.{FakeRequest, Helpers}
-import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport, UnitSpec}
+import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, UnitSpec}
 import uk.gov.hmrc.eacdfileprocessor.services.UpscanCallbackService
+import uk.gov.hmrc.http.BadRequestException
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -37,22 +38,52 @@ class CallbackControllerSpec extends TestData with UnitSpec:
   }
 
   "POST /callback" should {
-    "return 200 when passing successful response from upscan" in new Setup {
-      when(mockUpscanCallbackService.handleCallback(any())).thenReturn(Future.unit)
+    "return 204 when passing successful response from upscan" in new Setup {
+      when(mockUpscanCallbackService.handleCallback(any())(any(), any())).thenReturn(Future.unit)
       val request = FakeRequest(POST, "/callback").withBody(upscanSuccessResponse)
       val result = await(callbackController.callback()(request))
-      status(result) shouldBe OK
+      status(result) shouldBe NO_CONTENT
     }
-    "return 200 when passing failure response from upscan" in new Setup {
-      when(mockUpscanCallbackService.handleCallback(any())).thenReturn(Future.unit)
+    "return 204 when passing failure response from upscan" in new Setup {
+      when(mockUpscanCallbackService.handleCallback(any())(any(), any())).thenReturn(Future.unit)
       val request = FakeRequest(POST, "/callback").withBody(upscanFailureResponse)
       val result = await(callbackController.callback()(request))
-      status(result) shouldBe OK
+      status(result) shouldBe NO_CONTENT
     }
-    "return 400 when passing wrong file status response from upscan" in new Setup {
-      when(mockUpscanCallbackService.handleCallback(any())).thenReturn(Future.unit)
+    "return 204 when CallbackService throw an exception" in new Setup {
+      when(mockUpscanCallbackService.handleCallback(any())(any(), any())).thenReturn(Future(throw new BadRequestException(s"Incorrect file type uploaded, preferred file type was: text/csv")))
+      val request = FakeRequest(POST, "/callback").withBody(upscanSuccessResponse)
+      val result = await(callbackController.callback()(request))
+      status(result) shouldBe NO_CONTENT
+    }
+    "return 204 when passing wrong file status response from upscan" in new Setup {
       val request = FakeRequest(POST, "/callback").withBody(upscanWrongFileStatusResponse)
       val result = await(callbackController.callback()(request))
-      status(result) shouldBe BAD_REQUEST
+      status(result) shouldBe NO_CONTENT
+      verify(mockUpscanCallbackService, times(0)).handleCallback(any())(any(), any())
+    }
+    "return 204 when passing missing file status response from upscan" in new Setup {
+      val request = FakeRequest(POST, "/callback").withBody(upscanMissingFileStatusResponse)
+      val result = await(callbackController.callback()(request))
+      status(result) shouldBe NO_CONTENT
+      verify(mockUpscanCallbackService, times(0)).handleCallback(any())(any(), any())
+    }
+    "return 204 when missing reference on successful response from upscan" in new Setup {
+      val request = FakeRequest(POST, "/callback").withBody(upscanMissingReferenceResponse)
+      val result = await(callbackController.callback()(request))
+      status(result) shouldBe NO_CONTENT
+      verify(mockUpscanCallbackService, times(0)).handleCallback(any())(any(), any())
+    }
+    "return 204 when missing reference on failed response from upscan" in new Setup {
+      val request = FakeRequest(POST, "/callback").withBody(upscanMissingReferenceFailureResponse)
+      val result = await(callbackController.callback()(request))
+      status(result) shouldBe NO_CONTENT
+      verify(mockUpscanCallbackService, times(0)).handleCallback(any())(any(), any())
+    }
+    "return 204 when missing download url response from upscan" in new Setup {
+      val request = FakeRequest(POST, "/callback").withBody(upscanMissingDownloadUrlResponse)
+      val result = await(callbackController.callback()(request))
+      status(result) shouldBe NO_CONTENT
+      verify(mockUpscanCallbackService, times(0)).handleCallback(any())(any(), any())
     }
   }

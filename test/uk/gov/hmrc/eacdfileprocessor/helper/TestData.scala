@@ -113,8 +113,8 @@ trait TestData:
       |  "fileStatus": "READY",
       |  "uploadDetails": {
       |    "size": 127520,
-      |    "fileMimeType": "application/pdf",
-      |    "fileName": "HMRC MU Engineering Career Framework.pdf",
+      |    "fileMimeType": "text/csv",
+      |    "fileName": "bulk-de-enrol.csv",
       |    "checksum": "e3e7d5dd0ea499d5776e3d2710d4d693c7add3cb66fc346c532ddc056b3b919a",
       |    "uploadTimestamp": "2026-02-17T15:27:29.889028Z"
       |  }
@@ -143,6 +143,62 @@ trait TestData:
       |  "failureDetails": {
       |    "failureReason": "QUARANTINE",
       |    "message": "e.g. This file has a virus"
+      |  }
+      |}
+      |""".stripMargin
+  )
+
+  val upscanMissingFileStatusResponse: JsValue = Json.parse(
+    """
+      |{
+      |  "reference": "08aad019-7f66-4456-8d52-93f12109876f",
+      |  "failureDetails": {
+      |    "failureReason": "QUARANTINE",
+      |    "message": "e.g. This file has a virus"
+      |  }
+      |}
+      |""".stripMargin
+  )
+
+  val upscanMissingReferenceResponse: JsValue = Json.parse(
+    """
+      |{
+      |  "downloadUrl": "http://localhost:9570/upscan/download/a682288e-57b5-4319-9f04-e37bced82469",
+      |  "fileStatus": "READY",
+      |  "uploadDetails": {
+      |    "size": 127520,
+      |    "fileMimeType": "text/csv",
+      |    "fileName": "bulk-de-enrol.csv",
+      |    "checksum": "e3e7d5dd0ea499d5776e3d2710d4d693c7add3cb66fc346c532ddc056b3b919a",
+      |    "uploadTimestamp": "2026-02-17T15:27:29.889028Z"
+      |  }
+      |}
+      |""".stripMargin
+  )
+
+  val upscanMissingReferenceFailureResponse: JsValue = Json.parse(
+    """
+      |{
+      |  "fileStatus": "FAILED",
+      |  "failureDetails": {
+      |    "failureReason": "QUARANTINE",
+      |    "message": "e.g. This file has a virus"
+      |  }
+      |}
+      |""".stripMargin
+  )
+
+  val upscanMissingDownloadUrlResponse: JsValue = Json.parse(
+    """
+      |{
+      |  "reference": "08aad019-7f66-4456-8d52-93f12109876f",
+      |  "fileStatus": "READY",
+      |  "uploadDetails": {
+      |    "size": 127520,
+      |    "fileMimeType": "text/csv",
+      |    "fileName": "bulk-de-enrol.csv",
+      |    "checksum": "e3e7d5dd0ea499d5776e3d2710d4d693c7add3cb66fc346c532ddc056b3b919a",
+      |    "uploadTimestamp": "2026-02-17T15:27:29.889028Z"
       |  }
       |}
       |""".stripMargin
