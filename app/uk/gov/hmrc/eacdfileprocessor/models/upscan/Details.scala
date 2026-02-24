@@ -23,8 +23,7 @@ import java.time.Instant
 
 sealed trait Details
 
-object Details:
-
+object Details {
   case class UploadedSuccessfully(
                                    name: String,
                                    mimeType: String,
@@ -37,6 +36,7 @@ object Details:
                              failureReason: String,
                              message: String
                            ) extends Details
+}
 
 case class UploadedDetails(
                             id: ObjectId,

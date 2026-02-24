@@ -20,8 +20,9 @@ import play.api.libs.json.{Format, Json, Reads, Writes}
 
 case class Reference(value: String)
 
-object Reference:
+object Reference {
   given Format[Reference] = Format(
     Reads.StringReads.map(Reference(_)),
     Writes(ref => Json.toJson(ref.value))
   )
+}

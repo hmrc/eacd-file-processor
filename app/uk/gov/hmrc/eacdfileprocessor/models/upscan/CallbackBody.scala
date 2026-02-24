@@ -24,8 +24,9 @@ import uk.gov.hmrc.eacdfileprocessor.utils.HttpUrlFormat
 import java.net.URL
 import java.time.Instant
 
-sealed trait CallbackBody:
+sealed trait CallbackBody {
   def reference: Reference
+}
 
 case class ReadyCallbackBody(
                               reference: Reference,
@@ -38,7 +39,7 @@ case class FailedCallbackBody(
                                failureDetails: ErrorDetails
                              ) extends CallbackBody
 
-object CallbackBody extends Logging:
+object CallbackBody extends Logging {
 
   given Reads[UploadDetails] = Json.reads[UploadDetails]
 
@@ -75,6 +76,7 @@ object CallbackBody extends Logging:
         case _ =>
           logger.warn("INVALID_STATUS File status empty or not recognised")
           JsError(s"File status empty or not recognised")
+}
 
 case class UploadDetails(
                           uploadTimestamp: Instant,

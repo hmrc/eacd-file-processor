@@ -103,6 +103,7 @@ class FileUploadRepo @Inject()(
     replaceIndexes = true
   ) with Logging:
 
+  import FileUploadRepo.given
   override lazy val requiresTtlIndex: Boolean = false
 
   def insert(details: UploadedDetails): Future[Boolean] =

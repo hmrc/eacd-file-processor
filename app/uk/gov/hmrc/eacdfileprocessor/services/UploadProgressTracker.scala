@@ -39,7 +39,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class UploadProgressTracker @Inject()(repository: FileUploadRepo,
                                       appConfig: AppConfig,
                                       httpClient: HttpClientV2,
-                                      osClient: PlayObjectStoreClient)(using ExecutionContext) extends Logging {
+                                      osClient: PlayObjectStoreClient)(implicit ec: ExecutionContext) extends Logging {
 
   def registerUploadResult(fileReference: Reference, details: Details)(implicit hc: HeaderCarrier): Future[Unit] =
     for
