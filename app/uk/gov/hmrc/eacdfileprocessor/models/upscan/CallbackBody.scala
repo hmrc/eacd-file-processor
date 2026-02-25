@@ -45,10 +45,10 @@ object CallbackBody extends Logging {
 
   given Reads[ErrorDetails] = Json.reads[ErrorDetails]
 
-  given Reads[ReadyCallbackBody] =
+  given Reads[ReadyCallbackBody] = {
     given Format[URL] = HttpUrlFormat.format
-
     Json.reads[ReadyCallbackBody]
+  }
 
   given Reads[FailedCallbackBody] = Json.reads[FailedCallbackBody]
 

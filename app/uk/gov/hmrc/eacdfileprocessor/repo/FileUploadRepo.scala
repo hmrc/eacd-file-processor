@@ -70,9 +70,9 @@ object FileUploadRepoFormat {
 
   private given Format[Instant] = MongoJavatimeFormats.instantFormat
 
-  private[repo] val mongoFormat: Format[UploadedDetails] =
-    given Format[ObjectId] = MongoFormats.objectIdFormat
+  private given Format[ObjectId] = MongoFormats.objectIdFormat
 
+  private[repo] val mongoFormat: Format[UploadedDetails] =
     ((__ \ "_id").format[ObjectId]
       ~ (__ \ "reference").format[Reference]
       ~ (__ \ "status").format[String]
@@ -103,7 +103,6 @@ class FileUploadRepo @Inject()(
     replaceIndexes = true
   ) with Logging:
 
-  import FileUploadRepo.given
   override lazy val requiresTtlIndex: Boolean = false
 
   def insert(details: UploadedDetails): Future[Boolean] =
@@ -111,8 +110,7 @@ class FileUploadRepo @Inject()(
       .toFuture().transformWith {
         case Success(result) =>
           logger.info(s"Uploaded file has been upsert for reference: ${details.reference.value}")
-          result.wasAcknowledged()
-          Future.successful(true)
+          Future.successful(result.wasAcknowledged())
         case Failure(exception) =>
           val errorMsg = s"Uploaded file is not inserted for reference: ${details.reference.value}"
           logger.error(errorMsg)

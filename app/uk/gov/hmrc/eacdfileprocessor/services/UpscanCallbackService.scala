@@ -24,29 +24,30 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class UpscanCallbackService @Inject()(sessionStorage: UploadProgressTracker) {
   private val allowedMimeTypes: Set[String] = Set(
-    "text/csv", // .csv
+    "text/csv" // .csv
   )
 
-  def handleCallback(callback: CallbackBody)(implicit ex: ExecutionContext, hc: HeaderCarrier): Future[Unit] =
+  def handleCallback(callback: CallbackBody)(implicit ex: ExecutionContext, hc: HeaderCarrier): Future[Unit] = {
+    val uploadStatus: Option[Details] = callback match {
+      case s: ReadyCallbackBody if allowedMimeTypes.contains(s.uploadDetails.fileMimeType) =>
+        Some(Details.UploadedSuccessfully(
+          name = s.uploadDetails.fileName,
+          mimeType = s.uploadDetails.fileMimeType,
+          downloadUrl = s.downloadUrl,
+          size = Some(s.uploadDetails.size),
+          checksum = s.uploadDetails.checksum
+        ))
+      case f: FailedCallbackBody =>
+        Some(Details.UploadedFailed(
+          failureReason = f.failureDetails.failureReason,
+          message = f.failureDetails.message
+        ))
+      case _ => None
+    }
 
-    val uploadStatus =
-      callback match
-        case s: ReadyCallbackBody if allowedMimeTypes.contains(s.uploadDetails.fileMimeType) =>
-          Some(Details.UploadedSuccessfully(
-            name = s.uploadDetails.fileName,
-            mimeType = s.uploadDetails.fileMimeType,
-            downloadUrl = s.downloadUrl,
-            size = Some(s.uploadDetails.size),
-            checksum = s.uploadDetails.checksum
-          ))
-        case f: FailedCallbackBody =>
-          Some(Details.UploadedFailed(
-            failureReason = f.failureDetails.failureReason,
-            message = f.failureDetails.message
-          ))
-        case _ => None
-
-    uploadStatus match
+    uploadStatus match {
       case Some(status) => sessionStorage.registerUploadResult(callback.reference, status)
       case None => Future(throw new BadRequestException("Incorrect file type uploaded, preferred file type was: text/csv"))
+    }
+  }
 }

@@ -30,27 +30,24 @@ import scala.concurrent.ExecutionContext
 class CallbackController @Inject()(
                                     upscanCallbackService: UpscanCallbackService,
                                     cc: ControllerComponents
-                                  )(using ExecutionContext) extends BackendController(cc) with Logging {
+                                  )(implicit ec: ExecutionContext) extends BackendController(cc) with Logging {
 
-  val callback: Action[JsValue] =
-    Action.async(parse.json): request =>
-      given Request[JsValue] = request
+  val callback: Action[JsValue] = Action.async(parse.json) { implicit request: Request[JsValue] =>
 
-      logger.info(s"Received callback notification [${Json.stringify(request.body)}]")
-      for {
-        result <- withJsonBody[CallbackBody] {
-          callbackBody =>
-            upscanCallbackService.handleCallback(callbackBody)
-              .map(_ => NoContent)
-              .recover {
-                case e =>
-                  logger.warn(s"${e.getMessage}")
-                  NoContent
-              }
+    logger.info(s"Received callback notification [${Json.stringify(request.body)}]")
+
+    withJsonBody[CallbackBody] { callbackBody =>
+      upscanCallbackService.handleCallback(callbackBody)
+        .map(_ => NoContent)
+        .recover {
+          case e =>
+            logger.warn(s"${e.getMessage}")
+            NoContent
         }
-      } yield result.header.status match
-        case BAD_REQUEST =>
-          NoContent
-        case _ =>
-          NoContent
+    }.map { result =>
+      result.header.status match
+        case BAD_REQUEST => NoContent
+        case _ => NoContent
+    }
+  }
 }

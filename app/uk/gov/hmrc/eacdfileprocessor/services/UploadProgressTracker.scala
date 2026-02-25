@@ -26,10 +26,10 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.upscan.Details.UploadedSuccessfully
 import uk.gov.hmrc.eacdfileprocessor.models.upscan.{Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repo.FileUploadRepo
-import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.objectstore.client.{Path, RetentionPeriod, Sha256Checksum}
+import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.objectstore.client.{Path, RetentionPeriod, Sha256Checksum}
 
 import java.net.URL
 import javax.inject.{Inject, Singleton}
@@ -42,10 +42,11 @@ class UploadProgressTracker @Inject()(repository: FileUploadRepo,
                                       osClient: PlayObjectStoreClient)(implicit ec: ExecutionContext) extends Logging {
 
   def registerUploadResult(fileReference: Reference, details: Details)(implicit hc: HeaderCarrier): Future[Unit] =
-    for
-      status <- details match
+    for {
+      status <- details match {
         case f: Details.UploadedFailed => Future.successful("failed")
         case s: Details.UploadedSuccessfully => Future.successful("scanned")
+      }
       _ <- repository.insert(UploadedDetails(ObjectId.get(), fileReference, status, details)).map {
         case true if status == "scanned" =>
           val uploadedDetails = details.asInstanceOf[UploadedSuccessfully]
@@ -57,12 +58,11 @@ class UploadProgressTracker @Inject()(repository: FileUploadRepo,
         case _ =>
           Future.unit
       }
-    yield
+    } yield
       ()
 
   def getUploadResult(reference: Reference): Future[Option[UploadedDetails]] =
-    repository
-      .findByReference(reference)
+    repository.findByReference(reference)
 
   private[services] def createClientAuthToken(): Future[Unit] = {
     logger.info("[InternalAuthTokenInitialiser][createClientAuthToken] Initialising auth token")
@@ -103,12 +103,12 @@ class UploadProgressTracker @Inject()(repository: FileUploadRepo,
   }
 
   private[services] def transferToObjectStore(
-                             downloadUrl: URL,
-                             mimeType: String,
-                             checksum: String,
-                             fileName: String,
-                             fileReference: Reference
-                           )(using hc: HeaderCarrier): Future[Unit] = {
+                                               downloadUrl: URL,
+                                               mimeType: String,
+                                               checksum: String,
+                                               fileName: String,
+                                               fileReference: Reference
+                                             )(implicit hc: HeaderCarrier): Future[Unit] = {
     val fileLocation = Path.File(s"${fileReference.value}/$fileName")
     val contentSha256 = Sha256Checksum.fromHex(checksum)
     createClientAuthToken()
@@ -119,7 +119,7 @@ class UploadProgressTracker @Inject()(repository: FileUploadRepo,
         retentionPeriod = RetentionPeriod.SixMonths,
         contentType = Some(mimeType),
         contentSha256 = Some(contentSha256)
-      )(using hc.withExtraHeaders("Authorization" -> appConfig.internalAuthToken))
+      )(hc.withExtraHeaders("Authorization" -> appConfig.internalAuthToken))
       .transformWith {
         case scala.util.Failure(exception) =>
           logger.error(s"Failure to upload from upscan to store object because of $exception")
