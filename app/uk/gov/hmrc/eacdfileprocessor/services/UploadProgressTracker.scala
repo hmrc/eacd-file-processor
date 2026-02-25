@@ -122,9 +122,10 @@ class UploadProgressTracker @Inject()(repository: FileUploadRepo,
       )(hc.withExtraHeaders("Authorization" -> appConfig.internalAuthToken))
       .transformWith {
         case scala.util.Failure(exception) =>
-          logger.error(s"Failure to upload from upscan to store object because of $exception")
+          logger.error(s"Failure to upload to object store because of $exception")
+          logger.warn("FAILED_OBJECT_STORE_UPDATE Failed upload file to object store")
           exception.printStackTrace()
-          Future.successful(BadRequest(s"Failure to upload from upscan to store object because of $exception"))
+          Future.successful(BadRequest(s"Failure to upload to object store because of $exception"))
         case scala.util.Success(objectWithMD5) =>
           Future.successful(
             for {
