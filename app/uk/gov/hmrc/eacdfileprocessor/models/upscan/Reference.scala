@@ -14,21 +14,15 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.controllers
+package uk.gov.hmrc.eacdfileprocessor.models.upscan
 
-import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
+import play.api.libs.json.{Format, Json, Reads, Writes}
 
-import javax.inject.{Inject, Singleton}
+case class Reference(value: String)
 
-@Singleton()
-class MicroserviceHelloWorldController @Inject()(
-                                                  cc: ControllerComponents
-                                                ) extends BackendController(cc) {
-
-  val hello: Action[AnyContent] = Action {
-    implicit request => {
-      Ok("Hello world")
-    }
-  }
+object Reference {
+  given Format[Reference] = Format(
+    Reads.StringReads.map(Reference(_)),
+    Writes(ref => Json.toJson(ref.value))
+  )
 }
