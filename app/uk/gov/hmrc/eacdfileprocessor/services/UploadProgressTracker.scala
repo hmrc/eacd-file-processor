@@ -86,13 +86,13 @@ class UploadProgressTracker @Inject()(repository: FileUploadRepo,
           )
         )
       )
-      .execute
+      .execute()
       .flatMap { response =>
         if (response.status == CREATED) {
           logger.info(
             "[InternalAuthTokenInitialiser][createClientAuthToken] Auth token initialised"
           )
-          Future.successful("")
+          Future.successful("": Unit)
         } else {
           logger.error(
             "[InternalAuthTokenInitialiser][createClientAuthToken] Unable to initialise internal-auth token"

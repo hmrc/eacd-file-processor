@@ -18,18 +18,12 @@ package uk.gov.hmrc.eacdfileprocessor.models
 
 import play.api.libs.json.{Json, OFormat}
 
-import java.time.LocalDateTime
+case class ApiErrorResponse(
+  errorCode: String,
+  errorMessage: String
+)
 
-case class HelpdeskInitiateRequestModel(
-                                  reference: String,
-                                  requestorPID: String,
-                                  requestorEmail: String,
-                                  requestorName: String,
-                                  fileStatus: String = "initial",
-                                  creationDateTime: LocalDateTime = LocalDateTime.now()
-                                )
-
-object HelpdeskInitiateRequestModel {
-  implicit val formats: OFormat[HelpdeskInitiateRequestModel] =
-    Json.format[HelpdeskInitiateRequestModel]
+object ApiErrorResponse {
+  implicit val format: OFormat[ApiErrorResponse] = Json.format[ApiErrorResponse]
 }
+

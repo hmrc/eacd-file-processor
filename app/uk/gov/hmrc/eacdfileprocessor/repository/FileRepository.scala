@@ -28,24 +28,33 @@ import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
+object MongoResponses {
+  sealed trait MongoCreateResponse
+  case object MongoSuccessCreate extends MongoCreateResponse
+  case object MongoDuplicateKey extends MongoCreateResponse
+  case object MongoFailedCreate extends MongoCreateResponse
+}
+
 @Singleton
 class FileRepository @Inject()(mongo: MongoComponent, metrics: MetricsReporter, implicit val ec: ExecutionContext)
   extends PlayMongoRepository[HelpdeskInitiateRequestModel](mongo, "file",
     HelpdeskInitiateRequestModel.formats, Seq(referenceIndex)) {
       
-      def createFileRecord(fileData: HelpdeskInitiateRequestModel): Future[MongoCreateResponse] = {
+      def createFileRecord(fileData: HelpdeskInitiateRequestModel): Future[MongoResponses.MongoCreateResponse] = {
         val DUPLICATE_KEY_ERROR = 11000
         metrics.timeCompletionOfFuture("createFileRecordMongoTimer", {
           collection.insertOne(fileData).toFuture().map { wr =>
             if (wr.wasAcknowledged()) {
-              MongoSuccessCreate
+              MongoResponses.MongoSuccessCreate
             } else {
               logger.error(s"[createFileRecord] - Failed to insert data for file reference: ${fileData.reference}")
-              MongoFailedCreate
+              MongoResponses.MongoFailedCreate
             }
-          }.recoverWith {
+          }.recover {
             case e: MongoWriteException if e.getCode == DUPLICATE_KEY_ERROR =>
-              Future.successful(MongoSuccessCreate)
+              MongoResponses.MongoDuplicateKey
+            case _ =>
+              MongoResponses.MongoFailedCreate
           }
         })
       }
