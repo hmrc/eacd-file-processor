@@ -66,7 +66,7 @@ trait TestData:
       failureReason = "REJECTED",
       message = "MIME type application/pdf is not allowed for service"
     ),
-    createdAt = createdAt
+    lastUpdatedDateTime = createdAt
   )
 
   val scannedUploadedDetails = UploadedDetails(
@@ -80,7 +80,7 @@ trait TestData:
       size = Some(32270),
       checksum = "a0acaa6039c1a94c6f5c43f144c5add07de9381f98701cb14c7c6ce2be18020b"
     ),
-    createdAt = createdAt
+    lastUpdatedDateTime = createdAt
   )
 
   val missingFieldUploadedDetails: JsValue = Json.parse(

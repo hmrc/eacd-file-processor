@@ -23,10 +23,12 @@ import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
+import uk.gov.hmrc.eacdfileprocessor.models.{FileStatus, StatusApproverDetails}
 import uk.gov.hmrc.eacdfileprocessor.models.upscan.{Details, Reference, UploadedDetails}
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 class FileUploadRepoSpec extends TestSupport with TestData:
   implicit val ec: ExecutionContext = Helpers.stubControllerComponents().executionContext
@@ -61,7 +63,25 @@ class FileUploadRepoSpec extends TestSupport with TestData:
         await(repository.updateStatus(reference, "stored"))
 
         val actual = await(repository.findByReference(reference)).get
-        actual shouldBe scannedUploadedDetails.copy(status = "stored", createdAt = actual.createdAt)
+        actual shouldBe scannedUploadedDetails.copy(status = "stored", lastUpdatedDateTime = actual.lastUpdatedDateTime)
+      }
+      "correctly update status and approver details" in {
+        val reference = Reference("3b8f08a6-c1fd-45d4-9af0-94a583b505cf")
+
+        await(repository.insert(scannedUploadedDetails))
+        await(repository.updateStatusAndApproverInfo(reference,
+          StatusApproverDetails(status = "approved",
+            approverEmail = Some("test@hmrc.gov.uk"),
+            approverPID = Some("1234"),
+            approverName = Some("John Baker"),
+            errorCode = None,
+            errorMessage = None
+          )))
+
+        val actual = await(repository.findByReference(reference)).get
+
+        actual shouldBe scannedUploadedDetails.copy(status = "approved", approverEmail = Some("test@hmrc.gov.uk"),
+          approverPID = Some("1234"), approverName = Some("John Baker"), lastUpdatedDateTime = actual.lastUpdatedDateTime)
       }
     }
   }

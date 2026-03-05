@@ -1,3 +1,4 @@
 # microservice specific routes
 
 POST       /callback                uk.gov.hmrc.eacdfileprocessor.controllers.CallbackController.callback
+POST       /status/:reference       uk.gov.hmrc.eacdfileprocessor.controllers.StatusController.updateStatus(reference: String)

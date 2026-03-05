@@ -43,5 +43,12 @@ case class UploadedDetails(
                             reference: Reference,
                             status: String,
                             details: Details,
-                            createdAt: Instant = Instant.now()
+                            requestorPID: String,
+                            approverEmail: Option[String] = None,
+                            approverPID: Option[String] = None,
+                            approverName: Option[String] = None,
+                            errorCode: Option[String] = None,
+                            errorMessage: Option[String] = None,
+                            uploadedDateTime: Option[Instant] = None,
+                            lastUpdatedDateTime: Instant = Instant.now()
                           )

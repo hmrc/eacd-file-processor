@@ -23,6 +23,8 @@ import play.api.libs.json.Json
 import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
 import play.api.mvc.Results.BadRequest
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{FAILED, SCANNED, STORED}
 import uk.gov.hmrc.eacdfileprocessor.models.upscan.Details.UploadedSuccessfully
 import uk.gov.hmrc.eacdfileprocessor.models.upscan.{Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repo.FileUploadRepo
@@ -44,11 +46,11 @@ class UploadProgressTracker @Inject()(repository: FileUploadRepo,
   def registerUploadResult(fileReference: Reference, details: Details)(implicit hc: HeaderCarrier): Future[Unit] =
     for {
       status <- details match {
-        case f: Details.UploadedFailed => Future.successful("failed")
-        case s: Details.UploadedSuccessfully => Future.successful("scanned")
+        case f: Details.UploadedFailed => Future.successful(FAILED)
+        case s: Details.UploadedSuccessfully => Future.successful(SCANNED)
       }
-      _ <- repository.insert(UploadedDetails(ObjectId.get(), fileReference, status, details)).map {
-        case true if status == "scanned" =>
+      _ <- repository.insert(UploadedDetails(ObjectId.get(), fileReference, status.value, details)).map {
+        case true if status == SCANNED =>
           val uploadedDetails = details.asInstanceOf[UploadedSuccessfully]
           transferToObjectStore(downloadUrl = uploadedDetails.downloadUrl,
             mimeType = uploadedDetails.mimeType,
@@ -129,7 +131,7 @@ class UploadProgressTracker @Inject()(repository: FileUploadRepo,
         case scala.util.Success(objectWithMD5) =>
           Future.successful(
             for {
-              uploadedDetails <- repository.updateStatus(fileReference, "stored")
+              uploadedDetails <- repository.updateStatus(fileReference, STORED.value)
               success <- uploadedDetails match {
                 case Some(result) =>
                   Future.successful(result)

@@ -21,11 +21,12 @@ import org.bson.types.ObjectId
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Filters.equal
-import org.mongodb.scala.model.Updates.set
+import org.mongodb.scala.model.Updates.{set, unset}
 import play.api.Logging
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
+import uk.gov.hmrc.eacdfileprocessor.models.StatusApproverDetails
 import uk.gov.hmrc.eacdfileprocessor.models.upscan.{Details, Reference, UploadedDetails}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
@@ -77,7 +78,13 @@ object FileUploadRepoFormat {
       ~ (__ \ "reference").format[Reference]
       ~ (__ \ "status").format[String]
       ~ (__ \ "details").format[Details]
-      ~ (__ \ "createdAt").format[Instant]
+      ~ (__ \ "approverEmail").formatNullable[String]
+      ~ (__ \ "approverPID").formatNullable[String]
+      ~ (__ \ "approverName").formatNullable[String]
+      ~ (__ \ "errorCode").formatNullable[String]
+      ~ (__ \ "errorMessage").formatNullable[String]
+      ~ (__ \ "uploadedDateTime").formatNullable[Instant]
+      ~ (__ \ "lastUpdatedDateTime").format[Instant]
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 
@@ -93,10 +100,10 @@ class FileUploadRepo @Inject()(
     indexes = Seq(
       IndexModel(Indexes.ascending("reference"), IndexOptions().unique(true)),
       IndexModel(
-        descending("createdAt"),
+        descending("lastUpdatedDateTime"),
         IndexOptions()
           .unique(false)
-          .name("createdAt")
+          .name("lastUpdatedDateTime")
           .expireAfter(config.timeToLive.toLong, TimeUnit.HOURS)
       )
     ),
@@ -131,3 +138,25 @@ class FileUploadRepo @Inject()(
         options = FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
       )
       .toFutureOption()
+
+  def updateStatusAndApproverInfo(reference: Reference,
+                                  statusApproverDetails: StatusApproverDetails,
+                                  uploadedDateTime: Option[Instant] = None): Future[Option[UploadedDetails]] = {
+    val updates = Map(
+      "approverEmail" -> statusApproverDetails.approverEmail,
+      "approverPID" -> statusApproverDetails.approverPID,
+      "approverName" -> statusApproverDetails.approverName,
+      "errorCode" -> statusApproverDetails.errorCode,
+      "errorMessage" -> statusApproverDetails.errorMessage,
+    ).filter(_._2.nonEmpty)
+      .map((k, v) => set(k, v.get))
+      .toSeq ++ Seq(set("status", statusApproverDetails.status), set("createdAt", Instant.now()))
+
+    collection
+      .findOneAndUpdate(
+        filter  = equal("reference.value", reference.value),
+        update  = uploadedDateTime.map(updates :+ set("uploadedDateTime", _)).getOrElse(updates),
+        options = FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
+      )
+      .toFutureOption()
+  }
