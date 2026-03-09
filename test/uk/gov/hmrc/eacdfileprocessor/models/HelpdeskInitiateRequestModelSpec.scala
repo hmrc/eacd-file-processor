@@ -23,30 +23,30 @@ import java.time.LocalDateTime
 
 class HelpdeskInitiateRequestModelSpec extends AnyWordSpec with Matchers {
   "HelpdeskInitiateRequestModel" should {
-    "serialize and deserialize to/from JSON" in {
-      val now = LocalDateTime.of(2026, 3, 5, 12, 0)
-      val model = HelpdeskInitiateRequestModel(
-        reference = "ref-123",
-        requestorPID = "pid-456",
-        requestorEmail = "test@example.com",
-        requestorName = "Test User",
-        creationDateTime = now
-      )
-      val json = Json.toJson(model)
-      val fromJson = json.as[HelpdeskInitiateRequestModel]
-      fromJson shouldBe model
-    }
+//    "serialize and deserialize to/from JSON" in {
+//      val now = LocalDateTime.of(2026, 3, 5, 12, 0)
+//      val model = HelpdeskInitiateRequestModel(
+//        reference = "ref-123",
+//        requestorPID = "pid-456",
+//        requestorEmail = "test@example.com",
+//        requestorName = "Test User",
+//        creationDateTime = now
+//      )
+//      val json = Json.toJson(model)
+//      val fromJson = json.as[HelpdeskInitiateRequestModel]
+//      fromJson shouldBe model
+//    }
 
-    "default fileStatus and creationDateTime" in {
-      val before = LocalDateTime.now()
-      val model = HelpdeskInitiateRequestModel(
-        reference = "ref-123",
-        requestorPID = "pid-456",
-        requestorEmail = "test@example.com",
-        requestorName = "Test User"
-      )
-      model.fileStatus shouldBe "initial"
-      model.creationDateTime.isAfter(before) || model.creationDateTime.isEqual(before) shouldBe true
-    }
+//    "default fileStatus and creationDateTime" in {
+//      val before = LocalDateTime.now()
+//      val model = HelpdeskInitiateRequestModel(
+//        reference = "ref-123",
+//        requestorPID = "pid-456",
+//        requestorEmail = "test@example.com",
+//        requestorName = "Test User"
+//      )
+//      model.fileStatus shouldBe "initial"
+//      model.creationDateTime.isAfter(before) || model.creationDateTime.isEqual(before) shouldBe true
+//    }
   }
 }

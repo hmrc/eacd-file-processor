@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.models.upscan
+package uk.gov.hmrc.eacdfileprocessor.models
 
 import org.bson.types.ObjectId
+import play.api.libs.json.Format
+import uk.gov.hmrc.eacdfileprocessor.models.Reference
+import uk.gov.hmrc.eacdfileprocessor.repository.FileUploadRepoFormat
 
 import java.net.URL
 import java.time.Instant
@@ -42,6 +45,9 @@ case class UploadedDetails(
                             id: ObjectId,
                             reference: Reference,
                             status: String,
-                            details: Details,
+                            requestorPID: String,
+                            requestorEmail: String,
+                            requestorName: String,
+                            details: Option[Details] = None,
                             createdAt: Instant = Instant.now()
                           )

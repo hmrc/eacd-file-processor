@@ -24,8 +24,8 @@ import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.upscan.{Details, Reference}
-import uk.gov.hmrc.eacdfileprocessor.repo.FileUploadRepo
+import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference}
+import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
@@ -40,13 +40,13 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
   implicit val hc: HeaderCarrier = HeaderCarrier()
   private val mockAppConfig = mock[AppConfig]
   when(mockAppConfig.timeToLive).thenReturn("3")
-  lazy val repository = app.injector.instanceOf[FileUploadRepo]
+  lazy val repository = app.injector.instanceOf[FileRepository]
   val objectStoreClient = mock[PlayObjectStoreClient]
   lazy val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
   val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
 
   val progressTracker = UploadProgressTracker(repository, mockAppConfig, mockHttpClientV2, objectStoreClient)
-  val reference = Reference("3b8f08a6-c1fd-45d4-9af0-94a583b505cf")
+  val reference = initiateUploadDetails.reference
   val sucessfulDetails = Details.UploadedSuccessfully(
     name = "bulk-de-enrol.csv",
     mimeType = "text/csv",
@@ -54,8 +54,8 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
     size = Some(32270),
     checksum = "a0acaa6039c1a94c6f5c43f144c5add07de9381f98701cb14c7c6ce2be18020b"
   )
-  
-  override def beforeEach(): Unit = {
+
+  trait Setup {
     await(repository.collection.drop().headOption())
     await(repository.ensureIndexes())
     when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
@@ -65,11 +65,11 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
     when(mockRequestBuilder.withBody(any())(any(), any(), any())).thenReturn(mockRequestBuilder)
     when(mockRequestBuilder.execute(any[HttpReads[HttpResponse]], any()))
       .thenReturn(Future.successful(HttpResponse(CREATED, body = "")))
+    await(repository.createFileRecord(initiateUploadDetails))
   }
 
   "UploadProgressTracker" should {
-    "insert upload file details and correctly update status to stored" in {
-
+    "insert upload file details and correctly update status to stored" in new Setup {
       when(
         objectStoreClient.uploadFromUrl(
           from = any[URL],
@@ -98,7 +98,7 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
       result.status mustBe "stored"
     }
 
-    "Failed to upload file to object store and status remained scanned" in {
+    "Failed to upload file to object store and status remained scanned" in new Setup {
       when(
         objectStoreClient.uploadFromUrl(
           from = any[URL],

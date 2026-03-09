@@ -16,20 +16,16 @@
 
 package uk.gov.hmrc.eacdfileprocessor.models
 
-import play.api.libs.json.{Json, OFormat}
-
-import java.time.LocalDateTime
+import play.api.libs.json
+import play.api.libs.json.*
 
 case class HelpdeskInitiateRequestModel(
-                                  reference: String,
-                                  requestorPID: String,
-                                  requestorEmail: String,
-                                  requestorName: String,
-                                  fileStatus: String = "initial",
-                                  creationDateTime: LocalDateTime = LocalDateTime.now()
-                                )
+                                         reference: String,
+                                         requestorPID: String,
+                                         requestorEmail: String,
+                                         requestorName: String
+                                       )
 
 object HelpdeskInitiateRequestModel {
-  implicit val formats: OFormat[HelpdeskInitiateRequestModel] =
-    Json.format[HelpdeskInitiateRequestModel]
+  implicit val format: OFormat[HelpdeskInitiateRequestModel] = Json.format[HelpdeskInitiateRequestModel]
 }

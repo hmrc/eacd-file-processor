@@ -16,26 +16,29 @@
 
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
+import org.apache.pekko.stream.Materializer
 import org.mockito.ArgumentMatchers.*
 import org.mockito.Mockito.*
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpec
-import org.scalatestplus.mockito.MockitoSugar
+import org.scalatestplus.mockito.MockitoSugar.mock
 import play.api.libs.json.Json
 import play.api.mvc.*
 import play.api.test.Helpers.*
 import play.api.test.{FakeRequest, Helpers}
+import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
+import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, UnitSpec}
 import uk.gov.hmrc.eacdfileprocessor.models.ApiErrorResponse
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, MongoResponses}
-import uk.gov.hmrc.http.{HeaderCarrier, Authorization}
+import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
+import uk.gov.hmrc.http.{Authorization, HeaderCarrier}
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate, Retrieval}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.reflect.ClassTag
 
-class InitiateFileStorageControllerSpec extends AnyWordSpec with Matchers with MockitoSugar {
+class InitiateFileStorageControllerSpec extends TestData with UnitSpec {
+
+  implicit val mat: Materializer = mock[Materializer]
 
   val mockRepo: FileRepository = mock[FileRepository]
   val mockCC: ControllerComponents = Helpers.stubControllerComponents()
@@ -45,12 +48,13 @@ class InitiateFileStorageControllerSpec extends AnyWordSpec with Matchers with M
   class TestInitiateFileStorageController
     extends initiateFileStorageController(mockRepo, mockCC, mockConfig, mockAuth) {
     override def authorisedEntity(
-      providedPermission: Predicate.Permission,
-      apiName: String
-    ): ActionBuilder[AuthRequest, AnyContent] =
+                                   providedPermission: Predicate.Permission,
+                                   apiName: String
+                                 ): ActionBuilder[AuthRequest, AnyContent] =
       DefaultActionBuilder(mockCC.parsers.defaultBodyParser)(global)
         .andThen(new ActionTransformer[Request, AuthRequest] {
           override protected def executionContext: scala.concurrent.ExecutionContext = global
+
           override protected def transform[A](request: Request[A]): Future[AuthRequest[A]] =
             scala.concurrent.Future.successful(
               new AuthRequest(
@@ -62,6 +66,7 @@ class InitiateFileStorageControllerSpec extends AnyWordSpec with Matchers with M
             )
         })
   }
+
   val controller = new TestInitiateFileStorageController
 
   when(mockConfig.getOptional[Boolean](org.mockito.ArgumentMatchers.eq("internalAuth.enabled"))(any()))
@@ -71,24 +76,24 @@ class InitiateFileStorageControllerSpec extends AnyWordSpec with Matchers with M
 
   "POST /initiate" should {
     "return 201 Created for valid request" in {
-      when(mockRepo.createFileRecord(any())).thenReturn(Future.successful(MongoResponses.MongoSuccessCreate))
+      when(mockRepo.createFileRecord(any())).thenReturn(Future.successful(true))
       val json = Json.obj(
         "reference" -> "ref1",
         "requestorPID" -> "pid1",
         "requestorEmail" -> "test@example.com",
-        "requestorName" -> "Test User"
+        "requestorName" -> "Test User",
       )
-      val request = FakeRequest(POST, "/initiate").withJsonBody(json)
-      val result: Future[Result] = controller.initiateFileRecordStore()(request)
+      val request = FakeRequest(POST, "/initiate").withBody(json)
+      val result = await(controller.initiateFileRecordStore()(request))
       status(result) shouldBe CREATED
     }
 
     "return 400 for missing fields" in {
       val json = Json.obj("reference" -> "ref1")
-      val request = FakeRequest(POST, "/initiate").withJsonBody(json)
-      val result: Future[Result] = controller.initiateFileRecordStore()(request)
+      val request = FakeRequest(POST, "/initiate").withBody(json)
+      val result = await(controller.initiateFileRecordStore()(request))
       status(result) shouldBe BAD_REQUEST
-      contentAsJson(result) shouldBe Json.toJson(ApiErrorResponse("MANDATORY_FIELDS_MISSING", "Mandatory fields missing"))
+      jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("MANDATORY_FIELDS_MISSING", "Mandatory fields missing"))
     }
 
     "return 400 for invalid email" in {
@@ -98,45 +103,38 @@ class InitiateFileStorageControllerSpec extends AnyWordSpec with Matchers with M
         "requestorEmail" -> "invalid-email",
         "requestorName" -> "Test User"
       )
-      val request = FakeRequest(POST, "/initiate").withJsonBody(json)
-      val result: Future[Result] = controller.initiateFileRecordStore()(request)
+      val request = FakeRequest(POST, "/initiate").withBody(json)
+      val result = await(controller.initiateFileRecordStore()(request))
       status(result) shouldBe BAD_REQUEST
-      contentAsJson(result) shouldBe Json.toJson(ApiErrorResponse("INVALID_REQUESTOR_EMAIL", "Invalid requestor email"))
+      jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("INVALID_REQUESTOR_EMAIL", "Invalid requestor email"))
     }
 
     "return 400 for duplicate reference" in {
-      when(mockRepo.createFileRecord(any())).thenReturn(Future.successful(MongoResponses.MongoDuplicateKey))
+      when(mockRepo.createFileRecord(any())).thenReturn(Future.failed(new DuplicateReferenceException("Duplicate external file reference"))) //new MongoWriteException(WriteError(11000, "Duplicate key error", BsonDocument(List.empty)), ServerAddress("127.0.0.1", 27017), Collections.emptyList())))
       val json = Json.obj(
         "reference" -> "ref1",
         "requestorPID" -> "pid1",
         "requestorEmail" -> "test@example.com",
         "requestorName" -> "Test User"
       )
-      val request = FakeRequest(POST, "/initiate").withJsonBody(json)
-      val result: Future[Result] = controller.initiateFileRecordStore()(request)
+      val request = FakeRequest(POST, "/initiate").withBody(json)
+      val result = await(controller.initiateFileRecordStore()(request))
       status(result) shouldBe BAD_REQUEST
-      contentAsJson(result) shouldBe Json.toJson(ApiErrorResponse("DUPLICATE_EXTERNAL_FILE_REF", "Duplicate external file reference"))
-    }
-
-    "return 400 for non-JSON body" in {
-      val request = FakeRequest(POST, "/initiate").withTextBody("not json")
-      val result: Future[Result] = controller.initiateFileRecordStore()(request)
-      status(result) shouldBe BAD_REQUEST
-      contentAsJson(result) shouldBe Json.toJson(ApiErrorResponse("MANDATORY_FIELDS_MISSING", "Mandatory fields missing"))
+      jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("DUPLICATE_EXTERNAL_FILE_REF", "Duplicate external file reference"))
     }
 
     "return 500 for unknown repository error" in {
-      when(mockRepo.createFileRecord(any())).thenReturn(Future.successful(null))
+      when(mockRepo.createFileRecord(any())).thenReturn(Future.successful(new Exception("Unknown error")))
       val json = Json.obj(
         "reference" -> "ref1",
         "requestorPID" -> "pid1",
         "requestorEmail" -> "test@example.com",
         "requestorName" -> "Test User"
       )
-      val request = FakeRequest(POST, "/initiate").withJsonBody(json)
-      val result: Future[Result] = controller.initiateFileRecordStore()(request)
+      val request = FakeRequest(POST, "/initiate").withBody(json)
+      val result = await(controller.initiateFileRecordStore()(request))
       status(result) shouldBe INTERNAL_SERVER_ERROR
-      contentAsJson(result) shouldBe Json.toJson(ApiErrorResponse("UNKNOWN_ERROR", "Unknown error occurred"))
+      jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("SERVICE_UNAVAILABLE", "An unexpected error has occurred"))
     }
   }
 }

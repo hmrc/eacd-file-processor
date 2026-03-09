@@ -120,7 +120,7 @@ class InitiateFileStorageControllerISpec
       running(app) {
         val request = FakeRequest(POST, "/initiate").withTextBody("not json")
         val result = route(app, request).get
-        status(result) shouldBe BAD_REQUEST
+        status(result) shouldBe UNSUPPORTED_MEDIA_TYPE
         (contentAsJson(result) \ "errorCode").as[String] shouldBe "MANDATORY_FIELDS_MISSING"
       }
     }

@@ -14,28 +14,29 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.repo
+package uk.gov.hmrc.eacdfileprocessor.repository
 
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.libs.json.JsError
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.upscan.UploadedDetails
+import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
+import uk.gov.hmrc.eacdfileprocessor.repository.FileUploadRepoFormat
 
-class FileUploadRepoSpec extends TestSupport with TestData:
+class FileRepositorySpec extends TestSupport with TestData:
   "Serialization and deserialization of UploadedDetails" should {
 
     "serialize and deserialize scanned status" in {
-      val serialized = FileUploadRepoFormat.mongoFormat.writes(scannedUploadedDetails)
+      val serialized = FileUploadRepoFormat.mongoFormat.writes(scannedFileDetails)
       val output = FileUploadRepoFormat.mongoFormat.reads(serialized)
 
-      output.get mustBe scannedUploadedDetails
+      output.get mustBe scannedFileDetails
     }
 
     "serialize and deserialize failed status" in {
-      val serialized = FileUploadRepoFormat.mongoFormat.writes(failedUploadedDetails)
+      val serialized = FileUploadRepoFormat.mongoFormat.writes(failedFileDetails)
       val output = FileUploadRepoFormat.mongoFormat.reads(serialized)
 
-      output.get mustBe failedUploadedDetails
+      output.get mustBe failedFileDetails
     }
 
     "deserialize either scanned nor failed status" in {

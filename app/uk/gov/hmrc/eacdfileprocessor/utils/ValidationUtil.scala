@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.models.upscan
+package uk.gov.hmrc.eacdfileprocessor.utils
 
-import play.api.libs.json.{Format, Json, Reads, Writes}
-
-case class Reference(value: String)
-
-object Reference {
-  given Format[Reference] = Format(
-    Reads.StringReads.map(Reference(_)),
-    Writes(ref => Json.toJson(ref.value))
-  )
+object ValidationUtil {
+  def isEmailValid(email: String): Boolean = {
+    val emailRegex =
+      "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$".r
+    emailRegex.matches(email)
+  }
 }

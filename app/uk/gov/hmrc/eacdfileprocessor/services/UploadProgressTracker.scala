@@ -23,9 +23,9 @@ import play.api.libs.json.Json
 import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
 import play.api.mvc.Results.BadRequest
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.models.upscan.Details.UploadedSuccessfully
-import uk.gov.hmrc.eacdfileprocessor.models.upscan.{Details, Reference, UploadedDetails}
-import uk.gov.hmrc.eacdfileprocessor.repo.FileUploadRepo
+import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
+import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
@@ -36,7 +36,7 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class UploadProgressTracker @Inject()(repository: FileUploadRepo,
+class UploadProgressTracker @Inject()(repository: FileRepository,
                                       appConfig: AppConfig,
                                       httpClient: HttpClientV2,
                                       osClient: PlayObjectStoreClient)(implicit ec: ExecutionContext) extends Logging {
@@ -47,8 +47,8 @@ class UploadProgressTracker @Inject()(repository: FileUploadRepo,
         case f: Details.UploadedFailed => Future.successful("failed")
         case s: Details.UploadedSuccessfully => Future.successful("scanned")
       }
-      _ <- repository.insert(UploadedDetails(ObjectId.get(), fileReference, status, details)).map {
-        case true if status == "scanned" =>
+      _ <- repository.updateStatusAndDetails(fileReference, status, details).map {
+        case Some(_) if status == "scanned" =>
           val uploadedDetails = details.asInstanceOf[UploadedSuccessfully]
           transferToObjectStore(downloadUrl = uploadedDetails.downloadUrl,
             mimeType = uploadedDetails.mimeType,

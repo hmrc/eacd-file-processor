@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.models.upscan
+package uk.gov.hmrc.eacdfileprocessor.models
 
 import play.api.Logging
 import play.api.libs.json.*
