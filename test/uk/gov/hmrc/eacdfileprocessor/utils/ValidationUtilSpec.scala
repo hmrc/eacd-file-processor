@@ -13,13 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package uk.gov.hmrc.eacdfileprocessor.utils
 
-object ValidationUtil {
-  def isEmailValid(email: String): Boolean = {
-    val emailRegex =
-      "^([a-zA-Z0-9.!#$%&’'*+\\/=?^_`{|}~-]+)@([a-zA-Z0-9-]+(?:\\.[a-zA-Z0-9-]+)*)$".r
-    emailRegex.matches(email)
+import org.scalatest.matchers.should.Matchers.shouldBe
+import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
+
+class ValidationUtilSpec extends TestSupport {
+  "isEmailValid" should {
+    "return true for valid email addresse" in {
+      ValidationUtil.isEmailValid("john_smith.123@hmrc.gov.uk") shouldBe true
+    }
+    "return false for email addresse contains spaces" in {
+      ValidationUtil.isEmailValid("john  smith@hmrc.gov.uk") shouldBe false
+    }
+    "return true for email addresse contains special characters" in {
+      ValidationUtil.isEmailValid("john!#$%&'*+-/=?^_{|}~smith@hmrc.gov.uk") shouldBe true
+    }
   }
 }

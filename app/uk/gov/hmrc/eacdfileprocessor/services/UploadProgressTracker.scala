@@ -16,15 +16,14 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
-import org.bson.types.ObjectId
 import play.api.Logging
 import play.api.http.Status.CREATED
 import play.api.libs.json.Json
 import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
 import play.api.mvc.Results.BadRequest
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
+import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
@@ -92,7 +91,7 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
           logger.info(
             "[InternalAuthTokenInitialiser][createClientAuthToken] Auth token initialised"
           )
-          Future.successful("": Unit)
+          Future.unit
         } else {
           logger.error(
             "[InternalAuthTokenInitialiser][createClientAuthToken] Unable to initialise internal-auth token"

@@ -64,6 +64,8 @@ object CallbackBody extends Logging {
                 case "/downloadUrl" =>
                   logger.warn("MISSING_DOWNLOAD_URL DownloadUrl cannot be empty")
               JsError(errors)
+            case JsSuccess(readyCallbackBody, _) =>
+              JsSuccess(readyCallbackBody)
 
         case JsDefined(JsString("FAILED")) =>
           json.validate[FailedCallbackBody] match
@@ -72,7 +74,8 @@ object CallbackBody extends Logging {
                 case "/reference" =>
                   logger.warn("INVALID_FILE_REF File reference doesn't exist")
               JsError(errors)
-
+            case JsSuccess(failedCallbackBody, _) =>
+              JsSuccess(failedCallbackBody)
         case _ =>
           logger.warn("INVALID_STATUS File status empty or not recognised")
           JsError(s"File status empty or not recognised")

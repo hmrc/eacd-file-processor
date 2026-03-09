@@ -55,21 +55,22 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
     checksum = "a0acaa6039c1a94c6f5c43f144c5add07de9381f98701cb14c7c6ce2be18020b"
   )
 
-  trait Setup {
+  when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
+  when(mockAppConfig.internalAuthToken).thenReturn("12345678")
+  when(mockAppConfig.appName).thenReturn("eacd-file-processor")
+  when(mockHttpClientV2.post(any())(any())).thenReturn(mockRequestBuilder)
+  when(mockRequestBuilder.withBody(any())(any(), any(), any())).thenReturn(mockRequestBuilder)
+  when(mockRequestBuilder.execute(any[HttpReads[HttpResponse]], any()))
+    .thenReturn(Future.successful(HttpResponse(CREATED, body = "")))
+
+  override def beforeEach(): Unit = {
     await(repository.collection.drop().headOption())
     await(repository.ensureIndexes())
-    when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
-    when(mockAppConfig.internalAuthToken).thenReturn("12345678")
-    when(mockAppConfig.appName).thenReturn("eacd-file-processor")
-    when(mockHttpClientV2.post(any())(any())).thenReturn(mockRequestBuilder)
-    when(mockRequestBuilder.withBody(any())(any(), any(), any())).thenReturn(mockRequestBuilder)
-    when(mockRequestBuilder.execute(any[HttpReads[HttpResponse]], any()))
-      .thenReturn(Future.successful(HttpResponse(CREATED, body = "")))
     await(repository.createFileRecord(initiateUploadDetails))
   }
 
   "UploadProgressTracker" should {
-    "insert upload file details and correctly update status to stored" in new Setup {
+    "insert upload file details and correctly update status to stored" in {
       when(
         objectStoreClient.uploadFromUrl(
           from = any[URL],
@@ -92,13 +93,16 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
       )
       when(progressTracker.transferToObjectStore(sucessfulDetails.downloadUrl, sucessfulDetails.mimeType, sucessfulDetails.checksum, sucessfulDetails.name, reference)).thenReturn(Future.unit)
 
-      await(progressTracker.registerUploadResult(reference, sucessfulDetails))
+      val file = await(repository.findByReference(reference)).get
+      file.status mustBe "initial"
 
-      val result = await(progressTracker.getUploadResult(reference)).get
-      result.status mustBe "stored"
+      for {
+        _ <- progressTracker.registerUploadResult(reference, sucessfulDetails)
+        uploadedResult <- repository.findByReference(reference)
+      } yield uploadedResult.get.status mustBe "stored"
     }
 
-    "Failed to upload file to object store and status remained scanned" in new Setup {
+    "Failed to upload file to object store and status remained scanned" in {
       when(
         objectStoreClient.uploadFromUrl(
           from = any[URL],
@@ -112,9 +116,12 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
       ).thenReturn(Future.failed(new TimeoutException("Unable to upload, time out.")))
       when(progressTracker.transferToObjectStore(sucessfulDetails.downloadUrl, sucessfulDetails.mimeType, sucessfulDetails.checksum, sucessfulDetails.name, reference)).thenReturn(Future.unit)
 
-      await(progressTracker.registerUploadResult(reference, sucessfulDetails))
+      val file = await(repository.findByReference(reference)).get
+      file.status mustBe "initial"
 
-      val result = await(progressTracker.getUploadResult(reference)).get
-      result.status mustBe "scanned"
+      for {
+        _ <- progressTracker.registerUploadResult(reference, sucessfulDetails)
+        uploadedResult <- repository.findByReference(reference)
+      } yield uploadedResult.get.status mustBe "scanned"
     }
   }

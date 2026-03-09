@@ -27,10 +27,13 @@ import scala.util.{Failure, Success}
 class MetricsReporterSpec extends AnyWordSpec with Matchers with ScalaFutures {
   implicit val ec: ExecutionContext = ExecutionContext.global
 
+  trait Setup {
+    val registry = new MetricRegistry
+    val reporter = new MetricsReporter(registry)
+  }
+
   "MetricsReporter" should {
-    "increment counters for success and failure" in {
-      val registry = new MetricRegistry
-      val reporter = new MetricsReporter(registry)
+    "increment counters for success and failure" in new Setup {
       reporter.markSuccessfulWrite()
       reporter.markFailedWrite()
       reporter.markSuccessfulRead()
@@ -41,24 +44,27 @@ class MetricsReporterSpec extends AnyWordSpec with Matchers with ScalaFutures {
       registry.counter("mongo.readFail").getCount shouldBe 1
     }
 
-    "timeCompletionOfFuture should time a future" in {
-      val registry = new MetricRegistry
-      val reporter = new MetricsReporter(registry)
-      val f = Future { Thread.sleep(10); 42 }
-      val timed = reporter.timeCompletionOfFuture("timer", f)
-      timed.futureValue shouldBe 42
-      registry.timer("timer").getCount shouldBe 1
+    "timeCompletionOfFuture should time a future" in new Setup {
+      for {
+        f <- Future { Thread.sleep(10); 42 }
+        timed <- reporter.timeCompletionOfFuture("timer", Future.successful(f))
+        count <- Future { registry.timer("timer").getCount }
+      } yield {
+        timed shouldBe 42
+        count shouldBe 1
+      }
     }
 
-    "MongoMetricReporter should mark metrics on future completion" in {
-      val registry = new MetricRegistry
-      val reporter = new MetricsReporter(registry)
-      val f1 = Future.successful(1).withMetrics(reporter, MetricsReporter.MongoRead)
-      val f2 = Future.failed(new Exception).withMetrics(reporter, MetricsReporter.MongoWrite)
-      f1.futureValue shouldBe 1
-      f2.failed.futureValue shouldBe a [Exception]
-      registry.counter("mongo.readSuccess").getCount shouldBe 1
-      registry.counter("mongo.writeFail").getCount shouldBe 1
+    "MongoMetricReporter should mark metrics on future completion" in new Setup {
+      for {
+        f1 <- Future.successful(1).withMetrics(reporter, MetricsReporter.MongoRead)
+        f2 <- Future.failed(new Exception).withMetrics(reporter, MetricsReporter.MongoWrite)
+        successCount <- Future { registry.counter("mongo.readSuccess").getCount }
+        failCount <- Future { registry.counter("mongo.writeFail").getCount }
+      } yield {
+        f1 shouldBe successCount
+        f2 shouldBe failCount
+      }
     }
   }
 }
