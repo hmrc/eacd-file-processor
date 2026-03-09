@@ -20,7 +20,6 @@ import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.libs.json.JsError
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
-import uk.gov.hmrc.eacdfileprocessor.repository.FileUploadRepoFormat
 
 class FileRepositorySpec extends TestSupport with TestData:
   "Serialization and deserialization of UploadedDetails" should {

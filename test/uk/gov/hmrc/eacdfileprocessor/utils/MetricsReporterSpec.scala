@@ -22,7 +22,6 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.concurrent.ScalaFutures
 import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter.MongoMetricReporter
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
 
 class MetricsReporterSpec extends AnyWordSpec with Matchers with ScalaFutures {
   implicit val ec: ExecutionContext = ExecutionContext.global

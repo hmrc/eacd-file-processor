@@ -24,7 +24,6 @@ import java.time.LocalDateTime
 class HelpdeskInitiateRequestModelSpec extends AnyWordSpec with Matchers {
   "HelpdeskInitiateRequestModel" should {
     "serialize and deserialize to/from JSON" in {
-      val now = LocalDateTime.of(2026, 3, 5, 12, 0)
       val model = HelpdeskInitiateRequestModel(
         reference = "ref-123",
         requestorPID = "pid-456",

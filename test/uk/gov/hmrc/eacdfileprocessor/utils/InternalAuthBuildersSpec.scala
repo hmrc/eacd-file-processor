@@ -27,7 +27,6 @@ class InternalAuthBuildersSpec extends AnyWordSpec with Matchers with MockitoSug
   "InternalAuthBuilders" should {
     "provide a default ActionBuilder when internalAuth is disabled" in {
       val config: Configuration = Configuration("internalAuth.enabled" -> false)
-      val cc: ControllerComponents = mock[ControllerComponents]
       val authStub: BackendAuthComponents = mock[BackendAuthComponents]
       val builder: InternalAuthBuilders = new InternalAuthBuilders {
         override def auth: BackendAuthComponents = authStub
