@@ -71,14 +71,14 @@ object FileUploadRepoFormat {
 
   given Format[FileStatus] =
     val read: Reads[FileStatus] = {
-      case JsString(INITIAL.value) => JsSuccess(INITIAL)
-      case JsString(SCANNED.value) => JsSuccess(SCANNED)
-      case JsString(FAILED.value) => JsSuccess(FAILED)
-      case JsString(STORED.value) => JsSuccess(STORED)
+      case JsString(INITIAL.value)        => JsSuccess(INITIAL)
+      case JsString(SCANNED.value)        => JsSuccess(SCANNED)
+      case JsString(FAILED.value)         => JsSuccess(FAILED)
+      case JsString(STORED.value)         => JsSuccess(STORED)
       case JsString(UPLOADREJECTED.value) => JsSuccess(UPLOADREJECTED)
-      case JsString(UPLOADED.value) => JsSuccess(UPLOADED)
-      case JsString(REJECTED.value) => JsSuccess(REJECTED)
-      case JsString(APPROVED.value) => JsSuccess(APPROVED)
+      case JsString(UPLOADED.value)       => JsSuccess(UPLOADED)
+      case JsString(REJECTED.value)       => JsSuccess(REJECTED)
+      case JsString(APPROVED.value)       => JsSuccess(APPROVED)
       case _ => JsError("Unknown file status")
     }
 
