@@ -10,7 +10,7 @@ A helpdesk user will upload a document and this service will retrieve and store 
 sbt clean coverage test it/test coverageReport
 
 # Running service
-sbt "run 9000"
+sbt "run 9867"
 
 ### Running the test suite
 ```

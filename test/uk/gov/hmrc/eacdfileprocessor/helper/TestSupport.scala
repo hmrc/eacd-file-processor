@@ -23,8 +23,12 @@ import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.test.Injecting
+import uk.gov.hmrc.http.HeaderCarrier
 
-trait TestSupport extends PlaySpec with GuiceOneAppPerSuite
+import scala.concurrent.ExecutionContext
+
+trait TestSupport extends PlaySpec 
+  with GuiceOneAppPerSuite
   with Matchers
   with MockitoSugar
   with Injecting
@@ -32,6 +36,8 @@ trait TestSupport extends PlaySpec with GuiceOneAppPerSuite
   with ScalaFutures
   with IntegrationPatience {
 
+  implicit lazy val ec: ExecutionContext = inject[ExecutionContext]
+  implicit val hc: HeaderCarrier = HeaderCarrier()
 
 }
 

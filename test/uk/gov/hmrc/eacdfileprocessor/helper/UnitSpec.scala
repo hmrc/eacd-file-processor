@@ -19,7 +19,6 @@ package uk.gov.hmrc.eacdfileprocessor.helper
 import org.apache.pekko.stream.Materializer
 import org.apache.pekko.util.ByteString
 import org.scalatest.OptionValues
-import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.Result
@@ -30,7 +29,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.*
 import scala.concurrent.{Await, Future}
 
-trait UnitSpec extends AnyWordSpecLike with Matchers with OptionValues with FutureAwaits with DefaultAwaitTimeout {
+trait UnitSpec extends AnyWordSpecLike with OptionValues with FutureAwaits with DefaultAwaitTimeout {
 
 
 

@@ -25,17 +25,17 @@ class FileRepositorySpec extends TestSupport with TestData:
   "Serialization and deserialization of UploadedDetails" should {
 
     "serialize and deserialize scanned status" in {
-      val serialized = FileUploadRepoFormat.mongoFormat.writes(scannedFileDetails)
+      val serialized = FileUploadRepoFormat.mongoFormat.writes(scannedUploadedDetails)
       val output = FileUploadRepoFormat.mongoFormat.reads(serialized)
 
-      output.get mustBe scannedFileDetails
+      output.get mustBe scannedUploadedDetails
     }
 
     "serialize and deserialize failed status" in {
-      val serialized = FileUploadRepoFormat.mongoFormat.writes(failedFileDetails)
+      val serialized = FileUploadRepoFormat.mongoFormat.writes(failedUploadedDetails)
       val output = FileUploadRepoFormat.mongoFormat.reads(serialized)
 
-      output.get mustBe failedFileDetails
+      output.get mustBe failedUploadedDetails
     }
 
     "deserialize either scanned nor failed status" in {

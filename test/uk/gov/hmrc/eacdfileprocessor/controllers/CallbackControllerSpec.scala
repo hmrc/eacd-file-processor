@@ -18,6 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{times, verify, when}
+import org.scalatest.matchers.should.Matchers.shouldBe
 import org.scalatestplus.mockito.MockitoSugar.mock
 import play.api.http.Status.NO_CONTENT
 import play.api.test.Helpers.POST

@@ -18,7 +18,8 @@ package uk.gov.hmrc.eacdfileprocessor.helper
 
 import org.bson.types.ObjectId
 import play.api.libs.json.{JsValue, Json}
-import uk.gov.hmrc.eacdfileprocessor.models.{Details, ErrorDetails, FailedCallbackBody, ReadyCallbackBody, Reference, UploadDetails, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{FAILED, INITIAL, SCANNED}
+import uk.gov.hmrc.eacdfileprocessor.models.*
 
 import java.net.URL
 import java.time.Instant
@@ -57,52 +58,60 @@ trait TestData:
       message = "MIME type application/pdf is not allowed for service"
     )
   )
-  
+
   val initiateUploadDetails = UploadedDetails(
     id = ObjectId("6994a038d540b44c4403aee3"),
     reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
-    status = "initial",
+    status = INITIAL,
     requestorPID = "12345678",
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
-    createdAt = createdAt
+    lastUpdatedDateTime = createdAt
   )
 
-  val failedUploadedDetails = Details.UploadedFailed(
-      failureReason = "REJECTED",
-      message = "MIME type application/pdf is not allowed for service"
-    )
+  val failedFileDetails = Details.UploadedFailed(
+    failureReason = "REJECTED",
+    message = "MIME type application/pdf is not allowed for service"
+  )
 
-  val scannedUploadedDetails = Details.UploadedSuccessfully(
-      name = "bulk-de-enrol.csv",
-      mimeType = "text/csv",
-      downloadUrl = URL("http://localhost:9570/upscan/download/c5da3bd6-f118-4cde-afff-93f763bf6448"),
-      size = Some(32270),
-      checksum = "a0acaa6039c1a94c6f5c43f144c5add07de9381f98701cb14c7c6ce2be18020b"
-    )
+  val successfulUploadedDetails = Details.UploadedSuccessfully(
+    name = "bulk-de-enrol.csv",
+    mimeType = "text/csv",
+    downloadUrl = URL("http://localhost:9570/upscan/download/c5da3bd6-f118-4cde-afff-93f763bf6448"),
+    size = Some(32270),
+    checksum = "a0acaa6039c1a94c6f5c43f144c5add07de9381f98701cb14c7c6ce2be18020b"
+  )
 
-  val scannedFileDetails = UploadedDetails(
+  val scannedUploadedDetails = UploadedDetails(
     id = ObjectId("6994a038d540b44c4403aee3"),
     reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
-    status = "initial",
+    status = SCANNED,
     requestorPID = "12345678",
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
-    details = Some(scannedUploadedDetails),
-    createdAt = createdAt
+    details = Some(successfulUploadedDetails),
+    lastUpdatedDateTime = createdAt
   )
-  
-  val failedFileDetails = UploadedDetails(
+
+  val failedUploadedDetails = UploadedDetails(
     id = ObjectId("6994a038d540b44c4403aee3"),
     reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
-    status = "initial",
+    status = FAILED,
     requestorPID = "12345678",
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
-    details = Some(failedUploadedDetails),
-    createdAt = createdAt
+    details = Some(failedFileDetails),
+    lastUpdatedDateTime = createdAt
   )
-  
+
+  val approverDetails = ApproverDetails(
+    approverEmail = Some("approverTest@hmrc.gov.uk"),
+    approverPID = Some("12345678"),
+    approverName = Some("Approver1"),
+    errorCode = Some("error code"),
+    errorMessage = Some("error message")
+  )
+
   val missingFieldUploadedDetails: JsValue = Json.parse(
     """
       |{
@@ -129,7 +138,7 @@ trait TestData:
   )
 
   val upscanSuccessResponse: JsValue = Json.parse(
-  """
+    """
       |{
       |  "reference": "08aad019-7f66-4456-8d52-93f12109876f",
       |  "downloadUrl": "http://localhost:9570/upscan/download/a682288e-57b5-4319-9f04-e37bced82469",
@@ -224,5 +233,26 @@ trait TestData:
       |    "uploadTimestamp": "2026-02-17T15:27:29.889028Z"
       |  }
       |}
+      |""".stripMargin
+  )
+
+  val updateStatusRequestBody: JsValue = Json.parse(
+    """
+      |{
+      |  "status": "approved",
+      |  "approverName": "Approver1",
+      |  "approverPID": "12345678",
+      |  "approverEmail": "approver1@hmrc.gov.uk"
+      |  }
+      |""".stripMargin
+  )
+
+  val updateStatusRequestBodyWithoutStatus: JsValue = Json.parse(
+    """
+      |{
+      |  "approverName": "Approver1",
+      |  "approverPID": "12345678",
+      |  "approverEmail": "approver1@hmrc.gov.uk"
+      |  }
       |""".stripMargin
   )

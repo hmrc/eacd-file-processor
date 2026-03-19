@@ -41,10 +41,12 @@ object Details {
 case class UploadedDetails(
                             id: ObjectId,
                             reference: Reference,
-                            status: String,
+                            status: FileStatus,
                             requestorPID: String,
                             requestorEmail: String,
                             requestorName: String,
                             details: Option[Details] = None,
-                            createdAt: Instant = Instant.now()
+                            approverDetails: Option[ApproverDetails] = None,
+                            uploadedDateTime: Option[Instant] = None,
+                            lastUpdatedDateTime: Instant = Instant.now()
                           )
