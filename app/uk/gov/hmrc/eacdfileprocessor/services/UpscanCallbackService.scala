@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
-import uk.gov.hmrc.eacdfileprocessor.models.upscan.{CallbackBody, Details, FailedCallbackBody, ReadyCallbackBody}
+import uk.gov.hmrc.eacdfileprocessor.models.{CallbackBody, Details, FailedCallbackBody, ReadyCallbackBody}
 import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier}
 
 import javax.inject.Inject

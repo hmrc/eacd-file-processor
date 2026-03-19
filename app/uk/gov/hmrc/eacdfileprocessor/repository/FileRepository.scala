@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.repo
+package uk.gov.hmrc.eacdfileprocessor.repository
 
 import com.mongodb.client.model.Indexes.descending
 import org.bson.types.ObjectId
+import org.mongodb.scala.MongoWriteException
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Filters.equal
@@ -26,9 +27,11 @@ import play.api.Logging
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.models.upscan.{Details, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
+import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
+import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 import uk.gov.hmrc.mongo.play.json.formats.{MongoFormats, MongoJavatimeFormats}
 
 import java.net.{URI, URL}
@@ -41,7 +44,7 @@ import scala.util.{Failure, Success}
 
 object FileUploadRepoFormat {
 
-  private given Format[Details] =
+  given Format[Details] =
     given Format[URL] = summon[Format[String]].inmap(new URI(_).toURL, _.toString)
 
     given Format[Details.UploadedSuccessfully] = Json.format[Details.UploadedSuccessfully]
@@ -72,26 +75,36 @@ object FileUploadRepoFormat {
 
   private given Format[ObjectId] = MongoFormats.objectIdFormat
 
-  private[repo] val mongoFormat: Format[UploadedDetails] =
+  private[repository] val mongoFormat: Format[UploadedDetails] =
     ((__ \ "_id").format[ObjectId]
       ~ (__ \ "reference").format[Reference]
       ~ (__ \ "status").format[String]
-      ~ (__ \ "details").format[Details]
+      ~ (__ \ "requestorPID").format[String]
+      ~ (__ \ "requestorEmail").format[String]
+      ~ (__ \ "requestorName").format[String]
+      ~ (__ \ "details").formatNullable[Details]
       ~ (__ \ "createdAt").format[Instant]
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 
 @Singleton
-class FileUploadRepo @Inject()(
+class FileRepository @Inject()(
                                 mongoComponent: MongoComponent,
+                                metrics: MetricsReporter,
                                 config: AppConfig
                               )(using ExecutionContext)
   extends PlayMongoRepository[UploadedDetails](
-    collectionName = "upscanProgressTracker",
+    collectionName = "file",
     mongoComponent = mongoComponent,
     domainFormat = FileUploadRepoFormat.mongoFormat,
     indexes = Seq(
-      IndexModel(Indexes.ascending("reference"), IndexOptions().unique(true)),
+      IndexModel(
+        Indexes.ascending("reference"),
+        IndexOptions()
+          .name("reference")
+          .unique(true)
+          .sparse(false)
+      ),
       IndexModel(
         descending("createdAt"),
         IndexOptions()
@@ -103,25 +116,43 @@ class FileUploadRepo @Inject()(
     replaceIndexes = true
   ) with Logging:
 
+  import FileUploadRepoFormat.given
   override lazy val requiresTtlIndex: Boolean = false
 
-  def insert(details: UploadedDetails): Future[Boolean] =
-    collection.insertOne(details)
-      .toFuture().transformWith {
-        case Success(result) =>
-          logger.info(s"Uploaded file has been upsert for reference: ${details.reference.value}")
-          Future.successful(result.wasAcknowledged())
-        case Failure(exception) =>
-          val errorMsg = s"Uploaded file is not inserted for reference: ${details.reference.value}"
-          logger.error(errorMsg)
-          Future.failed(new IllegalStateException(s"$errorMsg: ${exception.getMessage} ${exception.getCause}"))
-      }
+  def createFileRecord(details: UploadedDetails): Future[Boolean] =
+    metrics.timeCompletionOfFuture("createFileRecordMongoTimer", {
+      collection.insertOne(details)
+        .toFuture().transformWith {
+          case Success(result) =>
+            logger.info(s"Uploaded file has been upsert for reference: ${details.reference.value}")
+            Future.successful(result.wasAcknowledged())
+          case Failure(exception) =>
+            exception match {
+              case e: MongoWriteException if e.getCode == 11000 =>
+                logger.warn(s"DUPLICATE_EXTERNAL_FILE_REF Duplicate external file reference: ${details.reference.value}")
+                Future.failed(new DuplicateReferenceException("Duplicate external file reference"))
+              case _ =>
+                val errorMsg = s"Uploaded file is not inserted for reference: ${details.reference.value}"
+                logger.error(errorMsg)
+                Future.failed(new IllegalStateException(s"$errorMsg: ${exception.getMessage} ${exception.getCause}"))
+            }
+        }
+    })
 
   def findByReference(reference: Reference): Future[Option[UploadedDetails]] = {
     collection.find(
       equal("reference.value", reference.value)
     ).headOption()
   }
+
+  def updateStatusAndDetails(reference: Reference, status: String, details: Details): Future[Option[UploadedDetails]] =
+    collection
+      .findOneAndUpdate(
+        filter = equal("reference.value", reference.value),
+        update = Seq(set("status", status), set("details", Codecs.toBson(details)), set("createdAt", Instant.now())),
+        options = FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
+      )
+      .toFutureOption()
 
   def updateStatus(reference: Reference, status: String): Future[Option[UploadedDetails]] =
     collection

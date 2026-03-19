@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.helper
 
 import org.bson.types.ObjectId
 import play.api.libs.json.{JsValue, Json}
-import uk.gov.hmrc.eacdfileprocessor.models.upscan.{Details, ErrorDetails, FailedCallbackBody, ReadyCallbackBody, Reference, UploadDetails, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.{Details, ErrorDetails, FailedCallbackBody, ReadyCallbackBody, Reference, UploadDetails, UploadedDetails}
 
 import java.net.URL
 import java.time.Instant
@@ -57,32 +57,52 @@ trait TestData:
       message = "MIME type application/pdf is not allowed for service"
     )
   )
-
-  val failedUploadedDetails = UploadedDetails(
+  
+  val initiateUploadDetails = UploadedDetails(
     id = ObjectId("6994a038d540b44c4403aee3"),
-    reference = Reference("747c4a0c-a442-4c72-baeb-efb758462602"),
-    status = "failed",
-    details = Details.UploadedFailed(
-      failureReason = "REJECTED",
-      message = "MIME type application/pdf is not allowed for service"
-    ),
+    reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
+    status = "initial",
+    requestorPID = "12345678",
+    requestorEmail = "test@hmrc.gov.uk",
+    requestorName = "Test User",
     createdAt = createdAt
   )
 
-  val scannedUploadedDetails = UploadedDetails(
-    id = ObjectId("6994a038d540b44c4403aee3"),
-    reference = Reference("3b8f08a6-c1fd-45d4-9af0-94a583b505cf"),
-    status = "scanned",
-    details = Details.UploadedSuccessfully(
+  val failedUploadedDetails = Details.UploadedFailed(
+      failureReason = "REJECTED",
+      message = "MIME type application/pdf is not allowed for service"
+    )
+
+  val scannedUploadedDetails = Details.UploadedSuccessfully(
       name = "bulk-de-enrol.csv",
       mimeType = "text/csv",
       downloadUrl = URL("http://localhost:9570/upscan/download/c5da3bd6-f118-4cde-afff-93f763bf6448"),
       size = Some(32270),
       checksum = "a0acaa6039c1a94c6f5c43f144c5add07de9381f98701cb14c7c6ce2be18020b"
-    ),
+    )
+
+  val scannedFileDetails = UploadedDetails(
+    id = ObjectId("6994a038d540b44c4403aee3"),
+    reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
+    status = "initial",
+    requestorPID = "12345678",
+    requestorEmail = "test@hmrc.gov.uk",
+    requestorName = "Test User",
+    details = Some(scannedUploadedDetails),
     createdAt = createdAt
   )
-
+  
+  val failedFileDetails = UploadedDetails(
+    id = ObjectId("6994a038d540b44c4403aee3"),
+    reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
+    status = "initial",
+    requestorPID = "12345678",
+    requestorEmail = "test@hmrc.gov.uk",
+    requestorName = "Test User",
+    details = Some(failedUploadedDetails),
+    createdAt = createdAt
+  )
+  
   val missingFieldUploadedDetails: JsValue = Json.parse(
     """
       |{
@@ -93,6 +113,9 @@ trait TestData:
       |    "value" : "747c4a0c-a442-4c72-baeb-efb758462602"
       |  },
       |  "status" : "failed",
+      |  "requestorPID" : "12345678",
+      |  "requestorEmail" : "test@hmrc.gov.uk",
+      |  "requestorName" : "Test User",
       |  "details" : {
       |    "message" : "MIME type application/pdf is not allowed for service"
       |  },

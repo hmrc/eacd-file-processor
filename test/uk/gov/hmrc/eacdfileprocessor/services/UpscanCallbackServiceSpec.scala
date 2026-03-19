@@ -24,7 +24,7 @@ import play.api.test.Helpers
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier}
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class UpscanCallbackServiceSpec extends TestSupport with TestData:
   private implicit val ec: ExecutionContext = Helpers.stubControllerComponents().executionContext
@@ -48,11 +48,13 @@ class UpscanCallbackServiceSpec extends TestSupport with TestData:
 
     "throws exception when MIME doesn't match" in new Setup {
       val expectedException = BadRequestException("Incorrect file type uploaded, preferred file type was: text/csv")
-      val failedResult = callbackService.handleCallback(wrongMIMEReadyCallbackBody)
+      val failedResult: Future[Any] = callbackService.handleCallback(wrongMIMEReadyCallbackBody)
       ScalaFutures.whenReady(failedResult.failed) {
-        e =>
+        case e: BadRequestException =>
           e.getClass shouldBe expectedException.getClass
           e.getMessage shouldBe expectedException.getMessage
+        case other =>
+          fail(s"Unexpected exception: $other")
       }
     }
   }

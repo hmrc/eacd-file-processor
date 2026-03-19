@@ -19,7 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 import play.api.Logging
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, ControllerComponents, Request}
-import uk.gov.hmrc.eacdfileprocessor.models.upscan.CallbackBody
+import uk.gov.hmrc.eacdfileprocessor.models.CallbackBody
 import uk.gov.hmrc.eacdfileprocessor.services.UpscanCallbackService
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
@@ -46,7 +46,6 @@ class CallbackController @Inject()(
         }
     }.map { result =>
       result.header.status match
-        case BAD_REQUEST => NoContent
         case _ => NoContent
     }
   }
