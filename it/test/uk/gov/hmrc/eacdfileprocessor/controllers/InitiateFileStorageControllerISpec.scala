@@ -23,15 +23,15 @@ import play.api.libs.json.Json
 import play.api.test.Helpers.*
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.INITIAL
 import uk.gov.hmrc.eacdfileprocessor.models.{Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 
 import java.time.Instant
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 class InitiateFileStorageControllerISpec
   extends TestSupport with DefaultAwaitTimeout {
-  implicit val ec: ExecutionContext = Helpers.stubControllerComponents().executionContext
   lazy val repository = app.injector.instanceOf[FileRepository]
 
   override def beforeEach(): Unit = {
@@ -44,11 +44,11 @@ class InitiateFileStorageControllerISpec
       UploadedDetails(
         id = ObjectId("6994a038d540b44c4403aee3"),
         reference = Reference("ref-dup-1"),
-        status = "initial",
+        status = INITIAL,
         requestorPID = "12345678",
         requestorEmail = "test@hmrc.gov.uk",
         requestorName = "Test User",
-        createdAt = Instant.now()
+        lastUpdatedDateTime = Instant.now()
       ))
     )
 
@@ -117,8 +117,8 @@ class InitiateFileStorageControllerISpec
       uploadedDetails.requestorPID shouldBe "pid-integration-2"
       uploadedDetails.requestorEmail shouldBe "integration2@example.com"
       uploadedDetails.requestorName shouldBe "Integration User 2"
-      uploadedDetails.status shouldBe "initial"
-      uploadedDetails.createdAt.isBefore(Instant.now()) shouldBe true
+      uploadedDetails.status shouldBe INITIAL
+      uploadedDetails.lastUpdatedDateTime.isBefore(Instant.now()) shouldBe true
     }
   }
 }

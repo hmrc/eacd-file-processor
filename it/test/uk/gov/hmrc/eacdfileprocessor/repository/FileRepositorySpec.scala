@@ -17,18 +17,16 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import org.mockito.Mockito.when
-import org.scalatest.matchers.should.Matchers.shouldBe
+import org.scalatest.matchers.should.Matchers.{should, shouldBe}
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.{Reference, UploadedDetails}
-
-import scala.concurrent.ExecutionContext
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
+import uk.gov.hmrc.eacdfileprocessor.models.{ApproverDetails, Reference, UploadedDetails}
 
 class FileRepositorySpec extends TestSupport with TestData:
-  implicit val ec: ExecutionContext = Helpers.stubControllerComponents().executionContext
   private val mockAppConfig = mock[AppConfig]
   when(mockAppConfig.timeToLive).thenReturn("3")
   lazy val repository = app.injector.instanceOf[FileRepository]
@@ -65,26 +63,46 @@ class FileRepositorySpec extends TestSupport with TestData:
       "correctly update status and failed details" in {
         val reference = initiateUploadDetails.reference
         await(repository.createFileRecord(initiateUploadDetails))
-        await(repository.updateStatusAndDetails(reference, "failed", failedUploadedDetails))
+        await(repository.updateStatusAndDetails(reference, FAILED, failedFileDetails))
 
         val actual = await(repository.findByReference(reference)).get
-        actual shouldBe initiateUploadDetails.copy(status = "failed", details = Some(failedUploadedDetails), createdAt = actual.createdAt)
+        actual shouldBe initiateUploadDetails.copy(status = FAILED, details = Some(failedFileDetails), lastUpdatedDateTime = actual.lastUpdatedDateTime)
       }
       "correctly update status and successful details" in {
         val reference = initiateUploadDetails.reference
         await(repository.createFileRecord(initiateUploadDetails))
-        await(repository.updateStatusAndDetails(reference, "scanned", scannedUploadedDetails))
+        await(repository.updateStatusAndDetails(reference, SCANNED, successfulUploadedDetails))
 
         val actual = await(repository.findByReference(reference)).get
-        actual shouldBe initiateUploadDetails.copy(status = "scanned", details = Some(scannedUploadedDetails), createdAt = actual.createdAt)
+        actual shouldBe initiateUploadDetails.copy(status = SCANNED, details = Some(successfulUploadedDetails), lastUpdatedDateTime = actual.lastUpdatedDateTime)
       }
       "correctly update status" in {
         val reference = initiateUploadDetails.reference
         await(repository.createFileRecord(initiateUploadDetails))
-        await(repository.updateStatus(reference, "stored"))
+        await(repository.updateStatus(reference, STORED))
 
         val actual = await(repository.findByReference(reference)).get
-        actual shouldBe initiateUploadDetails.copy(status = "stored", createdAt = actual.createdAt)
+        actual shouldBe initiateUploadDetails.copy(status = STORED, lastUpdatedDateTime = actual.lastUpdatedDateTime)
+      }
+      "correctly update status approver details and uploadedDateTime" in {
+        val reference = initiateUploadDetails.reference
+        await(repository.createFileRecord(initiateUploadDetails))
+        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, true))
+
+        val actual = await(repository.findByReference(reference)).get
+        val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), uploadedDateTime = actual.uploadedDateTime, lastUpdatedDateTime = actual.lastUpdatedDateTime)
+        actual shouldBe expected
+        actual.uploadedDateTime should not be None
+      }
+      "correctly update status and approver details" in {
+        val reference = initiateUploadDetails.reference
+        await(repository.createFileRecord(initiateUploadDetails))
+        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, false))
+
+        val actual = await(repository.findByReference(reference)).get
+        val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), lastUpdatedDateTime = actual.lastUpdatedDateTime)
+        actual shouldBe expected
+        actual.uploadedDateTime shouldBe None
       }
     }
   }

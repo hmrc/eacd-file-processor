@@ -35,10 +35,10 @@ trait InternalAuthBuilders {
 
   private val permission: Predicate.Permission = Predicate.Permission(Resource(ResourceType("eacd-file-processor"), ResourceLocation("")), IAAction("ADMIN"))
 
-  def authorisedEntity(providedPermission: Predicate.Permission = permission, apiName: String = "default"): ActionBuilder[AuthRequest, AnyContent] = {
+  def authorisedEntity(providedPermission: Predicate = permission, apiName: String = "default"): ActionBuilder[AuthRequest, AnyContent] = {
 
     if(configuration.getOptional[Boolean](s"internalAuth.enabled").getOrElse(true)
-      && configuration.getOptional[Boolean](s"internalAuth.${apiName}.enabled").getOrElse(true)){
+      && configuration.getOptional[Boolean](s"internalAuth.$apiName.enabled").getOrElse(true)){
       auth.authorizedAction(
         predicate = providedPermission,
         retrieval = Retrieval.username,

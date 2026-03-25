@@ -23,6 +23,7 @@ import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
 import play.api.mvc.Results.BadRequest
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{FAILED, SCANNED, STORED}
 import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.client.HttpClientV2
@@ -33,6 +34,7 @@ import uk.gov.hmrc.objectstore.client.{Path, RetentionPeriod, Sha256Checksum}
 import java.net.URL
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 @Singleton
 class UploadProgressTracker @Inject()(repository: FileRepository,
@@ -43,11 +45,11 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
   def registerUploadResult(fileReference: Reference, details: Details)(implicit hc: HeaderCarrier): Future[Unit] =
     for {
       status <- details match {
-        case f: Details.UploadedFailed => Future.successful("failed")
-        case s: Details.UploadedSuccessfully => Future.successful("scanned")
+        case f: Details.UploadedFailed => Future(FAILED)
+        case s: Details.UploadedSuccessfully => Future(SCANNED)
       }
       _ <- repository.updateStatusAndDetails(fileReference, status, details).map {
-        case Some(_) if status == "scanned" =>
+        case Some(_) if status == SCANNED =>
           val uploadedDetails = details.asInstanceOf[UploadedSuccessfully]
           transferToObjectStore(downloadUrl = uploadedDetails.downloadUrl,
             mimeType = uploadedDetails.mimeType,
@@ -120,15 +122,15 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
         contentSha256 = Some(contentSha256)
       )(hc.withExtraHeaders("Authorization" -> appConfig.internalAuthToken))
       .transformWith {
-        case scala.util.Failure(exception) =>
+        case Failure(exception) =>
           logger.error(s"Failure to upload to object store because of $exception")
           logger.warn("FAILED_OBJECT_STORE_UPDATE Failed upload file to object store")
           exception.printStackTrace()
           Future.successful(BadRequest(s"Failure to upload to object store because of $exception"))
-        case scala.util.Success(objectWithMD5) =>
+        case Success(objectWithMD5) =>
           Future.successful(
             for {
-              uploadedDetails <- repository.updateStatus(fileReference, "stored")
+              uploadedDetails <- repository.updateStatus(fileReference, STORED)
               success <- uploadedDetails match {
                 case Some(result) =>
                   Future.successful(result)

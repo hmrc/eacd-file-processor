@@ -19,9 +19,10 @@ package uk.gov.hmrc.eacdfileprocessor.services
 import uk.gov.hmrc.eacdfileprocessor.models.{CallbackBody, Details, FailedCallbackBody, ReadyCallbackBody}
 import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier}
 
-import javax.inject.Inject
+import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
+@Singleton
 class UpscanCallbackService @Inject()(sessionStorage: UploadProgressTracker) {
   private val allowedMimeTypes: Set[String] = Set(
     "text/csv" // .csv

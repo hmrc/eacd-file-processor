@@ -17,18 +17,15 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.verify
+import org.mockito.Mockito.{times, verify}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers.shouldBe
-import play.api.test.Helpers
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier}
+import uk.gov.hmrc.http.BadRequestException
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 class UpscanCallbackServiceSpec extends TestSupport with TestData:
-  private implicit val ec: ExecutionContext = Helpers.stubControllerComponents().executionContext
-  implicit val hc: HeaderCarrier = HeaderCarrier()
 
   trait Setup {
     val mockUploadProgressTracker: UploadProgressTracker = mock[UploadProgressTracker]
@@ -38,12 +35,12 @@ class UpscanCallbackServiceSpec extends TestSupport with TestData:
   "UpscanCallbackService" should {
     "handle ready callback correctly" in new Setup {
       callbackService.handleCallback(readyCallbackBody)
-      verify(mockUploadProgressTracker).registerUploadResult(any(), any())(any())
+      verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any())
     }
 
     "handle failed callback correctly" in new Setup {
       callbackService.handleCallback(failedCallbackBody)
-      verify(mockUploadProgressTracker).registerUploadResult(any(), any())(any())
+      verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any())
     }
 
     "throws exception when MIME doesn't match" in new Setup {

@@ -21,6 +21,7 @@ import play.api.libs.json.*
 import play.api.mvc.{Action, ControllerComponents, Request, Result}
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.INITIAL
 import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, HelpdeskInitiateRequestModel, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.utils.{InternalAuthBuilders, ValidationUtil}
@@ -30,7 +31,7 @@ import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import javax.inject.Inject
 import scala.concurrent.Future
 
-class initiateFileStorageController @Inject()(
+class InitiateFileStorageController @Inject()(
                                                val fileRepo: FileRepository,
                                                val cc: ControllerComponents,
                                                val configuration: Configuration,
@@ -47,7 +48,7 @@ class initiateFileStorageController @Inject()(
       apiName = "initiate"
     ).async(parse.json) { implicit request: Request[JsValue] =>
       validateJsonBody { initiateRequestModel =>
-        fileRepo.createFileRecord(UploadedDetails(ObjectId.get(), Reference(initiateRequestModel.reference), "initial",
+        fileRepo.createFileRecord(UploadedDetails(ObjectId.get(), Reference(initiateRequestModel.reference), INITIAL,
           initiateRequestModel.requestorPID, initiateRequestModel.requestorEmail, initiateRequestModel.requestorName)).map {
           case true =>
             Created

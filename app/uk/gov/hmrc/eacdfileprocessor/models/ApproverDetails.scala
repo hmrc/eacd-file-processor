@@ -16,22 +16,14 @@
 
 package uk.gov.hmrc.eacdfileprocessor.models
 
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpec
-import play.api.libs.json.Json
+import play.api.libs.json.{Json, OFormat}
 
-class HelpdeskInitiateRequestModelSpec extends AnyWordSpec with Matchers {
-  "HelpdeskInitiateRequestModel" should {
-    "serialize and deserialize to/from JSON" in {
-      val model = HelpdeskInitiateRequestModel(
-        reference = "ref-123",
-        requestorPID = "pid-456",
-        requestorEmail = "test@example.com",
-        requestorName = "Test User"
-      )
-      val json = Json.toJson(model)
-      val fromJson = json.as[HelpdeskInitiateRequestModel]
-      fromJson shouldBe model
-    }
-  }
+case class ApproverDetails(approverEmail: Option[String] = None,
+                           approverPID: Option[String] = None,
+                           approverName: Option[String] = None,
+                           errorCode: Option[String] = None,
+                           errorMessage: Option[String] = None)
+
+object ApproverDetails {
+  implicit val format: OFormat[ApproverDetails] = Json.format[ApproverDetails]
 }

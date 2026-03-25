@@ -19,6 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 import org.apache.pekko.stream.Materializer
 import org.mockito.ArgumentMatchers.*
 import org.mockito.Mockito.*
+import org.scalatest.matchers.should.Matchers.shouldBe
 import org.scalatestplus.mockito.MockitoSugar.mock
 import play.api.libs.json.Json
 import play.api.mvc.*
@@ -46,9 +47,9 @@ class InitiateFileStorageControllerSpec extends TestData with UnitSpec {
   val mockAuth: BackendAuthComponents = mock[BackendAuthComponents]
 
   class TestInitiateFileStorageController
-    extends initiateFileStorageController(mockRepo, mockCC, mockConfig, mockAuth) {
+    extends InitiateFileStorageController(mockRepo, mockCC, mockConfig, mockAuth) {
     override def authorisedEntity(
-                                   providedPermission: Predicate.Permission,
+                                   providedPermission: Predicate,
                                    apiName: String
                                  ): ActionBuilder[AuthRequest, AnyContent] =
       DefaultActionBuilder(mockCC.parsers.defaultBodyParser)(global)
@@ -110,7 +111,7 @@ class InitiateFileStorageControllerSpec extends TestData with UnitSpec {
     }
 
     "return 400 for duplicate reference" in {
-      when(mockRepo.createFileRecord(any())).thenReturn(Future.failed(new DuplicateReferenceException("Duplicate external file reference"))) //new MongoWriteException(WriteError(11000, "Duplicate key error", BsonDocument(List.empty)), ServerAddress("127.0.0.1", 27017), Collections.emptyList())))
+      when(mockRepo.createFileRecord(any())).thenReturn(Future.failed(new DuplicateReferenceException("Duplicate external file reference")))
       val json = Json.obj(
         "reference" -> "ref1",
         "requestorPID" -> "pid1",
