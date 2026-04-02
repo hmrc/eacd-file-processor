@@ -16,7 +16,8 @@
 
 package uk.gov.hmrc.eacdfileprocessor.repository
 
-import org.mockito.Mockito.when
+import org.checkerframework.checker.units.qual.N
+import org.mockito.Mockito.{spy, when}
 import org.scalatest.matchers.should.Matchers.{should, shouldBe}
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
@@ -24,7 +25,7 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
-import uk.gov.hmrc.eacdfileprocessor.models.{ApproverDetails, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.{ApproverDetails, FileStatus, Reference, StatusDetailsModel, UploadedDetails}
 
 class FileRepositorySpec extends TestSupport with TestData:
   private val mockAppConfig = mock[AppConfig]
@@ -103,6 +104,18 @@ class FileRepositorySpec extends TestSupport with TestData:
         val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), lastUpdatedDateTime = actual.lastUpdatedDateTime)
         actual shouldBe expected
         actual.uploadedDateTime shouldBe None
+      }
+    }
+
+    "find file by status" when {
+      "there is a file matching the file status" in {
+        val status: FileStatus = initiateUploadDetails.status
+        await(repository.createFileRecord(initiateUploadDetails.copy()))
+
+
+        val actual = await(repository.findByStatus(status)).get
+        actual shouldBe statusDetailsModel.copy(uploadedDateTime = None, status = initiateUploadDetails.status.value, name = initiateUploadDetails.reference.value)
+
       }
     }
   }

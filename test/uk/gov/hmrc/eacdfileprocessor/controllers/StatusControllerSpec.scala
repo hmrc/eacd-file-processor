@@ -20,7 +20,7 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
 import org.scalatestplus.mockito.MockitoSugar.mock
-import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, SERVICE_UNAVAILABLE}
+import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, SERVICE_UNAVAILABLE}
 import play.api.libs.json.Json
 import play.api.mvc.Results.{BadRequest, NoContent, ServiceUnavailable}
 import play.api.mvc.*
@@ -116,6 +116,35 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
       )
       status(result) shouldBe BAD_REQUEST
       contentAsString(result) must include("Invalid StatusApproverDetails payload")
+    }
+
+    "getFileStatus return correct responses" when {
+      "returning OK for found file with legitimate status" in {
+        when(repository.findByStatus(any())).thenReturn(Future.successful(Some(statusDetailsModel)))
+        val result = TestStatusController.getFileStatus("approved")(FakeRequest(
+          routes.StatusController.getFileStatus("approved"))
+          .withBody(Json.obj()))
+        status(result) shouldBe OK
+
+      }
+
+      "returning NO_CONTENT for no file found with legitimate status" in {
+        when(repository.findByStatus(any())).thenReturn(Future.successful(None))
+        val result = TestStatusController.getFileStatus("approved")(FakeRequest(
+          routes.StatusController.getFileStatus("approved"))
+          .withBody(Json.obj()))
+        status(result) shouldBe NO_CONTENT
+
+      }
+
+      "returning BAD_REQUEST for request being made with il-legitimate status" in {
+        val result = TestStatusController.getFileStatus("notValidStatus")(FakeRequest(
+          routes.StatusController.getFileStatus("notValidStatus"))
+          .withBody(Json.obj())
+        )
+        status(result) shouldBe BAD_REQUEST
+
+      }
     }
   }
 }

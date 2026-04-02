@@ -90,7 +90,8 @@ object FileUploadRepoFormat {
     Format.at[String](__ \ "value")
       .inmap[Reference](Reference.apply, _.value)
 
-  private given Format[Instant] = MongoJavatimeFormats.instantFormat
+
+
 
   private given Format[ObjectId] = MongoFormats.objectIdFormat
 
@@ -165,6 +166,21 @@ class FileRepository @Inject()(
     collection.find(
       equal("reference.value", reference.value)
     ).headOption()
+  }
+
+  def findByStatus(status: FileStatus): Future[Option[StatusDetailsModel]] = {
+    collection.find(
+      equal("status", status.value)
+    ).headOption().map(_.map(
+      details => 
+        StatusDetailsModel(
+          reference =   details.reference.value,
+          approverEmail = details.requestorEmail,
+          approverPID = details.requestorPID,
+          status = details.status.value,
+          name = details.reference.value,
+          uploadedDateTime = details.uploadedDateTime))
+    )
   }
 
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =

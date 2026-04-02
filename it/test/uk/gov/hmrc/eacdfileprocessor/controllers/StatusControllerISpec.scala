@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import org.scalatest.matchers.should.Matchers.shouldBe
-import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, UNSUPPORTED_MEDIA_TYPE}
+import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, UNSUPPORTED_MEDIA_TYPE}
 import play.api.libs.json.Json
 import play.api.test.{DefaultAwaitTimeout, FakeRequest}
 import play.api.test.Helpers.{PUT, await, contentAsJson, route, status, writeableOf_AnyContentAsJson, writeableOf_AnyContentAsText}
@@ -202,7 +202,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         _ <- repository.createFileRecord(initiateUploadDetails.copy(status = FAILED))
         result <- route(app, request).get
       } yield result
-        
+
       status(resultF) shouldBe BAD_REQUEST
     }
     "return 400 when updating status to rejected but current status is not stored" in {
@@ -215,7 +215,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         _ <- repository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
         result <- route(app, request).get
       } yield result
-      
+
       status(resultF) shouldBe BAD_REQUEST
     }
     "return 400 when updating status is the same as current status" in {
@@ -269,4 +269,41 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
       val result = route(app, request).get
       status(result) shouldBe UNSUPPORTED_MEDIA_TYPE
     }
+  }
+
+  "GET /file:status" should {
+
+    "return 200 for file found with a valid status" in {
+      val request = FakeRequest(routes.StatusController.getFileStatus("approved"))
+        .withHeaders("Authorization" -> "Bearer test-token").withJsonBody(Json.obj())
+
+      val resultF = for {
+        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = APPROVED))
+        result <- route(app, request).get
+      } yield result
+      status(resultF) shouldBe OK
+    }
+
+    "return 204 for file not found with a valid status" in {
+      val request = FakeRequest(routes.StatusController.getFileStatus("approved"))
+        .withHeaders("Authorization" -> "Bearer test-token").withJsonBody(Json.obj())
+
+      val resultF = for {
+        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
+        result <- route(app, request).get
+      } yield result
+      status(resultF) shouldBe NO_CONTENT
+    }
+
+    "return 400 for a request with an invalid status" in {
+      val request = FakeRequest(routes.StatusController.getFileStatus("random"))
+        .withHeaders("Authorization" -> "Bearer test-token").withJsonBody(Json.obj())
+
+      val resultF = for {
+        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
+        result <- route(app, request).get
+      } yield result
+      status(resultF) shouldBe BAD_REQUEST
+    }
+
   }

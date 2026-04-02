@@ -93,6 +93,15 @@ trait TestData:
     lastUpdatedDateTime = createdAt
   )
 
+  val statusDetailsModel = StatusDetailsModel(
+    reference = "08aad019-7f66-4456-8d52-93f12109876f",
+    approverEmail = "test@hmrc.gov.uk",
+    approverPID = "12345678",
+    name = "test.pdf",
+    status = "SCANNED",
+    uploadedDateTime =  Some(createdAt)
+  )
+
   val failedUploadedDetails = UploadedDetails(
     id = ObjectId("6994a038d540b44c4403aee3"),
     reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
