@@ -18,8 +18,9 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
-import org.mockito.Mockito.{times, verify, when}
+import org.mockito.Mockito.{mock, times, verify, when}
 import play.api.http.Status.CREATED
+import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
@@ -33,16 +34,32 @@ import java.time.Instant
 import scala.concurrent.{Future, TimeoutException}
 
 class UploadProgressTrackerSpec extends TestSupport with TestData:
-  private lazy val mockAppConfig = mock[AppConfig]
+  private lazy val mockServicesConfig = mock[uk.gov.hmrc.play.bootstrap.config.ServicesConfig]
+  when(mockServicesConfig.baseUrl("internal-auth")).thenReturn("http://localhost:8470")
+  when(mockServicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:9877")
+
+  private lazy val appConfig = new AppConfig(
+    Configuration.from(
+      Map(
+        "appName"                                        -> "eacd-file-processor",
+        "time-to-live.time"                             -> "3",
+        "internal-auth.token"                           -> "12345678",
+        "throttle.enrolment-store-proxy.max-concurrent" -> 5,
+        "throttle.enrolment-store-proxy.max-per-second" -> 0
+      )
+    ),
+    mockServicesConfig
+  )
+
   private lazy val reference = initiateUploadDetails.reference
-  
+
   trait Setup {
-    val repository = mock[FileRepository]
-    val objectStoreClient = mock[PlayObjectStoreClient]
-    val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
+    val repository         = mock[FileRepository]
+    val objectStoreClient  = mock[PlayObjectStoreClient]
+    val mockHttpClientV2: HttpClientV2   = Mockito.mock(classOf[HttpClientV2])
     val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
 
-    val progressTracker = UploadProgressTracker(repository, mockAppConfig, mockHttpClientV2, objectStoreClient)
+    val progressTracker = UploadProgressTracker(repository, appConfig, mockHttpClientV2, objectStoreClient)
 
     when(mockHttpClientV2.post(any())(any())).thenReturn(mockRequestBuilder)
     when(mockRequestBuilder.withBody(any())(any(), any(), any())).thenReturn(mockRequestBuilder)
@@ -50,9 +67,6 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
       .thenReturn(Future.successful(HttpResponse(CREATED, body = "")))
   }
   
-  when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
-  when(mockAppConfig.internalAuthToken).thenReturn("12345678")
-  when(mockAppConfig.appName).thenReturn("eacd-file-processor")
 
   "UploadProgressTracker" should {
     "update successful upload file details and correctly update status" in new Setup {

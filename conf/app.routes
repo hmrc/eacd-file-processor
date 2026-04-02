@@ -3,3 +3,7 @@
 POST       /callback                uk.gov.hmrc.eacdfileprocessor.controllers.CallbackController.callback
 POST       /initiate                uk.gov.hmrc.eacdfileprocessor.controllers.InitiateFileStorageController.initiateFileRecordStore()
 PUT        /status/:reference       uk.gov.hmrc.eacdfileprocessor.controllers.StatusController.updateStatus(reference: String)
+
+# Diagnostics and monitoring
+GET        /admin/throttle/status   uk.gov.hmrc.eacdfileprocessor.controllers.DiagnosticsController.throttlingStatus
+

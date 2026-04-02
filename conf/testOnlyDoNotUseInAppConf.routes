@@ -9,5 +9,13 @@
 # !!!WARNING!!! Every route defined in this file MUST be prefixed with "/test-only/".
 # Failing to follow this rule may result in test routes deployed in production.
 
+# Stub for enrolment-store-proxy — used to exercise connector-level throttling locally
+# without requiring the real enrolment-store-proxy to be running.
+GET  /test-only/enrolment-store-proxy/file-notification/:fileReference  uk.gov.hmrc.eacdfileprocessor.controllers.testonly.EnrolmentStoreProxyStubController.receiveFileNotification(fileReference: String)
+
+# Trigger endpoint to generate a connector burst through EnrolmentStoreProxyConnector.
+# Use this to validate connector-level throttling deterministically.
+POST /test-only/throttle/enrolment-store-proxy/:count  uk.gov.hmrc.eacdfileprocessor.controllers.testonly.EnrolmentStoreProxyThrottlingController.fireBurst(count: Int)
+
 # Add all the application routes to the prod.routes file
 ->         /                          prod.Routes

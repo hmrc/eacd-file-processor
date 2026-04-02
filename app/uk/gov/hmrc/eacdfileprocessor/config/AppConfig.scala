@@ -23,12 +23,27 @@ import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 @Singleton
 class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig) {
 
-  val appName: String = config.get[String]("appName")
-  val timeToLive: String = getString("time-to-live.time")
+  val appName: String            = config.get[String]("appName")
+  val timeToLive: String         = getString("time-to-live.time")
   val internalAuthService: String = servicesConfig.baseUrl("internal-auth")
-  val internalAuthToken: String = getString("internal-auth.token")
+  val internalAuthToken: String  = getString("internal-auth.token")
 
-  def getString(key: String): String =
+  /** Base URL for the enrolment-store-proxy service (resolved from service config). */
+  val enrolmentStoreProxyBaseUrl: String = servicesConfig.baseUrl("enrolment-store-proxy")
+
+  // ── Throttling configuration ───────────────────────────────────────────────
+  // Controls the rate at which outbound calls are made to enrolment-store-proxy.
+  // This is the ONLY connector in this service that is throttled.
+
+  /** Maximum number of simultaneous requests to enrolment-store-proxy. */
+  val maxConcurrentEnrolmentStoreProxyRequests: Int =
+    config.getOptional[Int]("throttle.enrolment-store-proxy.max-concurrent").getOrElse(5)
+
+  /** Maximum number of new requests to enrolment-store-proxy started per second (0 = unlimited). */
+  val maxPerSecondEnrolmentStoreProxyRequests: Int =
+    config.getOptional[Int]("throttle.enrolment-store-proxy.max-per-second").getOrElse(0)
+
+  private def getString(key: String): String =
     config.getOptional[String](key).filter(!_.isBlank)
       .getOrElse(throw new RuntimeException(s"Could not find config key '$key'"))
 }

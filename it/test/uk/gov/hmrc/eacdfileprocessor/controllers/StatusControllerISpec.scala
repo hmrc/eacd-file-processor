@@ -47,15 +47,19 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
           "approverPID" -> "23456789"
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
-      for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
-        result <- route(app, request).get
-        uploadedFileDetails <- repository.findByReference(Reference(reference))
-      } yield {
-        status(Future(result)) shouldBe NO_CONTENT
-        uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(false)
+
+      await {
+        for {
+          _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+          result <- route(app, request).get
+          uploadedFileDetails <- repository.findByReference(Reference(reference))
+        } yield {
+          status(Future(result)) shouldBe NO_CONTENT
+          uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(false)
+        }
       }
     }
+
     "return 204 when updating status to upload rejected and correct information were supplied " in {
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
         .withJsonBody(Json.obj(
@@ -64,43 +68,54 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
           "errorMessage" -> "error message"
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
-      for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
-        result <- route(app, request).get
-        uploadedFileDetails <- repository.findByReference(Reference(reference))
-      } yield {
-        status(Future(result)) shouldBe NO_CONTENT
-        uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(true)
+
+      await {
+        for {
+          _ <- repository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
+          result <- route(app, request).get
+          uploadedFileDetails <- repository.findByReference(Reference(reference))
+        } yield {
+          status(Future(result)) shouldBe NO_CONTENT
+          uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(true)
+        }
       }
     }
+
     "return 204 when updating status to uploaded" in {
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
         .withJsonBody(Json.obj(
           "status" -> "uploaded"
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
-      for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
-        result <- route(app, request).get
-        uploadedFileDetails <- repository.findByReference(Reference(reference))
-      } yield {
-        status(Future(result)) shouldBe NO_CONTENT
-        uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(true)
+
+      await {
+        for {
+          _ <- repository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
+          result <- route(app, request).get
+          uploadedFileDetails <- repository.findByReference(Reference(reference))
+        } yield {
+          status(Future(result)) shouldBe NO_CONTENT
+          uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(true)
+        }
       }
     }
+
     "return 204 when updating status to rejected" in {
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
         .withJsonBody(Json.obj(
           "status" -> "rejected"
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
-      for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
-        result <- route(app, request).get
-        uploadedFileDetails <- repository.findByReference(Reference(reference))
-      } yield {
-        status(Future(result)) shouldBe NO_CONTENT
-        uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(false)
+
+      await {
+        for {
+          _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+          result <- route(app, request).get
+          uploadedFileDetails <- repository.findByReference(Reference(reference))
+        } yield {
+          status(Future(result)) shouldBe NO_CONTENT
+          uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(false)
+        }
       }
     }
     "return 400 when approver pid is the same as requestor pid" in {
