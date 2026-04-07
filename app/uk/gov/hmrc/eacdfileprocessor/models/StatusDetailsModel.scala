@@ -20,12 +20,14 @@ import play.api.libs.json.{Json, OFormat}
 
 import java.time.Instant
 
-case class StatusDetailsModel (reference: String,
+case class StatusDetailsModel(
+                               reference: String,
                                approverEmail: String,
                                approverPID: String,
-                               name: String,
+                               name: Option[String],
                                status: String,
-                               uploadedDateTime: Option[Instant])
+                               uploadedDateTime: Option[Instant]
+                             )
 
 object StatusDetailsModel {
   implicit val format: OFormat[StatusDetailsModel] = Json.format[StatusDetailsModel]

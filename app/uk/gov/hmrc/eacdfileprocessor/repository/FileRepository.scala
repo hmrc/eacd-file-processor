@@ -31,6 +31,7 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.*
+import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
 import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.formats.{MongoFormats, MongoJavatimeFormats}
@@ -91,7 +92,7 @@ object FileUploadRepoFormat {
       .inmap[Reference](Reference.apply, _.value)
 
 
-
+  private given Format[Instant] = MongoJavatimeFormats.instantFormat
 
   private given Format[ObjectId] = MongoFormats.objectIdFormat
 
@@ -174,12 +175,17 @@ class FileRepository @Inject()(
     ).headOption().map(_.map(
       details => 
         StatusDetailsModel(
-          reference =   details.reference.value,
-          approverEmail = details.requestorEmail,
-          approverPID = details.requestorPID,
-          status = details.status.value,
-          name = details.reference.value,
-          uploadedDateTime = details.uploadedDateTime))
+          reference = details.reference.value, 
+          approverEmail = details.requestorEmail, 
+          approverPID = details.requestorPID, 
+          name = details.details.map {
+            case details: Details.UploadedSuccessfully => details.name
+            case _ => ""
+          },
+          status = details.status.value, 
+          uploadedDateTime = details.uploadedDateTime
+        )
+    )
     )
   }
 

@@ -123,7 +123,7 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
         when(repository.findByStatus(any())).thenReturn(Future.successful(Some(statusDetailsModel)))
         val result = TestStatusController.getFileStatus("approved")(FakeRequest(
           routes.StatusController.getFileStatus("approved"))
-          .withBody(Json.obj()))
+        )
         status(result) shouldBe OK
 
       }
@@ -132,7 +132,7 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
         when(repository.findByStatus(any())).thenReturn(Future.successful(None))
         val result = TestStatusController.getFileStatus("approved")(FakeRequest(
           routes.StatusController.getFileStatus("approved"))
-          .withBody(Json.obj()))
+        )
         status(result) shouldBe NO_CONTENT
 
       }
@@ -140,7 +140,6 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
       "returning BAD_REQUEST for request being made with il-legitimate status" in {
         val result = TestStatusController.getFileStatus("notValidStatus")(FakeRequest(
           routes.StatusController.getFileStatus("notValidStatus"))
-          .withBody(Json.obj())
         )
         status(result) shouldBe BAD_REQUEST
 

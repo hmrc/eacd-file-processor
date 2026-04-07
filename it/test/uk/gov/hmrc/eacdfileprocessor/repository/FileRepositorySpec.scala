@@ -114,7 +114,7 @@ class FileRepositorySpec extends TestSupport with TestData:
 
 
         val actual = await(repository.findByStatus(status)).get
-        actual shouldBe statusDetailsModel.copy(uploadedDateTime = None, status = initiateUploadDetails.status.value, name = initiateUploadDetails.reference.value)
+        actual shouldBe statusDetailsModel.copy(name = None, status = initiateUploadDetails.status.value, uploadedDateTime = None)
 
       }
     }

@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import play.api.libs.json.{JsValue, Json}
-import play.api.mvc.{Action, ControllerComponents, Request}
+import play.api.mvc.{Action, AnyContent, ControllerComponents, Request}
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, FileStatus, Reference, StatusApproverDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
@@ -65,8 +65,8 @@ class StatusController @Inject()(
       }
     }
 
-  def getFileStatus(status: String): Action[JsValue] = authorisedEntity(providedPermission, "get-file-status")
-    .async(parse.json) { implicit request: Request[JsValue] =>
+  def getFileStatus(status: String): Action[AnyContent] = authorisedEntity(providedPermission, "get-file-status")
+    .async { implicit request: Request[AnyContent] =>
 
       logger.info(s"Received get file status request for status: $status")
 
