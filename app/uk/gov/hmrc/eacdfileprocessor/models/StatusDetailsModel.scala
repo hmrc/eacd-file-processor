@@ -22,11 +22,11 @@ import java.time.Instant
 
 case class StatusDetailsModel(
                                reference: String,
-                               approverEmail: String,
-                               approverPID: String,
-                               name: Option[String],
-                               status: String,
-                               uploadedDateTime: Option[Instant]
+                               requestorEmail: String,
+                               requestorPID: String,
+                               fileName: Option[String],
+                               fileStatus: String,
+                               creationDateTime: Option[Instant]
                              )
 
 object StatusDetailsModel {

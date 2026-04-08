@@ -169,26 +169,17 @@ class FileRepository @Inject()(
     ).headOption()
   }
 
-  def findByStatus(status: FileStatus): Future[Option[StatusDetailsModel]] = {
+  def findByStatus(status: FileStatus): Future[Seq[StatusDetailsModel]] = {
     collection.find(
       equal("status", status.value)
-    ).headOption().map(_.map(
-      details => 
-        StatusDetailsModel(
-          reference = details.reference.value, 
-          approverEmail = details.requestorEmail, 
-          approverPID = details.requestorPID, 
-          name = details.details.map {
-            case details: Details.UploadedSuccessfully => details.name
-            case _ => ""
-          },
-          status = details.status.value, 
-          uploadedDateTime = details.uploadedDateTime
-        )
-    )
-    )
+    ).toFuture().map(_.map(details =>
+      StatusDetailsModel(reference = details.reference.value, requestorEmail = details.requestorEmail, requestorPID = details.requestorPID, fileName = details.details.map {
+        case details: Details.UploadedSuccessfully => details.name
+        case _ => ""
+      }, fileStatus = details.status.value, creationDateTime = details.uploadedDateTime)
+    ))
   }
-
+  
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =
     updateByReference(reference, Seq(set("status", Codecs.toBson(status)), set("details", Codecs.toBson(details))): _*)
 

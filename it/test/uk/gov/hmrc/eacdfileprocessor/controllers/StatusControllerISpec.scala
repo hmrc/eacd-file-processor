@@ -274,7 +274,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
   "GET /file:status" should {
 
     "return 200 for file found with a valid status" in {
-      val request = FakeRequest(routes.StatusController.getFileStatus("approved"))
+      val request = FakeRequest(routes.StatusController.getFilesStatus("approved"))
         .withHeaders("Authorization" -> "Bearer test-token").withJsonBody(Json.obj())
 
       val resultF = for {
@@ -285,7 +285,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
     }
 
     "return 204 for file not found with a valid status" in {
-      val request = FakeRequest(routes.StatusController.getFileStatus("approved"))
+      val request = FakeRequest(routes.StatusController.getFilesStatus("approved"))
         .withHeaders("Authorization" -> "Bearer test-token").withJsonBody(Json.obj())
 
       val resultF = for {
@@ -296,7 +296,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
     }
 
     "return 400 for a request with an invalid status" in {
-      val request = FakeRequest(routes.StatusController.getFileStatus("random"))
+      val request = FakeRequest(routes.StatusController.getFilesStatus("random"))
         .withHeaders("Authorization" -> "Bearer test-token").withJsonBody(Json.obj())
 
       val resultF = for {

@@ -65,7 +65,7 @@ class StatusController @Inject()(
       }
     }
 
-  def getFileStatus(status: String): Action[AnyContent] = authorisedEntity(providedPermission, "get-file-status")
+  def getFilesStatus(status: String): Action[AnyContent] = authorisedEntity(providedPermission, "get-file-status")
     .async { implicit request: Request[AnyContent] =>
 
       logger.info(s"Received get file status request for status: $status")
@@ -73,8 +73,8 @@ class StatusController @Inject()(
       FileStatus.values.find(_.toString.equalsIgnoreCase(status)) match {
         case Some(fileStatus) =>
           fileUploadRepo.findByStatus(fileStatus).map {
-            case Some(uploadStatusDetails) => Ok(Json.toJson(uploadStatusDetails))
-            case None => NoContent
+            case uploadStatusDetails if uploadStatusDetails.isEmpty => NoContent
+            case uploadStatusDetails => Ok(Json.toJson(uploadStatusDetails))
           }.recover {
             case e: Exception =>
               logger.error(s"Error retrieving file status: ${e.getMessage}", e)
