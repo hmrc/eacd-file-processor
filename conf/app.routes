@@ -3,3 +3,5 @@
 POST       /callback                uk.gov.hmrc.eacdfileprocessor.controllers.CallbackController.callback
 POST       /initiate                uk.gov.hmrc.eacdfileprocessor.controllers.InitiateFileStorageController.initiateFileRecordStore()
 PUT        /status/:reference       uk.gov.hmrc.eacdfileprocessor.controllers.StatusController.updateStatus(reference: String)
+
+GET        /files/:status            uk.gov.hmrc.eacdfileprocessor.controllers.StatusController.getFilesStatus(status: String)

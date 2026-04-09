@@ -17,9 +17,9 @@
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import play.api.libs.json.{JsValue, Json}
-import play.api.mvc.{Action, ControllerComponents, Request}
+import play.api.mvc.{Action, AnyContent, ControllerComponents, Request}
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, Reference, StatusApproverDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, FileStatus, Reference, StatusApproverDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.services.StatusService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
@@ -62,6 +62,27 @@ class StatusController @Inject()(
             logger.warn("INVALID_FILE_REF File reference doesn't exist")
             Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_FILE_REF", "File reference doesn't exist"))))
         }
+      }
+    }
+
+  def getFilesStatus(status: String): Action[AnyContent] = authorisedEntity(providedPermission, "get-file-status")
+    .async { implicit request: Request[AnyContent] =>
+
+      logger.info(s"Received get file status request for status: $status")
+
+      FileStatus.values.find(_.toString.equalsIgnoreCase(status)) match {
+        case Some(fileStatus) =>
+          fileUploadRepo.findByStatus(fileStatus).map {
+            case uploadStatusDetails if uploadStatusDetails.isEmpty => NoContent
+            case uploadStatusDetails => Ok(Json.toJson(uploadStatusDetails))
+          }.recover {
+            case e: Exception =>
+              logger.error(s"Error retrieving file status: ${e.getMessage}", e)
+              InternalServerError(Json.toJson(ApiErrorResponse("INTERNAL_ERROR", "An error occurred")))
+          }
+        case None =>
+          logger.warn(s"STATUS_INVALID Invalid status: $status")
+          Future.successful(BadRequest(Json.toJson(ApiErrorResponse("STATUS_INVALID", "Invalid status"))))
       }
     }
 }
