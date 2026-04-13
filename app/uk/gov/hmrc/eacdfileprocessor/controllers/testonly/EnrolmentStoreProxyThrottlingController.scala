@@ -41,6 +41,13 @@ class EnrolmentStoreProxyThrottlingController @Inject()(
 
   /**
    * POST /test-only/throttle/enrolment-store-proxy/:count
+   *
+   * Optional query parameters (used by simulate_max_concurrency_timeout.sh):
+   *   stubDelayMs        — forwarded to the stub as ?delayMs=N so each connector call
+   *                        holds a semaphore permit for that many milliseconds.
+   *   connectorTimeoutMs — logged in the response body for observability; the actual
+   *                        HTTP client timeout is governed by application.conf / Play
+   *                        defaults and is not overridden here at runtime.
    */
   def fireBurst(count: Int): Action[AnyContent] = Action.async { implicit request =>
     if (count <= 0 || count > MaxAllowed) {
@@ -48,15 +55,36 @@ class EnrolmentStoreProxyThrottlingController @Inject()(
         "error" -> s"count must be between 1 and $MaxAllowed"
       )))
     } else {
+      val stubDelayMs = request.queryString
+        .get("stubDelayMs")
+        .flatMap(_.headOption)
+        .flatMap(s => scala.util.Try(s.toLong).toOption)
+        .filter(_ > 0L)
+        .getOrElse(0L)
+
+      val connectorTimeoutMs = request.queryString
+        .get("connectorTimeoutMs")
+        .flatMap(_.headOption)
+        .flatMap(s => scala.util.Try(s.toLong).toOption)
+        .filter(_ > 0L)
+        .getOrElse(0L)
+
+      logger.info(
+        s"[EnrolmentStoreProxyThrottlingController][fireBurst] " +
+        s"count=$count stubDelayMs=$stubDelayMs connectorTimeoutMs=$connectorTimeoutMs"
+      )
+
       val start = System.currentTimeMillis()
-      val calls = (1 to count).map(i => connector.sendFileNotification(s"burst-$i"))
+      val calls = (1 to count).map(i => connector.sendFileNotification(s"burst-$i", stubDelayMs))
 
       Future.sequence(calls).map { _ =>
         val elapsedMs = System.currentTimeMillis() - start
         Ok(Json.obj(
-          "triggered"  -> count,
-          "elapsedMs"  -> elapsedMs,
-          "message"    -> "Connector burst completed through throttled EnrolmentStoreProxyConnector"
+          "triggered"          -> count,
+          "elapsedMs"          -> elapsedMs,
+          "stubDelayMs"        -> stubDelayMs,
+          "connectorTimeoutMs" -> connectorTimeoutMs,
+          "message"            -> "Connector burst completed through throttled EnrolmentStoreProxyConnector"
         ))
       }
     }

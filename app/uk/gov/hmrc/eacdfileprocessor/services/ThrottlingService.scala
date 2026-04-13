@@ -95,28 +95,41 @@ class ThrottlingService @Inject()(appConfig: AppConfig) extends Logging {
   )(implicit ec: ExecutionContext): Future[T] = {
     val promise = Promise[T]()
 
-    scala.concurrent.blocking {
-      try {
-        rateLimiter.acquire(name)    // gate 1: per-second rate limit
-        semaphore.acquire()          // gate 2: concurrency limit
-        logger.debug(s"[$name] Both throttle gates passed. Executing request.")
+    // Each call is dispatched onto its own thread from the pool via Future { }.
+    // Without this outer Future, every call to throttle() runs synchronously on
+    // the *calling* thread (the Play Action dispatcher thread).  That means the
+    // calls in a burst are evaluated one-by-one, and the first call that blocks
+    // on semaphore.acquire() prevents all subsequent calls from even starting —
+    // so currentlyProcessing can never exceed 1 regardless of max-concurrent.
+    //
+    // By wrapping in Future { scala.concurrent.blocking { ... } } each call gets
+    // its own thread.  They all race to the semaphore simultaneously; the first
+    // maxConcurrent callers acquire permits and proceed, while the remainder
+    // block on their own threads until a permit is released.
+    Future {
+      scala.concurrent.blocking {
+        try {
+          rateLimiter.acquire(name)    // gate 1: per-second rate limit
+          semaphore.acquire()          // gate 2: concurrency limit
+          logger.debug(s"[$name] Both throttle gates passed. Executing request.")
 
-        operation.onComplete { result =>
-          try {
-            semaphore.release()
-            logger.debug(s"[$name] Semaphore released.")
-          } finally {
-            promise.complete(result)
+          operation.onComplete { result =>
+            try {
+              semaphore.release()
+              logger.debug(s"[$name] Semaphore released.")
+            } finally {
+              promise.complete(result)
+            }
           }
+        } catch {
+          case e: InterruptedException =>
+            logger.error(s"[$name] Thread interrupted during throttling", e)
+            Thread.currentThread().interrupt()
+            promise.failure(new RuntimeException(s"[$name] Throttling interrupted", e))
+          case e: Exception =>
+            logger.error(s"[$name] Error during throttling: ${e.getMessage}", e)
+            promise.failure(e)
         }
-      } catch {
-        case e: InterruptedException =>
-          logger.error(s"[$name] Thread interrupted during throttling", e)
-          Thread.currentThread().interrupt()
-          promise.failure(new RuntimeException(s"[$name] Throttling interrupted", e))
-        case e: Exception =>
-          logger.error(s"[$name] Error during throttling: ${e.getMessage}", e)
-          promise.failure(e)
       }
     }
 

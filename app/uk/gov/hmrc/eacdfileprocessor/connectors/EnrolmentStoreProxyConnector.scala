@@ -54,12 +54,18 @@ class EnrolmentStoreProxyConnector @Inject()(
    * dispatched, ensuring a controlled, predictable outbound rate.
    *
    * @param fileReference  the unique reference for the file being forwarded
+   * @param stubDelayMs    optional: if > 0, appends `?delayMs=N` to the request URL so
+   *                       the test-only stub holds the connection open for N milliseconds.
+   *                       This is used by the max-concurrency simulation script to prove
+   *                       that the semaphore saturates when the downstream is slow.
+   *                       Has no effect against the real enrolment-store-proxy.
    * @param hc             implicit [[HeaderCarrier]] forwarded to the downstream service
    * @return               a [[Future]] that completes when the downstream service responds
    */
-  def sendFileNotification(fileReference: String)(implicit hc: HeaderCarrier): Future[Unit] =
+  def sendFileNotification(fileReference: String, stubDelayMs: Long = 0L)(implicit hc: HeaderCarrier): Future[Unit] =
     throttlingService.throttleEnrolmentStoreProxyCall {
-      val url = s"${appConfig.enrolmentStoreProxyBaseUrl}/test-only/enrolment-store-proxy/file-notification/$fileReference"
+      val base = s"${appConfig.enrolmentStoreProxyBaseUrl}/test-only/enrolment-store-proxy/file-notification/$fileReference"
+      val url  = if (stubDelayMs > 0L) s"$base?delayMs=$stubDelayMs" else base
       logger.info(s"[EnrolmentStoreProxyConnector][sendFileNotification] Sending notification for reference=$fileReference to $url")
 
       httpClient

@@ -16,12 +16,15 @@
 
 package uk.gov.hmrc.eacdfileprocessor.controllers.testonly
 
+import org.apache.pekko.actor.ActorSystem
 import play.api.Logging
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
 /**
  * Test-only stub that simulates the enrolment-store-proxy service.
@@ -42,22 +45,67 @@ import javax.inject.{Inject, Singleton}
  *   200 OK — always, to simulate a healthy downstream
  */
 @Singleton
-class EnrolmentStoreProxyStubController @Inject()(cc: ControllerComponents)
+class EnrolmentStoreProxyStubController @Inject()(
+  cc:          ControllerComponents,
+  actorSystem: ActorSystem
+)(implicit ec: ExecutionContext)
     extends BackendController(cc) with Logging {
 
   /**
    * Stub endpoint: accepts any fileReference and returns 200 OK.
    *
-   * Logs the received reference so you can verify requests are arriving
-   * at the expected throttled rate when running the simulation script.
+   * Supports an optional `?delayMs=N` query parameter.  When supplied, the
+   * response is deliberately held open for N milliseconds before replying.
+   * This simulates a slow or timing-out downstream and is used by
+   * `simulate_max_concurrency_timeout.sh` to saturate the concurrency semaphore:
+   *
+   *   GET /test-only/enrolment-store-proxy/file-notification/ref-001?delayMs=8000
+   *
+   * Each in-flight connector call holds a semaphore permit for the full delay
+   * duration, demonstrating the max-concurrency saturation scenario.
+   *
+   * The delay is implemented via Akka's scheduler — it consumes NO dispatcher
+   * thread while waiting.  This prevents thread starvation when all concurrency
+   * slots are held simultaneously by in-process stub calls.
+   *
+   * Without `delayMs` (or delayMs=0) the stub responds immediately as before.
    */
-  def receiveFileNotification(fileReference: String): Action[AnyContent] = Action { _ =>
-    logger.info(s"[EnrolmentStoreProxyStub][receiveFileNotification] Received notification for reference=$fileReference")
-    Ok(Json.obj(
+  def receiveFileNotification(fileReference: String): Action[AnyContent] = Action.async { request =>
+    val delayMs = request.queryString
+      .get("delayMs")
+      .flatMap(_.headOption)
+      .flatMap(s => scala.util.Try(s.toLong).toOption)
+      .filter(_ > 0L)
+      .getOrElse(0L)
+
+    logger.info(
+      s"[EnrolmentStoreProxyStub][receiveFileNotification] " +
+      s"reference=$fileReference delayMs=$delayMs"
+    )
+
+    val body = Json.obj(
       "status"        -> "accepted",
       "fileReference" -> fileReference,
+      "delayMs"       -> delayMs,
       "message"       -> "Stub: enrolment-store-proxy received file notification"
-    ))
+    )
+
+    if (delayMs <= 0L) {
+      Future.successful(Ok(body))
+    } else {
+      // Use Akka scheduler: zero threads are blocked during the delay.
+      // All N concurrent stub requests can therefore be in-flight at the same
+      // time even though they share the same dispatcher.
+      val promise = Promise[play.api.mvc.Result]()
+      actorSystem.scheduler.scheduleOnce(delayMs.millis) {
+        logger.info(
+          s"[EnrolmentStoreProxyStub][receiveFileNotification] " +
+          s"Delay elapsed for reference=$fileReference — responding now"
+        )
+        promise.success(Ok(body))
+      }
+      promise.future
+    }
   }
 }
 

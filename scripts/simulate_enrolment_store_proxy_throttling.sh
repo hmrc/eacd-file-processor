@@ -4,7 +4,7 @@ set -euo pipefail
 BASE_URL="http://localhost:9867"
 SERVICE_PATH="/eacd-file-processor"
 TEST_ONLY_PATH=""
-COUNT=25
+COUNT=5
 TIMEOUT=120
 STATUS_SAMPLING_MS=200
 
