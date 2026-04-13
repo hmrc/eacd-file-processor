@@ -31,6 +31,7 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.*
+import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
 import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.formats.{MongoFormats, MongoJavatimeFormats}
@@ -89,6 +90,7 @@ object FileUploadRepoFormat {
   private given Format[Reference] =
     Format.at[String](__ \ "value")
       .inmap[Reference](Reference.apply, _.value)
+
 
   private given Format[Instant] = MongoJavatimeFormats.instantFormat
 
@@ -167,6 +169,17 @@ class FileRepository @Inject()(
     ).headOption()
   }
 
+  def findByStatus(status: FileStatus): Future[Seq[StatusDetailsModel]] = {
+    collection.find(
+      equal("status", status.value)
+    ).toFuture().map(_.map(details =>
+      StatusDetailsModel(reference = details.reference.value, requestorEmail = details.requestorEmail, requestorPID = details.requestorPID, fileName = details.details.map {
+        case details: Details.UploadedSuccessfully => details.name
+        case _ => ""
+      }, fileStatus = details.status.value, creationDateTime = details.uploadedDateTime)
+    ))
+  }
+  
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =
     updateByReference(reference, Seq(set("status", Codecs.toBson(status)), set("details", Codecs.toBson(details))): _*)
 

@@ -20,14 +20,14 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
 import org.scalatestplus.mockito.MockitoSugar.mock
-import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, SERVICE_UNAVAILABLE}
+import play.api.http.Status.{BAD_REQUEST, INTERNAL_SERVER_ERROR, NO_CONTENT, OK, SERVICE_UNAVAILABLE}
 import play.api.libs.json.Json
 import play.api.mvc.Results.{BadRequest, NoContent, ServiceUnavailable}
 import play.api.mvc.*
 import play.api.test.Helpers.{contentAsJson, contentAsString, status}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.ApiErrorResponse
+import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, StatusDetailsModel}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.services.StatusService
@@ -116,6 +116,43 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
       )
       status(result) shouldBe BAD_REQUEST
       contentAsString(result) must include("Invalid StatusApproverDetails payload")
+    }
+
+    "getFileStatus return correct responses" when {
+      "returning OK for found file with legitimate status" in {
+        when(repository.findByStatus(any())).thenReturn(Future.successful(Seq(statusDetailsModel)))
+        val result = TestStatusController.getFilesStatus("approved")(FakeRequest(
+          routes.StatusController.getFilesStatus("approved"))
+        )
+        status(result) shouldBe OK
+
+      }
+
+      "returning NO_CONTENT for no file found with legitimate status" in {
+        when(repository.findByStatus(any())).thenReturn(Future.successful(Seq.empty[StatusDetailsModel]))
+        val result = TestStatusController.getFilesStatus("approved")(FakeRequest(
+          routes.StatusController.getFilesStatus("approved"))
+        )
+        status(result) shouldBe NO_CONTENT
+
+      }
+
+      "returning BAD_REQUEST for request being made with il-legitimate status" in {
+        val result = TestStatusController.getFilesStatus("notValidStatus")(FakeRequest(
+          routes.StatusController.getFilesStatus("notValidStatus"))
+        )
+        status(result) shouldBe BAD_REQUEST
+
+      }
+
+      "return INTERNAL_SERVER_ERROR when repository throws an exception" in {
+        when(repository.findByStatus(any())).thenReturn(Future.failed(new Exception("Database error")))
+        val result = TestStatusController.getFilesStatus("approved")(FakeRequest(
+          routes.StatusController.getFilesStatus("approved"))
+        )
+        status(result) shouldBe INTERNAL_SERVER_ERROR
+        contentAsJson(result) shouldBe Json.toJson(ApiErrorResponse("INTERNAL_ERROR", "An error occurred"))
+      }
     }
   }
 }

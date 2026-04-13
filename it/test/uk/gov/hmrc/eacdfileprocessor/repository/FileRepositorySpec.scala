@@ -16,7 +16,8 @@
 
 package uk.gov.hmrc.eacdfileprocessor.repository
 
-import org.mockito.Mockito.when
+import org.bson.types.ObjectId
+import org.mockito.Mockito.{spy, when}
 import org.scalatest.matchers.should.Matchers.{should, shouldBe}
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
@@ -24,7 +25,7 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
-import uk.gov.hmrc.eacdfileprocessor.models.{ApproverDetails, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.{ApproverDetails, FileStatus, Reference, StatusDetailsModel, UploadedDetails}
 
 class FileRepositorySpec extends TestSupport with TestData:
   private val mockAppConfig = mock[AppConfig]
@@ -103,6 +104,46 @@ class FileRepositorySpec extends TestSupport with TestData:
         val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), lastUpdatedDateTime = actual.lastUpdatedDateTime)
         actual shouldBe expected
         actual.uploadedDateTime shouldBe None
+      }
+    }
+
+    "find file by status" when {
+      "there is a file matching the file status" in {
+        val status: FileStatus = initiateUploadDetails.status
+        await(repository.createFileRecord(initiateUploadDetails.copy()))
+
+
+        val actual = await(repository.findByStatus(status))
+        actual shouldBe Seq(statusDetailsModel.copy(fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = None))
+
+      }
+
+        "there is no file matching the file status" in {
+          val status: FileStatus = initiateUploadDetails.status
+          await(repository.createFileRecord(initiateUploadDetails.copy()))
+
+          val actual = await(repository.findByStatus(FileStatus.STORED))
+          actual shouldBe Seq.empty[StatusDetailsModel]
+        }
+
+      "there are multiple files matching the file status" in {
+        val status: FileStatus = initiateUploadDetails.status
+        await(repository.createFileRecord(initiateUploadDetails.copy(reference = Reference("ref3"), id = ObjectId("6974a038d540b44c4403aee3"))))
+        await(repository.createFileRecord(initiateUploadDetails.copy(reference = Reference("ref4"), id = ObjectId("6984a038d540b44c4403aee3"))))
+
+        val actual = await(repository.findByStatus(status))
+        actual shouldBe Seq(
+          statusDetailsModel.copy(reference = "ref3", fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = None),
+          statusDetailsModel.copy(reference = "ref4", fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = None)
+        )
+      }
+
+      "there are multiple files with different file status" in {
+        await(repository.createFileRecord(initiateUploadDetails.copy(reference = Reference("ref5"), id = ObjectId("6976a038d540b44c4403aee3"))))
+        await(repository.createFileRecord(initiateUploadDetails.copy(reference = Reference("ref6"), status = FileStatus.STORED, id = ObjectId("6975a038d540b44c4403aee3"))))
+
+        val actual = await(repository.findByStatus(initiateUploadDetails.copy(reference = Reference("ref5")).status))
+        actual shouldBe Seq(statusDetailsModel.copy(reference = "ref5", fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = None))
       }
     }
   }
