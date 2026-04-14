@@ -19,7 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.controllers.testonly
 import play.api.Logging
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.eacdfileprocessor.connectors.EnrolmentStoreProxyConnector
+import uk.gov.hmrc.eacdfileprocessor.services.EnrolmentStoreProxyWorkItemService
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
@@ -33,8 +33,8 @@ import scala.concurrent.{ExecutionContext, Future}
  */
 @Singleton
 class EnrolmentStoreProxyThrottlingController @Inject()(
-  connector: EnrolmentStoreProxyConnector,
-  cc:        ControllerComponents
+  workItemService: EnrolmentStoreProxyWorkItemService,
+  cc:              ControllerComponents
 )(implicit ec: ExecutionContext) extends BackendController(cc) with Logging {
 
   private val MaxAllowed = 500
@@ -75,9 +75,8 @@ class EnrolmentStoreProxyThrottlingController @Inject()(
       )
 
       val start = System.currentTimeMillis()
-      val calls = (1 to count).map(i => connector.sendFileNotification(s"burst-$i", stubDelayMs))
 
-      Future.sequence(calls).map { _ =>
+      workItemService.fireBurst(count, stubDelayMs).map { _ =>
         val elapsedMs = System.currentTimeMillis() - start
         Ok(Json.obj(
           "triggered"          -> count,

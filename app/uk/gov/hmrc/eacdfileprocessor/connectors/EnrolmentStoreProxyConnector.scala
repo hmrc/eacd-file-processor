@@ -18,7 +18,6 @@ package uk.gov.hmrc.eacdfileprocessor.connectors
 
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.services.ThrottlingService
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps}
 
@@ -28,30 +27,18 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
  * Connector for the enrolment-store-proxy service.
  *
- * Every outbound call is wrapped in [[ThrottlingService.throttleEnrolmentStoreProxyCall]] so
- * that the downstream service is never bombarded — regardless of how many files arrive in a
- * single submission burst.
- *
- * Throttle limits are configured in application.conf:
- * {{{
- *   throttle.enrolment-store-proxy {
- *     max-concurrent  = 5   # at most 5 simultaneous requests
- *     max-per-second  = 2   # at most 2 new requests started per second
- *   }
- * }}}
+ * Burst orchestration (chunking and in-flight caps) is handled by
+ * [[uk.gov.hmrc.eacdfileprocessor.services.EnrolmentStoreProxyWorkItemService]]
+ * using Mongo WorkItems. This connector is intentionally a thin outbound HTTP layer.
  */
 @Singleton
 class EnrolmentStoreProxyConnector @Inject()(
   httpClient:         HttpClientV2,
-  appConfig:          AppConfig,
-  throttlingService:  ThrottlingService
+  appConfig:          AppConfig
 )(implicit ec: ExecutionContext) extends Logging {
 
   /**
    * Sends a single file notification to enrolment-store-proxy.
-   *
-   * The call passes through both throttle gates before the HTTP request is
-   * dispatched, ensuring a controlled, predictable outbound rate.
    *
    * @param fileReference  the unique reference for the file being forwarded
    * @param stubDelayMs    optional: if > 0, appends `?delayMs=N` to the request URL so
@@ -63,7 +50,7 @@ class EnrolmentStoreProxyConnector @Inject()(
    * @return               a [[Future]] that completes when the downstream service responds
    */
   def sendFileNotification(fileReference: String, stubDelayMs: Long = 0L)(implicit hc: HeaderCarrier): Future[Unit] =
-    throttlingService.throttleEnrolmentStoreProxyCall {
+    {
       val base = s"${appConfig.enrolmentStoreProxyBaseUrl}/test-only/enrolment-store-proxy/file-notification/$fileReference"
       val url  = if (stubDelayMs > 0L) s"$base?delayMs=$stubDelayMs" else base
       logger.info(s"[EnrolmentStoreProxyConnector][sendFileNotification] Sending notification for reference=$fileReference to $url")

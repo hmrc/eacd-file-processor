@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import play.api.libs.json.{Json, OWrites}
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.eacdfileprocessor.services.{ServiceThrottleState, ThrottlingService, ThrottlingStatus}
+import uk.gov.hmrc.eacdfileprocessor.services.{EnrolmentStoreProxyWorkItemService, ServiceThrottleState, ThrottlingStatus}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
@@ -30,8 +30,8 @@ import scala.concurrent.ExecutionContext
  */
 @Singleton()
 class DiagnosticsController @Inject()(
-  throttlingService: ThrottlingService,
-  cc:                ControllerComponents
+  workItemService: EnrolmentStoreProxyWorkItemService,
+  cc:              ControllerComponents
 )(implicit ec: ExecutionContext) extends BackendController(cc) {
 
   private implicit val serviceStateWrites: OWrites[ServiceThrottleState] = Json.writes[ServiceThrottleState]
@@ -44,12 +44,10 @@ class DiagnosticsController @Inject()(
    *   - maxConcurrent              → configured concurrency cap
    *   - availablePermits           → unused concurrency slots right now
    *   - currentlyProcessing        → in-flight requests right now
-   *   - maxPerSecond               → configured per-second rate cap (0 = unlimited)
-   *   - tokensRemainingThisSecond  → tokens still available this second (-1 = unlimited)
+   *   - maxPerSecond               → always 0 (token-bucket throttling no longer used)
+   *   - tokensRemainingThisSecond  → always -1 (token-bucket throttling no longer used)
    */
   def throttlingStatus: Action[AnyContent] = Action.async { _ =>
-    scala.concurrent.Future.successful(
-      Ok(Json.toJson(throttlingService.getThrottlingStatus))
-    )
+    workItemService.getThrottlingStatus.map(status => Ok(Json.toJson(status)))
   }
 }

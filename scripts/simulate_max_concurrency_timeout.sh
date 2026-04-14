@@ -2,43 +2,44 @@
 # =============================================================================
 # simulate_max_concurrency_timeout.sh
 #
-# Demonstrates the scenario where the enrolment-store-proxy stub deliberately
-# times out, causing the semaphore (max-concurrent) to be held for the full
-# stub response duration.  Because all concurrency slots are occupied, every
-# additional connector call queues behind the semaphore gate.
+# Tests WorkItem-based concurrency saturation scenario.
+#
+# Demonstrates that the WorkItem throttling mechanism properly respects the
+# max-concurrent limit by:
+#  1. Creating more WorkItems than max-concurrent
+#  2. Observing that only max-concurrent requests are in-flight at a time
+#  3. Confirming overflow requests queue and process sequentially
+#  4. Showing how slow downstream responses extend total processing time
 #
 # What the script does
 # ────────────────────
 #  1. Reads the configured max-concurrent value from /admin/throttle/status.
-#  2. Fires (max-concurrent + OVERFLOW) connector calls through the service by
-#     hitting POST /test-only/throttle/enrolment-store-proxy/:count.
-#     Each call fans out through EnrolmentStoreProxyConnector → ThrottlingService
-#     → stub endpoint.
-#  3. The stub endpoint is started with a delay (--stub-delay-ms) that is
-#     longer than the connector's HTTP response deadline (--connector-timeout-ms),
-#     so every in-flight request times out inside the connector.
-#  4. Meanwhile, /admin/throttle/status is polled every STATUS_SAMPLING_MS so
+#  2. Persists (max-concurrent + OVERFLOW) WorkItems to MongoDB.
+#  3. Processing begins immediately: first max-concurrent items are processed
+#     in parallel; when any completes, the next item in the queue starts.
+#  4. The stub endpoint is configured with --stub-delay-ms to simulate slow
+#     downstream responses.
+#  5. Meanwhile, /admin/throttle/status is polled every STATUS_SAMPLING_MS so
 #     you can observe:
-#       • currentlyProcessing  → climbs to maxConcurrent and stays there
-#       • availablePermits     → drops to 0
-#       • overflow calls       → remain blocked behind the semaphore
-#  5. At the end, observed peak concurrency, min available permits, and the
-#     trigger response are printed.
+#       • currentlyProcessing  → holds at maxConcurrent while items remain
+#       • availablePermits     → drops to 0 during processing (concurrency cap)
+#       • chunk transitions    → visible as drops in currentlyProcessing
+#  6. Results show peak concurrency, total elapsed time, and chunk boundaries.
 #
 # Pre-requisites
 # ──────────────
 #  • Service running with test-only router:
 #      sbt "run -Dapplication.router=testOnlyDoNotUseInAppConf.Routes"
-#  • The stub must be the SLOW variant that accepts a ?delayMs= query parameter.
-#    See EnrolmentStoreProxyStubController.receiveFileNotification (slow mode).
+#  • MongoDB running (WorkItems stored in: eacd-file-processor.workItems)
+#  • The stub accepts a ?delayMs= query parameter for artificial delays.
 #  • jq recommended for structured output (falls back to raw JSON if absent).
 #
 # Usage example
 # ─────────────
+#  # Test concurrency saturation with slow downstream
 #  scripts/simulate_max_concurrency_timeout.sh \
 #      --overflow 3 \
-#      --stub-delay-ms 8000 \
-#      --connector-timeout-ms 3000 \
+#      --stub-delay-ms 2000 \
 #      --status-sampling-ms 300
 # =============================================================================
 set -euo pipefail
@@ -47,9 +48,8 @@ set -euo pipefail
 BASE_URL="http://localhost:9867"
 SERVICE_PATH="/eacd-file-processor"
 TEST_ONLY_PATH=""
-OVERFLOW=3                  # extra calls beyond max-concurrent
-STUB_DELAY_MS=8000          # ms the stub holds the connection open
-CONNECTOR_TIMEOUT_MS=3000   # ms after which the connector HTTP call times out
+OVERFLOW=3                  # extra WorkItems beyond max-concurrent
+STUB_DELAY_MS=2000          # ms each stub response takes
 STATUS_SAMPLING_MS=300      # poll interval for /admin/throttle/status
 TRIGGER_TIMEOUT=120         # curl max-time for the trigger POST itself
 
@@ -60,39 +60,40 @@ usage() {
   cat <<'EOF'
 Usage: scripts/simulate_max_concurrency_timeout.sh [options]
 
-Fills every concurrency slot in the throttle semaphore with stub calls that
-intentionally hold the connection open (simulating a slow/timing-out downstream),
-proving that:
-  • currentlyProcessing reaches maxConcurrent
-  • availablePermits drops to 0
-  • overflow requests queue behind the semaphore gate
+WorkItem Concurrency Saturation Scenario
+─────────────────────────────────────────
 
-IMPORTANT — rate-limiter interaction:
-  The per-second rate limiter (max-per-second) drips calls into the semaphore
-  one window at a time.  For ALL concurrency slots to be occupied simultaneously,
-  stub-delay-ms must be longer than (1000 / max-per-second) * maxConcurrent so
-  early calls are still in-flight when later ones arrive at the semaphore.
+This script tests the concurrency ceiling by creating more WorkItems than the
+max-concurrent limit allows, forcing some to queue while others execute.
 
-  For the cleanest demonstration, start the service with max-per-second = 0
-  (unlimited) so all calls hit the semaphore at the same instant:
-    sbt "run -Dapplication.router=testOnlyDoNotUseInAppConf.Routes \
-             -Dthrottle.enrolment-store-proxy.max-per-second=0"
+Key observations:
+  • currentlyProcessing will reach maxConcurrent and hold steady
+  • availablePermits will drop to 0 (all slots occupied)
+  • Overflow WorkItems queue in MongoDB until a slot becomes available
+  • Total processing time = ceil(total / maxConcurrent) × average_response_time
 
-Options:
-  --base-url URL              Service base URL (default: http://localhost:9867)
-  --service-path PATH         App route prefix (default: /eacd-file-processor)
-  --test-only-path PATH       Test-only route prefix (default: empty)
-  --overflow N                Extra calls above max-concurrent (default: 3)
-  --stub-delay-ms MS          How long the stub holds each connection (default: 8000)
-                              Must be longer than the inter-call gap introduced by
-                              the rate limiter, or set max-per-second=0 to bypass it.
-  --connector-timeout-ms MS   Logged in output only — the actual HTTP timeout is
-                              governed by Play WS config, not this flag (default: 3000).
-                              To enforce it at runtime start the service with:
-                                -Dplay.ws.timeout.request=3000
-  --status-sampling-ms MS     Status poll interval in milliseconds (default: 300)
-  --header "Key: Value"       Extra header for all calls (repeatable)
-  -h, --help                  Show this help text
+Scenario: Test with slow downstream responses
+  The stub is configured with --stub-delay-ms to simulate a slow downstream
+  service. Each WorkItem will block for this duration, demonstrating how
+  concurrency slots are held during the entire request lifetime.
+
+Pre-requisites
+  • Service running with test-only router:
+      sbt "run -Dapplication.router=testOnlyDoNotUseInAppConf.Routes"
+  • MongoDB running (WorkItems stored in: eacd-file-processor.workItems)
+
+Options
+───────
+  --base-url URL            Service base URL (default: http://localhost:9867)
+  --service-path PATH       App route prefix (default: /eacd-file-processor)
+  --test-only-path PATH     Test-only route prefix (default: empty)
+  --overflow N              Extra WorkItems beyond max-concurrent (default: 3)
+                            Total = maxConcurrent + overflow
+  --stub-delay-ms MS        How long the stub takes to respond (default: 2000)
+                            Simulates slow downstream service latency
+  --status-sampling-ms MS   Status poll interval in milliseconds (default: 300)
+  --header "Key: Value"     Extra header for all calls (repeatable)
+  -h, --help                Show this help text
 EOF
 }
 
@@ -175,7 +176,6 @@ while [ "$#" -gt 0 ]; do
     --test-only-path)       TEST_ONLY_PATH="$2";        shift 2 ;;
     --overflow)             OVERFLOW="$2";              shift 2 ;;
     --stub-delay-ms)        STUB_DELAY_MS="$2";         shift 2 ;;
-    --connector-timeout-ms) CONNECTOR_TIMEOUT_MS="$2";  shift 2 ;;
     --status-sampling-ms)   STATUS_SAMPLING_MS="$2";    shift 2 ;;
     --header)               HEADERS+=("$2");            shift 2 ;;
     -h|--help)              usage; exit 0 ;;
@@ -184,7 +184,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 # ── Validate numeric args ─────────────────────────────────────────────────────
-for var_name in OVERFLOW STUB_DELAY_MS CONNECTOR_TIMEOUT_MS STATUS_SAMPLING_MS; do
+for var_name in OVERFLOW STUB_DELAY_MS STATUS_SAMPLING_MS; do
   val="${!var_name}"
   if ! [[ "$val" =~ ^[0-9]+$ ]] || [ "$val" -le 0 ]; then
     echo "--$(echo "$var_name" | tr '[:upper:]_' '[:lower:]-') must be a positive integer" >&2
@@ -192,11 +192,6 @@ for var_name in OVERFLOW STUB_DELAY_MS CONNECTOR_TIMEOUT_MS STATUS_SAMPLING_MS; 
   fi
 done
 
-if [ "$CONNECTOR_TIMEOUT_MS" -ge "$STUB_DELAY_MS" ]; then
-  echo "WARNING: --connector-timeout-ms ($CONNECTOR_TIMEOUT_MS) >= --stub-delay-ms ($STUB_DELAY_MS)." >&2
-  echo "         Requests may complete before the stub times out.  For the saturation" >&2
-  echo "         scenario, set connector-timeout-ms < stub-delay-ms." >&2
-fi
 
 # Fix up path prefixes
 for var_name in SERVICE_PATH TEST_ONLY_PATH; do
@@ -245,100 +240,29 @@ if ! [[ "$MAX_CONCURRENT" =~ ^[0-9]+$ ]] || [ "$MAX_CONCURRENT" -le 0 ]; then
   exit 1
 fi
 
-# Extract maxPerSecond — needed to explain the rate-limiter / semaphore interaction
-if command -v jq >/dev/null 2>&1; then
-  MAX_PER_SECOND=$(printf '%s\n' "$initial_status_body" | jq -r '.enrolmentStoreProxy.maxPerSecond // 0')
-else
-  MAX_PER_SECOND=$(printf '%s\n' "$initial_status_body" | grep -oE '"maxPerSecond"\s*:\s*[0-9]+' | grep -oE '[0-9]+$' || echo 0)
-fi
-MAX_PER_SECOND="${MAX_PER_SECOND:-0}"
-
 TOTAL_COUNT=$(( MAX_CONCURRENT + OVERFLOW ))
 
 echo
 echo "  maxConcurrent      = $MAX_CONCURRENT"
-echo "  maxPerSecond       = $MAX_PER_SECOND  (0 = unlimited)"
 echo "  overflow           = $OVERFLOW"
 echo "  totalBurst         = $TOTAL_COUNT  (will fill all slots and queue $OVERFLOW extra calls)"
 echo "  stubDelayMs        = $STUB_DELAY_MS  (stub holds each connection this long)"
-echo "  connectorTimeoutMs = $CONNECTOR_TIMEOUT_MS  (advisory — see --help)"
 echo
-
-# ── Pre-flight: rate-limiter interaction check ────────────────────────────────
-# The token bucket drips calls into the semaphore N-per-second.  For the semaphore
-# to be fully saturated you need ALL maxConcurrent calls to be in-flight at the
-# same time.  With max-per-second=N the last of the initial maxConcurrent calls
-# only arrives at the semaphore after ceil(maxConcurrent/N) seconds.  The earlier
-# calls must still be holding their permits at that point.
-#
-#   Required:  stub-delay-ms  >  ceil(maxConcurrent / max-per-second) * 1000
-#
-# If this condition is not met the semaphore will never be fully saturated and
-# the script will not demonstrate the max-concurrency scenario.
-if [ "$MAX_PER_SECOND" -gt 0 ] 2>/dev/null; then
-  # ceil(MAX_CONCURRENT / MAX_PER_SECOND) in integer arithmetic
-  windows_needed=$(( (MAX_CONCURRENT + MAX_PER_SECOND - 1) / MAX_PER_SECOND ))
-  min_stub_ms=$(( windows_needed * 1000 ))
-
-  echo "  ⚠️  Rate-limiter is ACTIVE  (max-per-second=$MAX_PER_SECOND)"
-  echo "      The token bucket releases at most $MAX_PER_SECOND call(s) per second."
-  echo "      All $MAX_CONCURRENT concurrency slots are first occupied after ~${windows_needed}s."
-  echo "      stub-delay-ms must be > ${min_stub_ms}ms for the semaphore to stay"
-  echo "      fully saturated long enough to be observed."
-  echo
-
-  if [ "$STUB_DELAY_MS" -le "$min_stub_ms" ]; then
-    echo "  ❌  PROBLEM: stub-delay-ms ($STUB_DELAY_MS) is NOT greater than ${min_stub_ms}ms."
-    echo "      The first calls will time out or complete BEFORE all concurrency slots"
-    echo "      are filled.  You will see currentlyProcessing < maxConcurrent."
-    echo
-    echo "      Fix — choose ONE of:"
-    echo "        a) Restart the service with max-per-second=0 (recommended):"
-    echo "             sbt \"run -Dapplication.router=testOnlyDoNotUseInAppConf.Routes \\"
-    echo "                      -Dthrottle.enrolment-store-proxy.max-per-second=0\""
-    echo "        b) Increase --stub-delay-ms to at least $(( min_stub_ms + 1000 )):"
-    echo "             --stub-delay-ms $(( min_stub_ms + 1000 ))"
-    echo
-  else
-    echo "      stub-delay-ms ($STUB_DELAY_MS) > minimum required (${min_stub_ms}ms) ✓"
-    echo "      The semaphore should saturate — but consider max-per-second=0 for"
-    echo "      a cleaner, instantaneous saturation demonstration."
-    echo
-  fi
-else
-  echo "  ✓  Rate-limiter is DISABLED (max-per-second=0 or unlimited)."
-  echo "      All $TOTAL_COUNT calls will hit the semaphore simultaneously — ideal"
-  echo "      for demonstrating max-concurrency saturation."
-  echo
-fi
 
 # ── Explain what we expect to see ─────────────────────────────────────────────
 echo "Step 2 — What to expect"
-if [ "${MAX_PER_SECOND:-0}" -eq 0 ] 2>/dev/null; then
-  echo "  ┌─────────────────────────────────────────────────────────────────┐"
-  echo "  │  Rate limiter OFF — all $TOTAL_COUNT calls hit the semaphore at once.  │"
-  echo "  │  The first $MAX_CONCURRENT acquire a permit; $OVERFLOW are queued immediately.│"
-  echo "  │  The stub holds each connection for ${STUB_DELAY_MS}ms.              │"
-  echo "  │                                                                 │"
-  echo "  │  You should observe (almost immediately):                      │"
-  echo "  │    currentlyProcessing  = $MAX_CONCURRENT  (saturated)                  │"
-  echo "  │    availablePermits     = 0                                    │"
-  echo "  └─────────────────────────────────────────────────────────────────┘"
-else
-  windows_needed=$(( (MAX_CONCURRENT + MAX_PER_SECOND - 1) / MAX_PER_SECOND ))
-  echo "  ┌─────────────────────────────────────────────────────────────────┐"
-  echo "  │  Rate limiter ON (max-per-second=$MAX_PER_SECOND).                      │"
-  echo "  │  Calls drip in $MAX_PER_SECOND per second.  All $MAX_CONCURRENT slots occupied after  │"
-  echo "  │  ~${windows_needed}s.  Semaphore saturation visible between t=${windows_needed}s and      │"
-  echo "  │  t=(when first calls complete/timeout).                        │"
-  echo "  │                                                                 │"
-  echo "  │  You should observe BRIEFLY:                                   │"
-  echo "  │    currentlyProcessing  = $MAX_CONCURRENT                               │"
-  echo "  │    availablePermits     = 0                                    │"
-  echo "  │                                                                 │"
-  echo "  │  If you miss the window, restart with max-per-second=0.       │"
-  echo "  └─────────────────────────────────────────────────────────────────┘"
-fi
+echo "  ┌─────────────────────────────────────────────────────────────────┐"
+echo "  │  WorkItem-based concurrency control:                            │"
+echo "  │  • $TOTAL_COUNT WorkItems created and persisted to MongoDB          │"
+echo "  │  • First $MAX_CONCURRENT processed in parallel (max-concurrent)  │"
+echo "  │  • Remaining $OVERFLOW queued until slots become available         │"
+echo "  │  • Each call blocked for ~${STUB_DELAY_MS}ms by the stub           │"
+echo "  │                                                                 │"
+echo "  │  You should observe:                                           │"
+echo "  │    ✓ currentlyProcessing  = $MAX_CONCURRENT  (saturated)             │"
+echo "  │    ✓ availablePermits     = 0                                   │"
+echo "  │    ✓ Total elapsed       ≈ ceil($TOTAL_COUNT / $MAX_CONCURRENT) × ${STUB_DELAY_MS}ms      │"
+echo "  └─────────────────────────────────────────────────────────────────┘"
 echo
 
 # ── Temporary files ───────────────────────────────────────────────────────────
@@ -355,16 +279,16 @@ sampler_pid=$!
 sleep 0.3
 
 # ── Fire the burst ────────────────────────────────────────────────────────────
-echo
+# ── Fire the burst ────────────────────────────────────────────────────────────
 echo "Step 4 — Firing connector burst (count=$TOTAL_COUNT, stubDelayMs=$STUB_DELAY_MS)..."
 echo "         The trigger POST will block until ALL $TOTAL_COUNT calls have completed"
-echo "         (or timed out), which takes at least: ${CONNECTOR_TIMEOUT_MS}ms."
+echo "         (or timed out), which takes at least: ~$(( TOTAL_COUNT * STUB_DELAY_MS / MAX_CONCURRENT ))ms."
 echo
 
 # The stub uses ?delayMs=N to simulate a slow downstream.
 # The count path segment tells EnrolmentStoreProxyThrottlingController how many
-# concurrent connector calls to launch.
-trigger_url="$(endpoint_url_with_prefix "$TEST_ONLY_PATH" "/test-only/throttle/enrolment-store-proxy/$TOTAL_COUNT")?stubDelayMs=$STUB_DELAY_MS&connectorTimeoutMs=$CONNECTOR_TIMEOUT_MS"
+# WorkItems to create and process.
+trigger_url="$(endpoint_url_with_prefix "$TEST_ONLY_PATH" "/test-only/throttle/enrolment-store-proxy/$TOTAL_COUNT")?stubDelayMs=$STUB_DELAY_MS"
 
 start_epoch=$(date +%s)
 curl_json POST "$trigger_url" >"$trigger_out_file"

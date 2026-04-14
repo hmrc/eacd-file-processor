@@ -30,18 +30,11 @@ class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig)
 
   /** Base URL for the enrolment-store-proxy service (resolved from service config). */
   val enrolmentStoreProxyBaseUrl: String = servicesConfig.baseUrl("enrolment-store-proxy")
-
-  // ── Throttling configuration ───────────────────────────────────────────────
-  // Controls the rate at which outbound calls are made to enrolment-store-proxy.
-  // This is the ONLY connector in this service that is throttled.
-
+  
   /** Maximum number of simultaneous requests to enrolment-store-proxy. */
   val maxConcurrentEnrolmentStoreProxyRequests: Int =
     config.getOptional[Int]("throttle.enrolment-store-proxy.max-concurrent").getOrElse(5)
 
-  /** Maximum number of new requests to enrolment-store-proxy started per second (0 = unlimited). */
-  val maxPerSecondEnrolmentStoreProxyRequests: Int =
-    config.getOptional[Int]("throttle.enrolment-store-proxy.max-per-second").getOrElse(0)
 
   private def getString(key: String): String =
     config.getOptional[String](key).filter(!_.isBlank)

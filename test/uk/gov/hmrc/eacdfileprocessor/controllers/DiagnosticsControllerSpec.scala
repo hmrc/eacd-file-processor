@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
-import org.mockito.Mockito.{mock, when}
+import org.mockito.Mockito.when
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -24,8 +24,10 @@ import org.scalatest.time.{Millis, Seconds, Span}
 import play.api.libs.json.Json
 import play.api.test.FakeRequest
 import play.api.test.Helpers.*
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.services.ThrottlingService
+import uk.gov.hmrc.eacdfileprocessor.services.{EnrolmentStoreProxyWorkItemService, ServiceThrottleState, ThrottlingStatus}
+import org.scalatestplus.mockito.MockitoSugar.mock
+
+import scala.concurrent.Future
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -36,28 +38,22 @@ class DiagnosticsControllerSpec extends AnyWordSpec with Matchers with ScalaFutu
     interval = Span(50, Millis)
   )
 
-  private val mockServicesConfig = mock(classOf[uk.gov.hmrc.play.bootstrap.config.ServicesConfig])
-  when(mockServicesConfig.baseUrl("internal-auth")).thenReturn("http://localhost:8470")
-  when(mockServicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:9877")
-
-  private val mockAppConfig = new AppConfig(
-    play.api.Configuration.from(
-      Map(
-        "appName"                                        -> "test-app",
-        "time-to-live.time"                             -> "3",
-        "internal-auth.token"                           -> "test-token",
-        "throttle.enrolment-store-proxy.max-concurrent" -> 5,
-        "throttle.enrolment-store-proxy.max-per-second" -> 0
-      )
-    ),
-    mockServicesConfig
+  private val sampleStatus = ThrottlingStatus(
+    enrolmentStoreProxy = ServiceThrottleState(
+      maxConcurrent             = 5,
+      availablePermits          = 5,
+      currentlyProcessing       = 0,
+      maxPerSecond              = 0,
+      tokensRemainingThisSecond = -1
+    )
   )
 
   "DiagnosticsController" should {
 
     "return throttling status as JSON with enrolment-store-proxy fields" in {
-      val throttlingService = new ThrottlingService(mockAppConfig)
-      val controller        = new DiagnosticsController(throttlingService, stubControllerComponents())
+      val workItemService = mock[EnrolmentStoreProxyWorkItemService]
+      when(workItemService.getThrottlingStatus).thenReturn(Future.successful(sampleStatus))
+      val controller      = new DiagnosticsController(workItemService, stubControllerComponents())
 
       val result     = controller.throttlingStatus()(FakeRequest())
       val bodyAsJson = contentAsJson(result)
@@ -69,8 +65,9 @@ class DiagnosticsControllerSpec extends AnyWordSpec with Matchers with ScalaFutu
     }
 
     "return 200 OK status" in {
-      val throttlingService = new ThrottlingService(mockAppConfig)
-      val controller        = new DiagnosticsController(throttlingService, stubControllerComponents())
+      val workItemService = mock[EnrolmentStoreProxyWorkItemService]
+      when(workItemService.getThrottlingStatus).thenReturn(Future.successful(sampleStatus))
+      val controller      = new DiagnosticsController(workItemService, stubControllerComponents())
 
       val result = controller.throttlingStatus()(FakeRequest())
       status(result)      shouldEqual OK
@@ -78,16 +75,18 @@ class DiagnosticsControllerSpec extends AnyWordSpec with Matchers with ScalaFutu
     }
 
     "return valid JSON" in {
-      val throttlingService = new ThrottlingService(mockAppConfig)
-      val controller        = new DiagnosticsController(throttlingService, stubControllerComponents())
+      val workItemService = mock[EnrolmentStoreProxyWorkItemService]
+      when(workItemService.getThrottlingStatus).thenReturn(Future.successful(sampleStatus))
+      val controller      = new DiagnosticsController(workItemService, stubControllerComponents())
 
       val bodyAsString = contentAsString(controller.throttlingStatus()(FakeRequest()))
       noException should be thrownBy { Json.parse(bodyAsString) }
     }
 
     "reflect consistent permit availability between calls" in {
-      val throttlingService = new ThrottlingService(mockAppConfig)
-      val controller        = new DiagnosticsController(throttlingService, stubControllerComponents())
+      val workItemService = mock[EnrolmentStoreProxyWorkItemService]
+      when(workItemService.getThrottlingStatus).thenReturn(Future.successful(sampleStatus))
+      val controller      = new DiagnosticsController(workItemService, stubControllerComponents())
 
       val permits1 = (contentAsJson(controller.throttlingStatus()(FakeRequest())) \ "enrolmentStoreProxy" \ "availablePermits").as[Int]
       val permits2 = (contentAsJson(controller.throttlingStatus()(FakeRequest())) \ "enrolmentStoreProxy" \ "availablePermits").as[Int]

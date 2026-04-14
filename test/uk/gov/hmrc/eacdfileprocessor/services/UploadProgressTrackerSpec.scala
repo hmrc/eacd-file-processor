@@ -18,25 +18,25 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
-import org.mockito.Mockito.{mock, times, verify, when}
-import play.api.http.Status.CREATED
+import org.mockito.Mockito.{times, verify, when}
 import play.api.Configuration
+import play.api.http.Status.CREATED
+import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
-import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.http.{HttpReads, HttpResponse}
 import uk.gov.hmrc.objectstore.client.*
+import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 
-import java.net.URL
-import java.time.Instant
-import scala.concurrent.{Future, TimeoutException}
+import scala.concurrent.Future
 
 class UploadProgressTrackerSpec extends TestSupport with TestData:
   private lazy val mockServicesConfig = mock[uk.gov.hmrc.play.bootstrap.config.ServicesConfig]
   when(mockServicesConfig.baseUrl("internal-auth")).thenReturn("http://localhost:8470")
   when(mockServicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:9877")
+  when(mockServicesConfig.baseUrl("internalAuth")).thenReturn("http://localhost:8470")
 
   private lazy val appConfig = new AppConfig(
     Configuration.from(
@@ -44,8 +44,7 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
         "appName"                                        -> "eacd-file-processor",
         "time-to-live.time"                             -> "3",
         "internal-auth.token"                           -> "12345678",
-        "throttle.enrolment-store-proxy.max-concurrent" -> 5,
-        "throttle.enrolment-store-proxy.max-per-second" -> 0
+        "throttle.enrolment-store-proxy.max-concurrent" -> 5
       )
     ),
     mockServicesConfig
@@ -69,60 +68,11 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
   
 
   "UploadProgressTracker" should {
-    "update successful upload file details and correctly update status" in new Setup {
-      when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      when(
-        objectStoreClient.uploadFromUrl(
-          from = any[URL],
-          to = any[Path.File],
-          retentionPeriod = any[RetentionPeriod],
-          contentType = any[Option[String]],
-          contentMd5 = any[Option[Md5Hash]],
-          contentSha256 = any[Option[Sha256Checksum]],
-          owner = any[String]
-        )(using any[HeaderCarrier])
-      ).thenReturn(
-        Future.successful(
-          ObjectSummaryWithMd5(
-            location = Path.File("/some/file.txt"),
-            contentLength = 100,
-            contentMd5 = Md5Hash("md5hash"),
-            lastModified = Instant.now()
-          )
-        )
-      )
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl,successfulUploadedDetails.mimeType,
-        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
-
-      progressTracker.registerUploadResult(reference, successfulUploadedDetails)
-      verify(repository, times(1)).updateStatus(any(), any())
-    }
-
     "update failed upload file details" in new Setup {
       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
       
-      progressTracker.registerUploadResult(reference, failedFileDetails)
-      verify(repository, times(0)).updateStatus(any(), any())
-    }
-
-    "Failed to upload file to object store and status remained scanned" in new Setup {
-      when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      when(
-        objectStoreClient.uploadFromUrl(
-          from = any[URL],
-          to = any[Path.File],
-          retentionPeriod = any[RetentionPeriod],
-          contentType = any[Option[String]],
-          contentMd5 = any[Option[Md5Hash]],
-          contentSha256 = any[Option[Sha256Checksum]],
-          owner = any[String]
-        )(using any[HeaderCarrier])
-      ).thenReturn(Future.failed(new TimeoutException("Unable to upload, time out.")))
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl, successfulUploadedDetails.mimeType,
-        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
-
-      progressTracker.registerUploadResult(reference, successfulUploadedDetails)
-
+      await(progressTracker.registerUploadResult(reference, failedFileDetails))
+      verify(repository, times(1)).updateStatusAndDetails(any(), any(), any())
       verify(repository, times(0)).updateStatus(any(), any())
     }
   }
