@@ -11,3 +11,4 @@
 
 # Add all the application routes to the prod.routes file
 ->         /                          prod.Routes
+PUT        /testOnly/document/:reference/:fileName        uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController.putObject(reference, fileName)

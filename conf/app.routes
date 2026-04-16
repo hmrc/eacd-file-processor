@@ -5,3 +5,5 @@ POST       /initiate                uk.gov.hmrc.eacdfileprocessor.controllers.In
 PUT        /status/:reference       uk.gov.hmrc.eacdfileprocessor.controllers.StatusController.updateStatus(reference: String)
 
 GET        /files/:status            uk.gov.hmrc.eacdfileprocessor.controllers.StatusController.getFilesStatus(status: String)
+
+GET        /file/:reference         uk.gov.hmrc.eacdfileprocessor.controllers.FileController.getFile(reference: String)

@@ -105,6 +105,51 @@ class FileRepositorySpec extends TestSupport with TestData:
         actual shouldBe expected
         actual.uploadedDateTime shouldBe None
       }
+
+      "correctly find upload details of give reference" in {
+        val reference = initiateUploadDetails.reference
+        await(repository.createFileRecord(initiateUploadDetails))
+
+        val actual = await(repository.findByReference(reference)).get
+        actual shouldBe initiateUploadDetails
+      }
+
+      "correctly return None when reference is not found" in {
+        val actual = await(repository.findByReference(Reference("non-existing-ref")))
+        actual shouldBe None
+      }
+
+      "correctly return file name of given reference" in {
+        val reference = initiateUploadDetails.reference
+        await(repository.createFileRecord(initiateUploadDetails.copy(details = Some(successfulUploadedDetails))))
+
+        val actual = await(repository.getNameOfFile(reference)).get
+        actual shouldBe successfulUploadedDetails.name
+      }
+
+      "correctly return None when file name is not found for given reference" in {
+        await(repository.createFileRecord(initiateUploadDetails))
+
+        val actual = await(repository.getNameOfFile(Reference("non-existing-ref")))
+        actual shouldBe None
+
+      }
+
+      "correctly return empty string when details do not contain name for given reference" in {
+        val reference = initiateUploadDetails.reference
+        await(repository.createFileRecord(initiateUploadDetails.copy(details = Some(failedFileDetails))))
+
+        val actual = await(repository.getNameOfFile(reference)).get
+        actual shouldBe ""
+      }
+
+      "correctly return None when details do not exist" in {
+        val reference = initiateUploadDetails.reference
+        await(repository.createFileRecord(initiateUploadDetails.copy(details = None)))
+
+        val actual = await(repository.getNameOfFile(reference))
+        actual shouldBe None
+      }
     }
 
     "find file by status" when {
