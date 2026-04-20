@@ -107,6 +107,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "approverDetails").formatNullable[ApproverDetails]
       ~ (__ \ "uploadedDateTime").formatNullable[Instant]
       ~ (__ \ "lastUpdatedDateTime").format[Instant]
+      ~ (__ \ "approvedAtDateTime").formatNullable[Instant]
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 
@@ -183,11 +184,12 @@ class FileRepository @Inject()(
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =
     updateByReference(reference, Seq(set("status", Codecs.toBson(status)), set("details", Codecs.toBson(details))): _*)
 
-  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails, updateUploadedTime: Boolean): Future[Option[UploadedDetails]] = {
+  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails, updateUploadedTime: Boolean, approvedAt : Option[Instant]): Future[Option[UploadedDetails]] = {
     val updates = Seq(
       set("status", Codecs.toBson(status)),
       set("approverDetails", Codecs.toBson(approverDetails))
     ) ++ (if updateUploadedTime then Seq(set("uploadedDateTime", Instant.now())) else Seq.empty)
+      ++ (if approvedAt.isDefined then Seq(set("approvedAtDateTime", approvedAt.getOrElse("FORMAT ERROR"))) else Seq.empty)
 
     updateByReference(reference, updates: _*)
   }
