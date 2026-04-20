@@ -184,12 +184,12 @@ class FileRepository @Inject()(
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =
     updateByReference(reference, Seq(set("status", Codecs.toBson(status)), set("details", Codecs.toBson(details))): _*)
 
-  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails, updateUploadedTime: Boolean, approvedAt : Instant = Instant.MIN): Future[Option[UploadedDetails]] = {
+  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails, updateUploadedTime: Boolean, approvedAt : Option[Instant]): Future[Option[UploadedDetails]] = {
     val updates = Seq(
       set("status", Codecs.toBson(status)),
       set("approverDetails", Codecs.toBson(approverDetails))
     ) ++ (if updateUploadedTime then Seq(set("uploadedDateTime", Instant.now())) else Seq.empty)
-      ++ (if approvedAt != Instant.MIN then Seq(set("approvedAtDateTime", approvedAt)) else Seq.empty)
+      ++ (if approvedAt.isDefined then Seq(set("approvedAtDateTime", approvedAt.getOrElse("FORMAT ERROR"))) else Seq.empty)
 
     updateByReference(reference, updates: _*)
   }

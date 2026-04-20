@@ -72,7 +72,7 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
         logger.warn("INVALID_PID Request and approver PIDs cannot be the same")
         Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_PID", "Request and approver PIDs cannot be the same"))))
       case (Some(name), Some(pid), Some(email)) =>
-        updateStatusToRepo(reference, statusApproverDetails, approvedAt = Instant.now())
+        updateStatusToRepo(reference, statusApproverDetails, approvedAt = Some(Instant.now()))
       case (_, _, _) =>
         logger.warn("APPROVER_FIELDS_MISSING Approver fields are missing for status approved")
         Future.successful(BadRequest(Json.toJson(ApiErrorResponse("APPROVER_FIELDS_MISSING", "Approver fields are missing for status approved"))))
@@ -90,7 +90,7 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
         Future.successful(BadRequest(Json.toJson(ApiErrorResponse("ERROR_FIELDS_MISSING", "Error fields are missing for status failed"))))
   }
 
-  private[services] def updateStatusToRepo(reference: String, statusApproverDetails: StatusApproverDetails, isUploadedRelatedStatus: Boolean = false, approvedAt: Instant = Instant.MIN): Future[Result] = {
+  private[services] def updateStatusToRepo(reference: String, statusApproverDetails: StatusApproverDetails, isUploadedRelatedStatus: Boolean = false, approvedAt: Option[Instant] = None): Future[Result] = {
     val approverDetails = (Json.toJson(statusApproverDetails).as[JsObject] - "status").as[ApproverDetails]
     fileUploadRepo.updateStatusAndApproverDetails(Reference(reference), FileStatus.valueOf(statusApproverDetails.status.toUpperCase), approverDetails, isUploadedRelatedStatus, approvedAt) map {
       case Some(_) =>

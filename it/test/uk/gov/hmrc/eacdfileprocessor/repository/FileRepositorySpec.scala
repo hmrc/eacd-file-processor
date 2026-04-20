@@ -24,7 +24,6 @@ import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.mongo.logging.ObservableFutureImplicits._
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
 import uk.gov.hmrc.eacdfileprocessor.models.*
 
@@ -96,7 +95,7 @@ class FileRepositorySpec extends TestSupport with TestData:
       "correctly update status approver details and uploadedDateTime" in {
         val reference = initiateUploadDetails.reference
         await(repository.createFileRecord(initiateUploadDetails))
-        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, true, Instant.parse("2024-01-01T00:00:00Z")))
+        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, true, Some(Instant.parse("2024-01-01T00:00:00Z"))))
 
         val actual = await(repository.findByReference(reference)).get
         val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), uploadedDateTime = actual.uploadedDateTime, lastUpdatedDateTime = actual.lastUpdatedDateTime, approvedAtDateTime = Some(Instant.parse("2024-01-01T00:00:00Z")))
@@ -106,7 +105,7 @@ class FileRepositorySpec extends TestSupport with TestData:
       "correctly update status and approver details" in {
         val reference = initiateUploadDetails.reference
         await(repository.createFileRecord(initiateUploadDetails))
-        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, false, Instant.parse("2024-01-01T00:00:00Z")))
+        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, false, Some(Instant.parse("2024-01-01T00:00:00Z"))))
 
         val actual = await(repository.findByReference(reference)).get
         val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), lastUpdatedDateTime = actual.lastUpdatedDateTime, approvedAtDateTime = Some(Instant.parse("2024-01-01T00:00:00Z")))
@@ -116,7 +115,7 @@ class FileRepositorySpec extends TestSupport with TestData:
       "approvedAtDateTime is unchanged when updating other fields" in {
         val reference = initiateUploadDetails.reference
         await(repository.createFileRecord(initiateUploadDetails))
-        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, false, Instant.parse("2024-01-01T00:00:00Z")))
+        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, false, Some(Instant.parse("2024-01-01T00:00:00Z"))))
         val before = await(repository.findByReference(reference)).get
         await(repository.updateStatus(reference, STORED))
         val after = await(repository.findByReference(reference)).get
