@@ -24,6 +24,7 @@ import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
+import uk.gov.hmrc.mongo.logging.ObservableFutureImplicits._
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
 import uk.gov.hmrc.eacdfileprocessor.models.*
 
@@ -46,6 +47,11 @@ class FileRepositorySpec extends TestSupport with TestData:
 
         val actual = await(repository.findByReference(Reference("08aad019-7f66-4456-8d52-93f12109876f"))).get
         actual shouldBe initiateUploadDetails
+      }
+      "approvedAtDateTime is None by default on creation" in {
+        await(repository.createFileRecord(initiateUploadDetails))
+        val actual = await(repository.findByReference(initiateUploadDetails.reference)).get
+        actual.approvedAtDateTime shouldBe None
       }
       "missing reference" in {
         val missingRefUploadDetails = initiateUploadDetails.copy(reference = Reference(null))
@@ -106,6 +112,15 @@ class FileRepositorySpec extends TestSupport with TestData:
         val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), lastUpdatedDateTime = actual.lastUpdatedDateTime, approvedAtDateTime = Some(Instant.parse("2024-01-01T00:00:00Z")))
         actual shouldBe expected
         actual.uploadedDateTime shouldBe None
+      }
+      "approvedAtDateTime is unchanged when updating other fields" in {
+        val reference = initiateUploadDetails.reference
+        await(repository.createFileRecord(initiateUploadDetails))
+        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, false, Instant.parse("2024-01-01T00:00:00Z")))
+        val before = await(repository.findByReference(reference)).get
+        await(repository.updateStatus(reference, STORED))
+        val after = await(repository.findByReference(reference)).get
+        after.approvedAtDateTime shouldBe before.approvedAtDateTime
       }
     }
 
