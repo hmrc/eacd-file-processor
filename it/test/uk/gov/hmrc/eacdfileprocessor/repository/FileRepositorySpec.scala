@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import org.bson.types.ObjectId
-import org.mockito.Mockito.{spy, when}
+import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.{should, shouldBe}
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
@@ -25,12 +25,14 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
-import uk.gov.hmrc.eacdfileprocessor.models.{ApproverDetails, FileStatus, Reference, StatusDetailsModel, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.*
+
+import java.time.Instant
 
 class FileRepositorySpec extends TestSupport with TestData:
   private val mockAppConfig = mock[AppConfig]
   when(mockAppConfig.timeToLive).thenReturn("3")
-  lazy val repository = app.injector.instanceOf[FileRepository]
+  lazy val repository: FileRepository = app.injector.instanceOf[FileRepository]
 
   override def beforeEach(): Unit = {
     await(repository.collection.drop().headOption())
@@ -88,20 +90,20 @@ class FileRepositorySpec extends TestSupport with TestData:
       "correctly update status approver details and uploadedDateTime" in {
         val reference = initiateUploadDetails.reference
         await(repository.createFileRecord(initiateUploadDetails))
-        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, true))
+        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, true, Instant.parse("2024-01-01T00:00:00Z")))
 
         val actual = await(repository.findByReference(reference)).get
-        val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), uploadedDateTime = actual.uploadedDateTime, lastUpdatedDateTime = actual.lastUpdatedDateTime)
+        val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), uploadedDateTime = actual.uploadedDateTime, lastUpdatedDateTime = actual.lastUpdatedDateTime, approvedAtDateTime = Some(Instant.parse("2024-01-01T00:00:00Z")))
         actual shouldBe expected
         actual.uploadedDateTime should not be None
       }
       "correctly update status and approver details" in {
         val reference = initiateUploadDetails.reference
         await(repository.createFileRecord(initiateUploadDetails))
-        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, false))
+        await(repository.updateStatusAndApproverDetails(reference, APPROVED, approverDetails, false, Instant.parse("2024-01-01T00:00:00Z")))
 
         val actual = await(repository.findByReference(reference)).get
-        val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), lastUpdatedDateTime = actual.lastUpdatedDateTime)
+        val expected = initiateUploadDetails.copy(status = APPROVED, approverDetails = Some(approverDetails), lastUpdatedDateTime = actual.lastUpdatedDateTime, approvedAtDateTime = Some(Instant.parse("2024-01-01T00:00:00Z")))
         actual shouldBe expected
         actual.uploadedDateTime shouldBe None
       }
@@ -118,13 +120,12 @@ class FileRepositorySpec extends TestSupport with TestData:
 
       }
 
-        "there is no file matching the file status" in {
-          val status: FileStatus = initiateUploadDetails.status
-          await(repository.createFileRecord(initiateUploadDetails.copy()))
+      "there is no file matching the file status" in {
+        await(repository.createFileRecord(initiateUploadDetails.copy()))
 
-          val actual = await(repository.findByStatus(FileStatus.STORED))
-          actual shouldBe Seq.empty[StatusDetailsModel]
-        }
+        val actual = await(repository.findByStatus(FileStatus.STORED))
+        actual shouldBe Seq.empty[StatusDetailsModel]
+      }
 
       "there are multiple files matching the file status" in {
         val status: FileStatus = initiateUploadDetails.status

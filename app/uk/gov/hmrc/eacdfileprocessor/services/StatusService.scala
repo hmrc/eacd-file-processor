@@ -28,11 +28,12 @@ import uk.gov.hmrc.eacdfileprocessor.utils.ValidationUtil
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
+import java.time.Instant
 
 @Singleton
 class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: ExecutionContext) extends Logging {
 
-  def updateStatus(reference: String, currentStatus: FileStatus, requestorPID: String, statusApproverDetails: StatusApproverDetails) = {
+  def updateStatus(reference: String, currentStatus: FileStatus, requestorPID: String, statusApproverDetails: StatusApproverDetails): Future[Result] = {
     Try(FileStatus.valueOf(statusApproverDetails.status.toUpperCase)) match {
       case Success(newStatus) =>
         newStatus match
@@ -59,7 +60,7 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
   }
 
   private[services] def updateApprovedStatus(currentStatus: FileStatus, requestorPID: String, statusApproverDetails: StatusApproverDetails,
-                                   reference: String): Future[Result] = {
+                                             reference: String): Future[Result] = {
     (statusApproverDetails.approverName, statusApproverDetails.approverPID, statusApproverDetails.approverEmail) match
       case (Some(name), Some(pid), Some(email)) if currentStatus != STORED =>
         logger.warn("INVALID_STATUS_TRANSITION Invalid status transition")
@@ -71,7 +72,7 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
         logger.warn("INVALID_PID Request and approver PIDs cannot be the same")
         Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_PID", "Request and approver PIDs cannot be the same"))))
       case (Some(name), Some(pid), Some(email)) =>
-        updateStatusToRepo(reference, statusApproverDetails)
+        updateStatusToRepo(reference, statusApproverDetails, approvedAt = Instant.now())
       case (_, _, _) =>
         logger.warn("APPROVER_FIELDS_MISSING Approver fields are missing for status approved")
         Future.successful(BadRequest(Json.toJson(ApiErrorResponse("APPROVER_FIELDS_MISSING", "Approver fields are missing for status approved"))))
@@ -89,9 +90,9 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
         Future.successful(BadRequest(Json.toJson(ApiErrorResponse("ERROR_FIELDS_MISSING", "Error fields are missing for status failed"))))
   }
 
-  private[services] def updateStatusToRepo(reference: String, statusApproverDetails: StatusApproverDetails, isUploadedRelatedStatus: Boolean = false): Future[Result] = {
+  private[services] def updateStatusToRepo(reference: String, statusApproverDetails: StatusApproverDetails, isUploadedRelatedStatus: Boolean = false, approvedAt: Instant = Instant.MIN): Future[Result] = {
     val approverDetails = (Json.toJson(statusApproverDetails).as[JsObject] - "status").as[ApproverDetails]
-    fileUploadRepo.updateStatusAndApproverDetails(Reference(reference), FileStatus.valueOf(statusApproverDetails.status.toUpperCase), approverDetails, isUploadedRelatedStatus) map {
+    fileUploadRepo.updateStatusAndApproverDetails(Reference(reference), FileStatus.valueOf(statusApproverDetails.status.toUpperCase), approverDetails, isUploadedRelatedStatus, approvedAt) map {
       case Some(_) =>
         NoContent
       case None =>

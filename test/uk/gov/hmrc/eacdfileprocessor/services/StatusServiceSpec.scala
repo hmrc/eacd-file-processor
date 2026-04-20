@@ -54,7 +54,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
           errorCode = Some("error code"),
           errorMessage = Some("error message")
         )
-        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
         val result = await(statusService.updateStatus("ref1", INITIAL, "12345678", statusApproverDetails))
 
         status(result) shouldBe NO_CONTENT
@@ -63,7 +63,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         val statusApproverDetails = StatusApproverDetails(
           status = "uploaded"
         )
-        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
         val result = await(statusService.updateStatus("ref1", INITIAL, "12345678", statusApproverDetails))
 
         status(result) shouldBe NO_CONTENT
@@ -72,7 +72,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected"
         )
-        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
         val result = await(statusService.updateStatus("ref1", STORED, "12345678", statusApproverDetails))
 
         status(result) shouldBe NO_CONTENT
@@ -84,7 +84,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
           approverPID = Some("87654321"),
           approverEmail = Some("approver@hmrc.gov.uk")
         )
-        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
         val result = await(statusService.updateStatus("ref1", STORED, "12345678", statusApproverDetails))
 
         status(result) shouldBe NO_CONTENT
@@ -186,7 +186,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
           errorCode = Some("error code"),
           errorMessage = Some("error message")
         )
-        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any())).thenReturn(Future.successful(None))
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(None))
         val result = await(statusService.updateStatus("ref1", INITIAL, "12345678", statusApproverDetails))
 
         status(result) shouldBe SERVICE_UNAVAILABLE
@@ -201,7 +201,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
           approverPID = Some("87654321"),
           approverEmail = Some("approver@hmrc.gov.uk")
         )
-        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
         val result = await(statusService.updateApprovedStatus(STORED, "12345678", statusApproverDetails, "ref1"))
 
         status(result) shouldBe NO_CONTENT
@@ -293,7 +293,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
           errorCode = Some("error code"),
           errorMessage = Some("error message")
         )
-        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
         val result = await(statusService.updateUploadRejectedStatus(INITIAL, statusApproverDetails, "ref1"))
 
         status(result) shouldBe NO_CONTENT
@@ -347,7 +347,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
           approverPID = Some("87654321"),
           approverEmail = Some("approver@hmrc.gov.uk")
         )
-        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
         val result = await(statusService.updateStatusToRepo("ref1", statusApproverDetails))
 
         status(result) shouldBe NO_CONTENT
@@ -359,7 +359,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
           approverPID = Some("87654321"),
           approverEmail = Some("approver@hmrc.gov.uk")
         )
-        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any())).thenReturn(Future.successful(None))
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(None))
         val result = await(statusService.updateStatusToRepo("ref1", statusApproverDetails))
 
         status(result) shouldBe SERVICE_UNAVAILABLE
