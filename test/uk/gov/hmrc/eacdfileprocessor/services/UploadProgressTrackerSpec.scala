@@ -20,6 +20,7 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito.{times, verify, when}
 import play.api.http.Status.CREATED
+import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
@@ -30,15 +31,21 @@ import uk.gov.hmrc.objectstore.client.*
 
 import java.net.URL
 import java.time.Instant
-import scala.concurrent.{Future, TimeoutException}
+import scala.concurrent.{ExecutionContext, Future, TimeoutException}
 
 class UploadProgressTrackerSpec extends TestSupport with TestData:
   private lazy val mockAppConfig = mock[AppConfig]
   private lazy val reference = initiateUploadDetails.reference
-  
+  override lazy implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.global
+  override implicit val hc: HeaderCarrier = HeaderCarrier()
+
+  when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
+  when(mockAppConfig.internalAuthToken).thenReturn("12345678")
+  when(mockAppConfig.appName).thenReturn("eacd-file-processor")
+
   trait Setup {
-    val repository = mock[FileRepository]
-    val objectStoreClient = mock[PlayObjectStoreClient]
+    val repository: FileRepository = mock[FileRepository]
+    val objectStoreClient: PlayObjectStoreClient = mock[PlayObjectStoreClient]
     val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
     val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
 
@@ -49,14 +56,12 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
     when(mockRequestBuilder.execute(any[HttpReads[HttpResponse]], any()))
       .thenReturn(Future.successful(HttpResponse(CREATED, body = "")))
   }
-  
-  when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
-  when(mockAppConfig.internalAuthToken).thenReturn("12345678")
-  when(mockAppConfig.appName).thenReturn("eacd-file-processor")
+
 
   "UploadProgressTracker" should {
     "update successful upload file details and correctly update status" in new Setup {
       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
+      when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
       when(
         objectStoreClient.uploadFromUrl(
           from = any[URL],
@@ -77,17 +82,15 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
           )
         )
       )
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl,successfulUploadedDetails.mimeType,
-        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
 
-      progressTracker.registerUploadResult(reference, successfulUploadedDetails)
-      verify(repository, times(1)).updateStatus(any(), any())
+      await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
+      verify(repository, org.mockito.Mockito.timeout(1000).times(1)).updateStatus(any(), any())
     }
 
     "update failed upload file details" in new Setup {
       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      
-      progressTracker.registerUploadResult(reference, failedFileDetails)
+
+      await(progressTracker.registerUploadResult(reference, failedFileDetails))
       verify(repository, times(0)).updateStatus(any(), any())
     }
 
@@ -104,10 +107,8 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
           owner = any[String]
         )(using any[HeaderCarrier])
       ).thenReturn(Future.failed(new TimeoutException("Unable to upload, time out.")))
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl, successfulUploadedDetails.mimeType,
-        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
 
-      progressTracker.registerUploadResult(reference, successfulUploadedDetails)
+      await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
 
       verify(repository, times(0)).updateStatus(any(), any())
     }
