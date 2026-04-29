@@ -28,6 +28,7 @@ class StatusDetailsModelSpec extends TestSupport {
       fileStatus = "approved",
       requestorEmail = "email@gmail.com",
       requestorPID = "pid123",
+      requestorName = "Finn Hei",
       fileName = Some("file.txt"),
       creationDateTime = Some(Instant.parse("2024-01-01T00:00:00Z"))
     )
@@ -39,6 +40,7 @@ class StatusDetailsModelSpec extends TestSupport {
         |  "fileStatus": "approved",
         |  "requestorEmail": "email@gmail.com",
         |  "requestorPID": "pid123",
+        |  "requestorName": "Finn Hei",
         |  "fileName": "file.txt",
         |  "creationDateTime": "2024-01-01T00:00:00Z"
         |}
