@@ -168,6 +168,12 @@ class FileRepository @Inject()(
       equal("reference.value", reference.value)
     ).headOption()
   }
+  
+  def getNameOfFile(reference: Reference): Future[Option[String]] =
+    findByReference(reference).map(_.fold(None)(_.details.map {
+      case Details.UploadedSuccessfully(name, _, _, _, _) => name
+      case _ => ""
+    }))
 
   def findByStatus(status: FileStatus): Future[Seq[StatusDetailsModel]] = {
     collection.find(
