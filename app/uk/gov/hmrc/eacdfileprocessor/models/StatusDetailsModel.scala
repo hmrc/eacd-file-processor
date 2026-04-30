@@ -24,6 +24,7 @@ case class StatusDetailsModel(
                                reference: String,
                                requestorEmail: String,
                                requestorPID: String,
+                               requestorName: String,
                                fileName: Option[String],
                                fileStatus: String,
                                creationDateTime: Option[Instant]

@@ -179,7 +179,7 @@ class FileRepository @Inject()(
     collection.find(
       equal("status", status.value)
     ).toFuture().map(_.map(details =>
-      StatusDetailsModel(reference = details.reference.value, requestorEmail = details.requestorEmail, requestorPID = details.requestorPID, fileName = details.details.map {
+      StatusDetailsModel(reference = details.reference.value, requestorEmail = details.requestorEmail, requestorPID = details.requestorPID, requestorName = details.requestorName, fileName = details.details.map {
         case details: Details.UploadedSuccessfully => details.name
         case _ => ""
       }, fileStatus = details.status.value, creationDateTime = details.uploadedDateTime)
