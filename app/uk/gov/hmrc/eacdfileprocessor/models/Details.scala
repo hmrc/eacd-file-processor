@@ -47,6 +47,7 @@ case class UploadedDetails(
                             requestorName: String,
                             details: Option[Details] = None,
                             approverDetails: Option[ApproverDetails] = None,
+                            totalEntryCount: Option[Int] = None,
                             uploadedDateTime: Option[Instant] = None,
                             lastUpdatedDateTime: Instant = Instant.now(),
                             approvedAtDateTime: Option[Instant] = None,

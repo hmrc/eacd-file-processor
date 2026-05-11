@@ -27,9 +27,10 @@ import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
 import uk.gov.hmrc.eacdfileprocessor.models.*
 
-import java.time.Instant
+import java.time.Instant.now
+import java.time.temporal.ChronoUnit.DAYS
 
-class FileRepositorySpec extends TestSupport with TestData:
+class FileRepositoryISpec extends TestSupport with TestData:
   private val mockAppConfig = mock[AppConfig]
   when(mockAppConfig.timeToLive).thenReturn("3")
   lazy val repository: FileRepository = app.injector.instanceOf[FileRepository]
@@ -148,8 +149,8 @@ class FileRepositorySpec extends TestSupport with TestData:
 
         val actual = await(repository.findByStatus(status))
         actual shouldBe Seq(
-          statusDetailsModel.copy(reference = "ref3", fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = None),
-          statusDetailsModel.copy(reference = "ref4", fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = None)
+          statusDetailsModel.copy(reference = "ref3", fileName = None, fileStatus = status.value, creationDateTime = None),
+          statusDetailsModel.copy(reference = "ref4", fileName = None, fileStatus = status.value, creationDateTime = None)
         )
       }
 
@@ -159,6 +160,35 @@ class FileRepositorySpec extends TestSupport with TestData:
 
         val actual = await(repository.findByStatus(initiateUploadDetails.copy(reference = Reference("ref5")).status))
         actual shouldBe Seq(statusDetailsModel.copy(reference = "ref5", fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = None))
+      }
+    }
+
+    "find the oldest approved file record" when {
+      "when there is only one approved file" in {
+        await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.APPROVED)))
+
+        val actual = await(repository.findOldestApprovedFile)
+        actual.get shouldBe initiateUploadDetails.copy(status = FileStatus.PROCESSING)
+      }
+      "when there are two approved files" in {
+        await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.APPROVED)))
+        await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.APPROVED, lastUpdatedDateTime = now(), reference = Reference("98aad019-7f66-4456-8d52-93f12109878f"), id = ObjectId("6975a038d540b44c4403aee4"))))
+
+        val actual = await(repository.findOldestApprovedFile)
+        actual.get shouldBe initiateUploadDetails.copy(status = FileStatus.PROCESSING)
+      }
+      "when there are one approved file and one not approved older file" in {
+        await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.APPROVED)))
+        await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.STORED, lastUpdatedDateTime = createdAt.minus(2, DAYS), reference = Reference("98aad019-7f66-4456-8d52-93f12109878f"), id = ObjectId("6975a038d540b44c4403aee4"))))
+
+        val actual = await(repository.findOldestApprovedFile)
+        actual.get shouldBe initiateUploadDetails.copy(status = FileStatus.PROCESSING)
+      }
+      "when there is no approved file" in {
+        await(repository.createFileRecord(initiateUploadDetails))
+
+        val actual = await(repository.findOldestApprovedFile)
+        actual shouldBe None
       }
     }
   }

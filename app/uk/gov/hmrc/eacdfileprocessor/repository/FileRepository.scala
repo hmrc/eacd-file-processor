@@ -17,6 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import com.mongodb.client.model.Indexes.descending
+import com.mongodb.client.model.ReturnDocument
 import org.bson.types.ObjectId
 import org.mongodb.scala.MongoWriteException
 import org.mongodb.scala.bson.BsonDocument
@@ -72,14 +73,15 @@ object FileUploadRepoFormat {
 
   given Format[FileStatus] =
     val read: Reads[FileStatus] = {
-      case JsString(INITIAL.value) => JsSuccess(INITIAL)
-      case JsString(SCANNED.value) => JsSuccess(SCANNED)
-      case JsString(FAILED.value) => JsSuccess(FAILED)
-      case JsString(STORED.value) => JsSuccess(STORED)
+      case JsString(INITIAL.value)        => JsSuccess(INITIAL)
+      case JsString(SCANNED.value)        => JsSuccess(SCANNED)
+      case JsString(FAILED.value)         => JsSuccess(FAILED)
+      case JsString(STORED.value)         => JsSuccess(STORED)
       case JsString(UPLOADREJECTED.value) => JsSuccess(UPLOADREJECTED)
-      case JsString(UPLOADED.value) => JsSuccess(UPLOADED)
-      case JsString(REJECTED.value) => JsSuccess(REJECTED)
-      case JsString(APPROVED.value) => JsSuccess(APPROVED)
+      case JsString(UPLOADED.value)       => JsSuccess(UPLOADED)
+      case JsString(REJECTED.value)       => JsSuccess(REJECTED)
+      case JsString(APPROVED.value)       => JsSuccess(APPROVED)
+      case JsString(PROCESSING.value)     => JsSuccess(PROCESSING)
       case _ => JsError("Unknown file status")
     }
 
@@ -105,6 +107,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "requestorName").format[String]
       ~ (__ \ "details").formatNullable[Details]
       ~ (__ \ "approverDetails").formatNullable[ApproverDetails]
+      ~ (__ \ "totalEntryCount").formatNullable[Int]
       ~ (__ \ "uploadedDateTime").formatNullable[Instant]
       ~ (__ \ "lastUpdatedDateTime").format[Instant]
       ~ (__ \ "approvedAtDateTime").formatNullable[Instant]
@@ -155,7 +158,7 @@ class FileRepository @Inject()(
             exception match {
               case e: MongoWriteException if e.getCode == 11000 =>
                 logger.warn(s"DUPLICATE_EXTERNAL_FILE_REF Duplicate external file reference: ${details.reference.value}")
-                Future.failed(new DuplicateReferenceException("Duplicate external file reference"))
+                Future.failed(DuplicateReferenceException(s"Duplicate external file reference: ${details.reference.value}"))
               case _ =>
                 val errorMsg = s"Uploaded file is not inserted for reference: ${details.reference.value}"
                 logger.warn(errorMsg)
@@ -185,6 +188,21 @@ class FileRepository @Inject()(
         case _ => ""
       }, fileStatus = details.status.value, creationDateTime = details.uploadedDateTime)
     ))
+  }
+
+  def findOldestApprovedFile: Future[Option[UploadedDetails]] = {
+    collection.findOneAndUpdate(
+      equal("status", APPROVED.value),
+      set("status", PROCESSING.value),
+      FindOneAndUpdateOptions()
+        .upsert(false)
+        .sort(Sorts.ascending("lastUpdatedDateTime"))
+        .returnDocument(ReturnDocument.AFTER)
+    ).toFutureOption()
+  }
+
+  def setTotalEntryCount(reference: Reference, totalEntryCount: Int): Future[Option[UploadedDetails]] = {
+    updateByReference(reference, set("totalEntryCount", totalEntryCount))
   }
 
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =

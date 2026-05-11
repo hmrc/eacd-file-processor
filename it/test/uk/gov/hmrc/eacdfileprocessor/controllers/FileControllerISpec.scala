@@ -22,17 +22,14 @@ import org.apache.pekko.util.ByteString
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
-import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, UNSUPPORTED_MEDIA_TYPE}
-import play.api.libs.json.Json
-import play.api.test.Helpers.{GET, PUT, await, contentAsJson, route, status, writeableOf_AnyContentAsJson, writeableOf_AnyContentAsText}
+import play.api.http.Status.{NO_CONTENT, OK}
+import play.api.test.Helpers.{GET, await, route, status, writeableOf_AnyContentAsEmpty}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.Reference
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
-import play.api.test.Helpers.writeableOf_AnyContentAsEmpty
-import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 
 import java.time.Instant
 import scala.concurrent.Future
