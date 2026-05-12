@@ -27,7 +27,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{FAILED, SCANNED, STORED}
 import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
+import uk.gov.hmrc.http.{Authorization, HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.objectstore.client.{Path, RetentionPeriod, Sha256Checksum}
 
@@ -119,7 +119,7 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
         retentionPeriod = RetentionPeriod.SixMonths,
         contentType = Some(mimeType),
         contentSha256 = Some(contentSha256)
-      )(hc.withExtraHeaders("Authorization" -> appConfig.internalAuthToken))
+      )(hc.copy(authorization = Some(Authorization(appConfig.internalAuthToken))))
       .transformWith {
         case Failure(exception) =>
           logger.error(s"Failure to upload to object store because of $exception")
