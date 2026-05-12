@@ -112,7 +112,6 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
                                              )(implicit hc: HeaderCarrier): Future[Unit] = {
     val fileLocation = Path.File(s"${fileReference.value}/$fileName")
     val contentSha256 = Sha256Checksum.fromHex(checksum)
-    createClientAuthToken()
     osClient
       .uploadFromUrl(
         from = url"$downloadUrl",
