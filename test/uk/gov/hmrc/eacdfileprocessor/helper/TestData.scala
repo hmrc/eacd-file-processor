@@ -93,7 +93,7 @@ trait TestData:
     lastUpdatedDateTime = createdAt
   )
 
-  val statusDetailsModel = StatusDetailsModel(reference = "08aad019-7f66-4456-8d52-93f12109876f", requestorEmail = "test@hmrc.gov.uk", requestorPID = "12345678", fileName = Some("test.pdf"), fileStatus = "SCANNED", creationDateTime = Some(createdAt))
+  val statusDetailsModel = StatusDetailsModel(reference = "08aad019-7f66-4456-8d52-93f12109876f", requestorEmail = "test@hmrc.gov.uk", requestorPID = "12345678", requestorName = "Test User", fileName = Some("test.pdf"), fileStatus = "SCANNED", creationDateTime = Some(createdAt))
 
   val failedUploadedDetails = UploadedDetails(
     id = ObjectId("6994a038d540b44c4403aee3"),
