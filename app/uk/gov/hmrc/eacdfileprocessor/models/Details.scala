@@ -48,5 +48,6 @@ case class UploadedDetails(
                             details: Option[Details] = None,
                             approverDetails: Option[ApproverDetails] = None,
                             uploadedDateTime: Option[Instant] = None,
-                            lastUpdatedDateTime: Instant = Instant.now()
+                            lastUpdatedDateTime: Instant = Instant.now(),
+                            approvedAtDateTime: Option[Instant] = None,
                           )
