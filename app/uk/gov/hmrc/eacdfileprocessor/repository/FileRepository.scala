@@ -29,9 +29,9 @@ import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.formats.{MongoFormats, MongoJavatimeFormats}
@@ -72,14 +72,14 @@ object FileUploadRepoFormat {
 
   given Format[FileStatus] =
     val read: Reads[FileStatus] = {
-      case JsString(INITIAL.value)        => JsSuccess(INITIAL)
-      case JsString(SCANNED.value)        => JsSuccess(SCANNED)
-      case JsString(FAILED.value)         => JsSuccess(FAILED)
-      case JsString(STORED.value)         => JsSuccess(STORED)
+      case JsString(INITIAL.value) => JsSuccess(INITIAL)
+      case JsString(SCANNED.value) => JsSuccess(SCANNED)
+      case JsString(FAILED.value) => JsSuccess(FAILED)
+      case JsString(STORED.value) => JsSuccess(STORED)
       case JsString(UPLOADREJECTED.value) => JsSuccess(UPLOADREJECTED)
-      case JsString(UPLOADED.value)       => JsSuccess(UPLOADED)
-      case JsString(REJECTED.value)       => JsSuccess(REJECTED)
-      case JsString(APPROVED.value)       => JsSuccess(APPROVED)
+      case JsString(UPLOADED.value) => JsSuccess(UPLOADED)
+      case JsString(REJECTED.value) => JsSuccess(REJECTED)
+      case JsString(APPROVED.value) => JsSuccess(APPROVED)
       case _ => JsError("Unknown file status")
     }
 
@@ -168,7 +168,7 @@ class FileRepository @Inject()(
       equal("reference.value", reference.value)
     ).headOption()
   }
-  
+
   def getNameOfFile(reference: Reference): Future[Option[String]] =
     findByReference(reference).map(_.fold(None)(_.details.map {
       case Details.UploadedSuccessfully(name, _, _, _, _) => name
@@ -185,7 +185,7 @@ class FileRepository @Inject()(
       }, fileStatus = details.status.value, creationDateTime = details.uploadedDateTime)
     ))
   }
-  
+
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =
     updateByReference(reference, Seq(set("status", Codecs.toBson(status)), set("details", Codecs.toBson(details))): _*)
 
@@ -208,4 +208,7 @@ class FileRepository @Inject()(
         update = combine(updates :+ set("lastUpdatedDateTime", Instant.now()): _*),
         options = FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
       )
-      .toFutureOption()  
+      .toFutureOption()
+
+  def dropCollection(): Future[Unit] =
+    collection.drop().toFuture().map(_ => ())
