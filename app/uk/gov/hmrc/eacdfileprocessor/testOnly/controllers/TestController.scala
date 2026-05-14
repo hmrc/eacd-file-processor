@@ -19,7 +19,6 @@ package uk.gov.hmrc.eacdfileprocessor.testOnly.controllers
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
-import play.api.libs.json.{JsValue, Json}
 import play.api.libs.streams.Accumulator
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
@@ -37,11 +36,12 @@ import scala.concurrent.ExecutionContext
 
 @Singleton
 class TestController @Inject()(
-                                  val cc: ControllerComponents,
-                                  val configuration: Configuration,
-                                  val auth: BackendAuthComponents,
-                                  val objectStoreClient: PlayObjectStoreClient
-                                )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
+                                val cc: ControllerComponents,
+                                val configuration: Configuration,
+                                val auth: BackendAuthComponents,
+                                val objectStoreClient: PlayObjectStoreClient,
+                                repository: FileRepository
+                              )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
   val providedPermission = Predicate.or(
     Predicate.Permission(
       Resource(ResourceType("eacd-file-processor"), ResourceLocation("services-enrolments-helpdesk-frontend")),
@@ -58,8 +58,7 @@ class TestController @Inject()(
       Accumulator.source[ByteString].map(Right.apply)
 
   def putObject(reference: String, fileName: String): Action[Source[ByteString, _]] =
-   Action.async(streaming) { implicit request =>
-      
+    Action.async(streaming) { implicit request =>
       val fileLocation = Path.Directory(s"$reference/$fileName").file(fileName)
       objectStoreClient
         .putObject(fileLocation, request.body)
@@ -71,6 +70,18 @@ class TestController @Inject()(
           case e: Exception =>
             logger.error(s"An error was encountered saving the document.", e)
             InternalServerError("Error saving the document")
+    }
+
+  def deleteAllObjects(): Action[AnyContent] = Action.async {
+    repository.dropCollection()
+      .map{_ =>
+        Ok("All test records deleted.")
+      }
+      .recover {
+        case e: Exception =>
+          logger.error("Error deleting test records", e)
+          InternalServerError("Error deleting documents")
+      }
   }
 
 }
