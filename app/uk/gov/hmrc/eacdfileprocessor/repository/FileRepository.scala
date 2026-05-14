@@ -189,7 +189,7 @@ class FileRepository @Inject()(
       set("status", Codecs.toBson(status)),
       set("approverDetails", Codecs.toBson(approverDetails))
     ) ++ (if updateUploadedTime then Seq(set("uploadedDateTime", Instant.now())) else Seq.empty)
-      ++ (if approvedAt.isDefined then Seq(set("approvedAtDateTime", approvedAt.getOrElse("FORMAT ERROR"))) else Seq.empty)
+      ++ (if approvedAt.isDefined then Seq(set("approvedAtDateTime", approvedAt.get)) else Seq.empty)
 
     updateByReference(reference, updates: _*)
   }
