@@ -26,6 +26,7 @@ import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
 
+import java.time.Instant
 import java.time.Instant.now
 import java.time.temporal.ChronoUnit.DAYS
 
