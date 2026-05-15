@@ -27,7 +27,7 @@ class JobLockSpec extends TestSupport {
   "JobLock" should {
 
     "serialize and deserialize using mongo instant format" in {
-      val model = JobLock("DeEnrolmentWorkItemPullJob", Instant.parse("2026-01-01T00:00:00Z"))
+      val model = JobLock("FileWorkItemPullJob", Instant.parse("2026-01-01T00:00:00Z"))
       val format = summon[play.api.libs.json.Format[JobLock]]
 
       val json = Json.toJson(model)(format)

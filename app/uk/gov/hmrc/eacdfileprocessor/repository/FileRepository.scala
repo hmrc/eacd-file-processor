@@ -19,13 +19,12 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import com.mongodb.client.model.Indexes.descending
 import com.mongodb.client.model.ReturnDocument
 import org.bson.types.ObjectId
+import org.mongodb.scala.{MongoWriteException, model}
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
-import org.mongodb.scala.model.Aggregates.{`match`, group}
 import org.mongodb.scala.model.Filters.equal
-import org.mongodb.scala.model.Updates.{combine, inc, set}
-import org.mongodb.scala.{MongoWriteException, model}
+import org.mongodb.scala.model.Updates.{combine, set}
 import play.api.Logging
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
@@ -116,7 +115,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "lastUpdatedDateTime").formatNullable[Instant]
       ~ (__ \ "approvedAtDateTime").formatNullable[Instant]
       ~ (__ \ "creationDateTime").format[Instant]
-      ~ (__ \ "totalFailureCount").formatNullable[Int]
+      ~ (__ \ "totalFailureCount").formatNullable[Int].inmap(_.getOrElse(0), Some(_))
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 
