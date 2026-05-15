@@ -32,7 +32,7 @@ trait TestSupport extends PlaySpec
   with ScalaFutures
   with IntegrationPatience {
 
-  implicit lazy val ec: ExecutionContext = scala.concurrent.ExecutionContext.Implicits.global //inject[ExecutionContext]
+  implicit lazy val ec: ExecutionContext = scala.concurrent.ExecutionContext.Implicits.global
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 HM Revenue & Customs
+ * Copyright 2026 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
                                                    appConfig: AppConfig)
                                                   (implicit ec: ExecutionContext)
   extends WorkItemRepository[DeEnrolmentWorkItem](
-    collectionName = "de-enrolment-work-item",
+    collectionName = "de-enrolment-work-items",
     mongoComponent = mongo,
     itemFormat = DeEnrolmentWorkItem.format,
     workItemFields = WorkItemFields.default,

@@ -70,23 +70,9 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
     fileRepository.findOldestApprovedFile.flatMap {
       case Some(uploadedDetail) =>
         val reference = uploadedDetail.reference
-        val fileName = uploadedDetail.details.map {
-          case s: Details.UploadedSuccessfully => s.name
-          case f: Details.UploadedFailed => throw new RuntimeException(s"Can't find file name for reference: ${reference.value}")
-        }.getOrElse(throw new RuntimeException(s"Can't find file name for reference: ${reference.value}"))
-        getFileStringFromObjectStore(reference, fileName).map {
+        getFileStringFromObjectStore(reference, getFileName(uploadedDetail)).map {
           case Some(contentStr) =>
-            val createdAt = Instant.now()
-            val workItems: Seq[DeEnrolmentWorkItem] = ArraySeq.unsafeWrapArray(contentStr.split("\n"))
-              .filter(_.nonEmpty)
-              .map(DeEnrolmentWorkItem(reference.value, _, createdAt))
-            if (workItems.nonEmpty)
-              workItemRepository.saveRecordDetails(workItems, reference.value)
-                .map(workItems => fileRepository.setTotalEntryCount(reference, workItems.size))
-                .recover {
-                  case e: RuntimeException =>
-                    logger.warn(s"CANNOT_LOAD_WORKITEMS for file reference $reference")
-                }
+            pushWorkItems(generateWorkItems(contentStr, reference.value), reference)
           case None =>
             logger.warn(s"No record found for the requested reference: ${reference.value} in Object Store")
             throw ObjectStoreFileNotFoundException(s"No record found for the requested reference: ${reference.value} in Object Store")
@@ -96,4 +82,27 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
         Future.unit
     }
   }
+
+  private def getFileName(uploadedDetail: UploadedDetails): String = {
+    val reference = uploadedDetail.reference.value
+    uploadedDetail.details.map {
+      case s: Details.UploadedSuccessfully => s.name
+      case f: Details.UploadedFailed => throw new RuntimeException(s"Can't find file name for reference: $reference")
+    }.getOrElse(throw new RuntimeException(s"Can't find file name for reference: $reference"))
+  }
+
+  private def generateWorkItems(contentStr: String, reference: String) =
+    val createdAt = Instant.now()
+    ArraySeq.unsafeWrapArray(contentStr.split("\n"))
+      .filter(_.nonEmpty)
+      .map(DeEnrolmentWorkItem(reference, _, createdAt))
+
+  private def pushWorkItems(workItems: Seq[DeEnrolmentWorkItem], reference: Reference) =
+    if (workItems.nonEmpty)
+      workItemRepository.saveRecordDetails(workItems, reference.value)
+        .map(workItems => fileRepository.setTotalEntryCount(reference, workItems.size))
+        .recover {
+          case e: RuntimeException =>
+            logger.warn(s"CANNOT_LOAD_WORKITEMS for file reference $reference")
+        }
 }
