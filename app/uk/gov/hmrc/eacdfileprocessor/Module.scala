@@ -17,8 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor
 
 import play.api.{Configuration, Environment}
-import play.api.inject.{Binding, Module as AppModule}
-import uk.gov.hmrc.eacdfileprocessor.connectors.{EmailConnector, EmailConnectorImpl}
+import play.api.inject.{Binding, Module => AppModule}
 
 import java.time.Clock
 

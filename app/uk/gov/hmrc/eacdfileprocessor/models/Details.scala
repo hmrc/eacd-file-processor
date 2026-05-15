@@ -54,6 +54,7 @@ case class UploadedDetails(
                             lastUpdatedDateTime: Option[Instant] = None,
                             approvedAtDateTime: Option[Instant] = None,
                             creationDateTime: Instant = Instant.now(),
+                            totalFailureCount: Int = 0
                           )
 
 case class FileStatusCount(status: String, count: Int)
@@ -66,7 +67,7 @@ object FileStatusCount {
       )(FileStatusCount.apply, Tuple.fromProductTyped _)
 
     val write: Writes[FileStatusCount] = (statusCount: FileStatusCount) => Json.format[FileStatusCount].writes(statusCount)
-    
+
     Format(read, write)
   }
 }
