@@ -14,18 +14,11 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.models
+package uk.gov.hmrc.eacdfileprocessor.scheduler
 
-import play.api.libs.json.{Format, Json}
-import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
+import scala.concurrent.{ExecutionContext, Future}
 
-import java.time.Instant
-
-final case class JobLock(job: String, lockCreatedAt: Instant)
-
-object JobLock {
-  private given Format[Instant] = MongoJavatimeFormats.instantFormat
-  given Format[JobLock] = Json.format[JobLock]
+trait ScheduledService[R] {
+  def invoke(using ExecutionContext): Future[R]
 }
-
 
