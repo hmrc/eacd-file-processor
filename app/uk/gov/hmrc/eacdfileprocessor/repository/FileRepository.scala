@@ -19,7 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import com.mongodb.client.model.Indexes.descending
 import com.mongodb.client.model.ReturnDocument
 import org.bson.types.ObjectId
-import org.mongodb.scala.MongoWriteException
+import org.mongodb.scala.{MongoWriteException, model}
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
@@ -229,6 +229,15 @@ class FileRepository @Inject()(
         options = FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
       )
       .toFutureOption()
+
+  def countDocuments(query: Bson): Future[Int] = {
+    metrics.timeCompletionOfFuture("countDocumentsMongoTimer", {
+      collection.countDocuments(
+        query,
+        options = model.CountOptions().skip(0)
+      ).toFuture().map(_.toInt)
+    })
+  }
 
   def dropCollection(): Future[Unit] =
     collection.drop().toFuture().map(_ => ())

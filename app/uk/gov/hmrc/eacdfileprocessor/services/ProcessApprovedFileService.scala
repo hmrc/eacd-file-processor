@@ -20,8 +20,9 @@ import org.apache.pekko.stream.Materializer
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.ObjectStoreFileNotFoundException
-import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, Reference}
+import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRepository}
+import uk.gov.hmrc.eacdfileprocessor.utils.ScheduledService
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.objectstore.client.Path
 import uk.gov.hmrc.objectstore.client.play.Implicits.*
@@ -34,19 +35,38 @@ import scala.collection.immutable.ArraySeq
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class FileObjectService @Inject()(appConfig: AppConfig,
-                                  osClient: PlayObjectStoreClient,
-                                  fileRepository: FileRepository,
-                                  workItemRepository: DeEnrolmentWorkItemRepository
-                                 )(implicit ec: ExecutionContext, mat: Materializer) extends Logging {
-  private def getFileStringFromObjectStore(reference: Reference, fileName: String)(implicit hc: HeaderCarrier): Future[Option[String]] = {
+class DefaultProcessApprovedFileService @Inject()(val appConfig: AppConfig,
+                                                  val osClient: PlayObjectStoreClient,
+                                                  val fileRepository: FileRepository,
+                                                  val workItemRepository: DeEnrolmentWorkItemRepository,
+                                                  val lockService: LockService,
+                                                  implicit val ec: ExecutionContext,
+                                                  implicit val mat: Materializer
+                                 ) extends ProcessApprovedFileService
+
+trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Unit, LockResponse]] {
+  implicit val ec: ExecutionContext
+  implicit val mat: Materializer
+  implicit val hc: HeaderCarrier = HeaderCarrier()
+  val appConfig: AppConfig
+  val osClient: PlayObjectStoreClient
+  val fileRepository: FileRepository
+  val workItemRepository: DeEnrolmentWorkItemRepository
+  val lockService: LockService
+
+  override def invoke(implicit ec: ExecutionContext): Future[Either[Unit, LockResponse]] =
+    lockService.lockAndRelease(this.getClass.getSimpleName) {
+      getOldestFileFromObjectStore
+    }
+
+  private def getFileStringFromObjectStore(reference: Reference, fileName: String): Future[Option[String]] = {
     osClient.getObject[String](
       path = Path.Directory(reference.value).file(fileName),
       owner = appConfig.appName
     ).map(_.map(obj => obj.content))
   }
 
-  def getOldestFileFromObjectStore(implicit hc: HeaderCarrier): Future[Unit] = {
+  private[services] def getOldestFileFromObjectStore: Future[Unit] = {
     fileRepository.findOldestApprovedFile.flatMap {
       case Some(uploadedDetail) =>
         val reference = uploadedDetail.reference

@@ -16,25 +16,26 @@
 
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
+import helper.IntegrationSpec
+import org.mongodb.scala.SingleObservableFuture
+import org.mongodb.scala.model.Filters
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, UNSUPPORTED_MEDIA_TYPE}
 import play.api.libs.json.Json
-import play.api.test.{DefaultAwaitTimeout, FakeRequest}
 import play.api.test.Helpers.{PUT, await, contentAsJson, route, status, writeableOf_AnyContentAsJson, writeableOf_AnyContentAsText}
-import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, INITIAL, SCANNED, STORED}
+import play.api.test.{DefaultAwaitTimeout, FakeRequest}
+import uk.gov.hmrc.eacdfileprocessor.helper.TestData
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.Reference
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 
 import scala.concurrent.Future
 
-class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitTimeout:
-  lazy val repository = app.injector.instanceOf[FileRepository]
+class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec:
+
   val reference = "08aad019-7f66-4456-8d52-93f12109876f"
 
   override def beforeEach(): Unit = {
-    await(repository.collection.drop().headOption())
-    await(repository.ensureIndexes())
+    await(fileRepository.collection.deleteMany(Filters.exists("_id")).toFuture())
   }
 
   "POST /status:reference (integration)" should {
@@ -48,9 +49,9 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED))
         result <- route(app, request).get
-        uploadedFileDetails <- repository.findByReference(Reference(reference))
+        uploadedFileDetails <- fileRepository.findByReference(Reference(reference))
       } yield {
         status(Future(result)) shouldBe NO_CONTENT
         uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(false)
@@ -65,9 +66,9 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
         result <- route(app, request).get
-        uploadedFileDetails <- repository.findByReference(Reference(reference))
+        uploadedFileDetails <- fileRepository.findByReference(Reference(reference))
       } yield {
         status(Future(result)) shouldBe NO_CONTENT
         uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(true)
@@ -80,9 +81,9 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
         result <- route(app, request).get
-        uploadedFileDetails <- repository.findByReference(Reference(reference))
+        uploadedFileDetails <- fileRepository.findByReference(Reference(reference))
       } yield {
         status(Future(result)) shouldBe NO_CONTENT
         uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(true)
@@ -95,16 +96,17 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED))
         result <- route(app, request).get
-        uploadedFileDetails <- repository.findByReference(Reference(reference))
+        uploadedFileDetails <- fileRepository.findByReference(Reference(reference))
       } yield {
         status(Future(result)) shouldBe NO_CONTENT
         uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(false)
       }
     }
     "return 400 when approver pid is the same as requestor pid" in {
-      val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
+      val reference: Reference = Reference("ref1")
+      val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference.value).url)
         .withJsonBody(Json.obj(
           "status" -> "approved",
           "approverName" -> "Approver Name",
@@ -113,7 +115,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(reference = reference, status = STORED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
@@ -129,7 +131,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
@@ -142,7 +144,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
@@ -158,7 +160,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
@@ -171,7 +173,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = INITIAL))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
@@ -186,7 +188,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
@@ -199,7 +201,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = FAILED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = FAILED))
         result <- route(app, request).get
       } yield result
 
@@ -212,7 +214,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
         result <- route(app, request).get
       } yield result
 
@@ -228,7 +230,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = APPROVED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = APPROVED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
@@ -244,7 +246,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = APPROVED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = APPROVED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
@@ -278,7 +280,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         .withHeaders("Authorization" -> "Bearer test-token").withJsonBody(Json.obj())
 
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = APPROVED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = APPROVED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe OK
@@ -289,7 +291,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         .withHeaders("Authorization" -> "Bearer test-token").withJsonBody(Json.obj())
 
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe NO_CONTENT
@@ -300,7 +302,7 @@ class StatusControllerISpec extends TestSupport with TestData with DefaultAwaitT
         .withHeaders("Authorization" -> "Bearer test-token").withJsonBody(Json.obj())
 
       val resultF = for {
-        _ <- repository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = SCANNED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST

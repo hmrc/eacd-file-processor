@@ -16,40 +16,55 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
+import com.codahale.metrics.{Counter, MetricRegistry}
+import helper.IntegrationSpec
 import org.apache.pekko.stream.Materializer
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
-import org.mongodb.scala.SingleObservableFuture
 import org.mongodb.scala.model.Filters
+import org.mongodb.scala.{Document, SingleObservableFuture}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.exceptions.ObjectStoreFileNotFoundException
-import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport, UnitSpec}
+import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, UnitSpec}
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
-import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, FileRepository}
-import uk.gov.hmrc.mongo.MongoComponent
+import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, FileRepository, LockingRepository}
+import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.time.Instant
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
-class FileObjectServiceISpec extends TestSupport with TestData with UnitSpec with Eventually:
-  implicit val mat: Materializer = mock[Materializer]
-  private val mockAppConfig = mock[AppConfig]
-  when(mockAppConfig.timeToLive).thenReturn("3")
-  when(mockAppConfig.workItemTimeToLive).thenReturn("270")
-  when(mockAppConfig.retryInProgressAfter).thenReturn(30)
+class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with UnitSpec with Eventually:
+  val materializer: Materializer = mock[Materializer]
+  val appConfiguration = appConfig
+  val executionContext = ec
+  val fileRepo = fileRepository
   private val objectStoreClient = mock[PlayObjectStoreClient]
-  val fileRepository = app.injector.instanceOf[FileRepository]
-  private val mongoRepository: MongoComponent = app.injector.instanceOf[MongoComponent]
-  private val deEnrolmentWorkItemRepository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, mockAppConfig)
+  val mockLockService = new LockService {
+    override val lockingRepository: LockingRepository = lockingRepo
+    override val metricsService: MetricsService = new MetricsService {
+      override val metrics: MetricRegistry = metricRegistry
+      override val fileRepository: FileRepository = fileRepository
+      override val scheduleMetric: Counter = counter
+    }
+  }
 
-  private val fileObjectService = FileObjectService(mockAppConfig, objectStoreClient, fileRepository, deEnrolmentWorkItemRepository)
+  private val deEnrolmentWorkItemRepository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, appConfiguration)
+
+  private val processApprovedFileService = new ProcessApprovedFileService {
+    override val appConfig = appConfiguration
+    override val osClient = objectStoreClient
+    override val fileRepository = fileRepo
+    override val workItemRepository = deEnrolmentWorkItemRepository
+    override val lockService = mockLockService
+    override implicit val ec: ExecutionContext = executionContext
+    override implicit val mat: Materializer = materializer
+    override implicit val hc: HeaderCarrier = HeaderCarrier()
+  }
 
 
   val path = java.nio.file.Path.of("it", "test", "resources", "bulk_de_enrolment.csv")
@@ -70,18 +85,19 @@ class FileObjectServiceISpec extends TestSupport with TestData with UnitSpec wit
     await(fileRepository.collection.drop().headOption())
     await(fileRepository.ensureIndexes())
     await(deEnrolmentWorkItemRepository.collection.deleteMany(Filters.exists("_id")).toFuture())
+    await(lockingRepo.collection.deleteMany(filter = Document()).toFuture())
   }
 
   private def collectionSize: Long = {
     await(deEnrolmentWorkItemRepository.collection.estimatedDocumentCount().toFuture())
   }
 
-  "FileObjectService" must {
-    "getOldestFileFromObjectStore" must {
+  "ProcessApprovedFileService" must {
+    "invoke" must {
       "save record details into DeEnrolmentWorkItem when found approved file" in {
         when(objectStoreClient.getObject[String](any(), any())(any(), any())).thenReturn(Future.successful(Some(o)))
         await(fileRepository.createFileRecord(scannedUploadedDetails.copy(status = APPROVED)))
-        await(fileObjectService.getOldestFileFromObjectStore)
+        await(processApprovedFileService.invoke)
         eventually {
           collectionSize shouldBe 100
           val uploadedDetails = await(fileRepository.findByReference(scannedUploadedDetails.reference))
@@ -90,18 +106,8 @@ class FileObjectServiceISpec extends TestSupport with TestData with UnitSpec wit
       }
       "not save record details into DeEnrolmentWorkItem when there is no approved file" in {
         await(fileRepository.createFileRecord(scannedUploadedDetails))
-        await(fileObjectService.getOldestFileFromObjectStore)
+        await(processApprovedFileService.invoke)
         collectionSize shouldBe 0
-      }
-      "throw ObjectStoreFileNotFoundException when can't find file from object store" in {
-        when(objectStoreClient.getObject[String](any(), any())(any(), any())).thenReturn(Future.successful(None))
-        await(fileRepository.createFileRecord(scannedUploadedDetails.copy(status = APPROVED)))
-
-        val exception = intercept[ObjectStoreFileNotFoundException] {
-          await(fileObjectService.getOldestFileFromObjectStore)
-        }
-
-        exception.getMessage contains s"No record found for the requested reference: ${scannedUploadedDetails.reference.value} in Object Store" shouldBe true
       }
     }
   }

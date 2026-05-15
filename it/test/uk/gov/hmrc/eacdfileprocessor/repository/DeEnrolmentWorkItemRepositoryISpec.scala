@@ -16,36 +16,29 @@
 
 package uk.gov.hmrc.eacdfileprocessor.repository
 
-import org.mockito.Mockito.*
+import helper.IntegrationSpec
 import org.mongodb.scala.SingleObservableFuture
 import org.mongodb.scala.model.Filters
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
+import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
 import uk.gov.hmrc.mongo.workitem.WorkItem
 
-import java.time.Instant
 import scala.language.postfixOps
 
-class DeEnrolmentWorkItemRepositoryISpec extends TestSupport with TestData {
+class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
   private val mockAppConfig = mock[AppConfig]
-  when(mockAppConfig.workItemTimeToLive).thenReturn("270")
-  when(mockAppConfig.retryInProgressAfter).thenReturn(30)
 
   private val mongoRepository: MongoComponent = app.injector.instanceOf[MongoComponent]
   private val repository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, mockAppConfig)
 
   override def beforeEach(): Unit = {
     await(repository.collection.deleteMany(Filters.exists("_id")).toFuture())
-  }
-
-  private def collectionSize: Long = {
-    await(repository.collection.estimatedDocumentCount().toFuture())
   }
 
   "repository" should {

@@ -16,31 +16,29 @@
 
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
+import helper.IntegrationSpec
 import org.bson.types.ObjectId
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.matchers.should.Matchers.{should, shouldBe}
 import play.api.libs.json.Json
 import play.api.test.Helpers.*
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
-import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.INITIAL
 import uk.gov.hmrc.eacdfileprocessor.models.{Reference, UploadedDetails}
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 
 import java.time.Instant
 import scala.concurrent.Future
 
 class InitiateFileStorageControllerISpec
-  extends TestSupport with DefaultAwaitTimeout {
-  lazy val repository = app.injector.instanceOf[FileRepository]
+  extends DefaultAwaitTimeout with IntegrationSpec {
 
   override def beforeEach(): Unit = {
-    await(repository.collection.drop().headOption())
-    await(repository.ensureIndexes())
+    await(fileRepository.collection.drop().headOption())
+    await(fileRepository.ensureIndexes())
   }
 
   private def createInitialFile =
-    await(repository.createFileRecord(
+    await(fileRepository.createFileRecord(
       UploadedDetails(
         id = ObjectId("6994a038d540b44c4403aee3"),
         reference = Reference("ref-dup-1"),
@@ -109,7 +107,7 @@ class InitiateFileStorageControllerISpec
       val result = route(app, request).get
       status(result) shouldBe CREATED
 
-      val docOpt = await(repository.findByReference(Reference("ref-integration-2")))
+      val docOpt = await(fileRepository.findByReference(Reference("ref-integration-2")))
       docOpt should not be empty
       val uploadedDetails = docOpt.get
 

@@ -33,8 +33,8 @@ import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
 import org.apache.pekko.NotUsed
+import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.Materializer
-import uk.gov.hmrc.objectstore.client.play.Implicits.*
 import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 
 import java.time.Instant
@@ -48,8 +48,8 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
   val mockAuth: BackendAuthComponents = mock[BackendAuthComponents]
   val objectStoreClient = mock[PlayObjectStoreClient]
 
-  private implicit lazy val mat: Materializer = app.materializer
-
+  implicit lazy val actorSystem: ActorSystem = ActorSystem()
+  implicit lazy val materializer: Materializer = Materializer(actorSystem)
 
   when(mockConfig.getOptional[Boolean](any())(any())).thenReturn(Some(true))
 

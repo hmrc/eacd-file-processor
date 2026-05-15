@@ -16,24 +16,21 @@
 
 package uk.gov.hmrc.eacdfileprocessor.repository
 
+import helper.IntegrationSpec
 import org.bson.types.ObjectId
-import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.{should, shouldBe}
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
-import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
+import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.*
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
 
 import java.time.Instant.now
 import java.time.temporal.ChronoUnit.DAYS
 
-class FileRepositoryISpec extends TestSupport with TestData:
-  private val mockAppConfig = mock[AppConfig]
-  when(mockAppConfig.timeToLive).thenReturn("3")
-  lazy val repository: FileRepository = app.injector.instanceOf[FileRepository]
+class FileRepositoryISpec extends TestData with IntegrationSpec:
+  lazy val repository = app.injector.instanceOf[FileRepository]
 
   override def beforeEach(): Unit = {
     await(repository.collection.drop().headOption())

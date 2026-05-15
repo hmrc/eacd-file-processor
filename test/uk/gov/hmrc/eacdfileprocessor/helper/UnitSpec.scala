@@ -30,9 +30,7 @@ import scala.concurrent.duration.*
 import scala.concurrent.{Await, Future}
 
 trait UnitSpec extends AnyWordSpecLike with OptionValues with FutureAwaits with DefaultAwaitTimeout {
-
-
-
+  
   def status(of: Result): Int = of.header.status
 
   def status(of: Future[Result])(implicit timeout: Duration): Int = status(Await.result(of, timeout))
