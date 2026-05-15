@@ -16,16 +16,10 @@
 
 package uk.gov.hmrc.eacdfileprocessor.models
 
-import play.api.libs.json.{Format, Json}
-import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
-
-import java.time.Instant
-
-final case class JobLock(job: String, lockCreatedAt: Instant)
-
-object JobLock {
-  private given Format[Instant] = MongoJavatimeFormats.instantFormat
-  given Format[JobLock] = Json.format[JobLock]
-}
+final case class FileWorkItem(
+  reference: Reference,
+  fileName: String,
+  recordDetail: String
+)
 
 

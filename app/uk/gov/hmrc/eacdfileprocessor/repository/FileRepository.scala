@@ -24,7 +24,7 @@ import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Filters.equal
-import org.mongodb.scala.model.Updates.{combine, set}
+import org.mongodb.scala.model.Updates.{combine, inc, set}
 import play.api.Logging
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
@@ -112,6 +112,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "uploadedDateTime").formatNullable[Instant]
       ~ (__ \ "lastUpdatedDateTime").format[Instant]
       ~ (__ \ "approvedAtDateTime").formatNullable[Instant]
+      ~ (__ \ "totalFailureCount").formatNullable[Int].inmap(_.getOrElse(0), Some(_))
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 
@@ -221,6 +222,9 @@ class FileRepository @Inject()(
 
   def updateStatus(reference: Reference, status: FileStatus): Future[Option[UploadedDetails]] =
     updateByReference(reference, set("status", Codecs.toBson(status)))
+
+  def incrementFailureCount(reference: Reference): Future[Option[UploadedDetails]] =
+    updateByReference(reference, inc("totalFailureCount", 1))
 
   private def updateByReference(reference: Reference, updates: Bson*): Future[Option[UploadedDetails]] =
     collection
