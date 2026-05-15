@@ -16,29 +16,25 @@
 
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
+import helper.IntegrationSpec
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
-import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, UNSUPPORTED_MEDIA_TYPE}
-import play.api.libs.json.Json
-import play.api.test.Helpers.{GET, PUT, await, contentAsJson, route, status, writeableOf_AnyContentAsJson, writeableOf_AnyContentAsText}
+import play.api.http.Status.{NO_CONTENT, OK}
+import play.api.test.Helpers.{GET, await, route, status, writeableOf_AnyContentAsEmpty}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest}
-import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
+import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.Reference
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
-import play.api.test.Helpers.writeableOf_AnyContentAsEmpty
-import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 
 import java.time.Instant
 import scala.concurrent.Future
 
-class FileControllerISpec extends TestSupport with TestData with DefaultAwaitTimeout:
-  lazy val repository = app.injector.instanceOf[FileRepository]
+class FileControllerISpec extends IntegrationSpec with TestData with DefaultAwaitTimeout:
   val objectStoreClient = mock[PlayObjectStoreClient]
   val reference = "08aad019-7f68-4456-8d52-93f12109876f"
 
@@ -56,8 +52,8 @@ class FileControllerISpec extends TestSupport with TestData with DefaultAwaitTim
   )
 
   override def beforeEach(): Unit = {
-    await(repository.collection.drop().headOption())
-    await(repository.ensureIndexes())
+    await(fileRepository.collection.drop().headOption())
+    await(fileRepository.ensureIndexes())
   }
 
   "GET /file:reference (integration)" should {
@@ -69,9 +65,9 @@ class FileControllerISpec extends TestSupport with TestData with DefaultAwaitTim
       val request = FakeRequest(GET, routes.FileController.getFile(reference).url)
         .withHeaders("Authorization" -> "Bearer test-token")
       for {
-        _ <- repository.createFileRecord(scannedUploadedDetails.copy(reference = Reference(reference)))
+        _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(reference = Reference(reference)))
         result <- route(app, request).get
-        uploadedFileDetails <- repository.findByReference(Reference(reference))
+        uploadedFileDetails <- fileRepository.findByReference(Reference(reference))
       } yield {
         status(Future(result)) shouldBe OK
       }
@@ -83,7 +79,7 @@ class FileControllerISpec extends TestSupport with TestData with DefaultAwaitTim
       val request = FakeRequest(GET, routes.FileController.getFile(reference).url)
         .withHeaders("Authorization" -> "Bearer test-token")
       for {
-        _ <- repository.createFileRecord(scannedUploadedDetails.copy(reference = Reference(reference)))
+        _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(reference = Reference(reference)))
         result <- route(app, request).get
       } yield {
         status(Future(result)) shouldBe NO_CONTENT

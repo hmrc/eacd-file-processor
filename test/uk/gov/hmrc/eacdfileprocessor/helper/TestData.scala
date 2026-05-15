@@ -113,6 +113,11 @@ trait TestData:
     errorCode = Some("error code"),
     errorMessage = Some("error message")
   )
+  
+  val deEnrolmentWorkItems = Seq(
+    DeEnrolmentWorkItem("ref1", "IR-SA-UTR-1234567890,principal", Instant.now()),
+    DeEnrolmentWorkItem("ref2", "IR-SA-UTR-1234567892,principal", Instant.now())
+  )
 
   val missingFieldUploadedDetails: JsValue = Json.parse(
     """

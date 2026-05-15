@@ -56,9 +56,7 @@ class FileController @Inject()(
     .async { implicit request: Request[AnyContent] =>
         fileUploadRepo.getNameOfFile(Reference(reference)).flatMap {
           case Some(fileName) =>
-
-            val fileLocation = Path.Directory(s"$reference").file(fileName)
-          
+            val fileLocation = Path.Directory(reference).file(fileName)
             objectStoreClient.getObject[Source[ByteString, NotUsed]](fileLocation).map {
               _.map { o =>
                 Ok.chunked(o.content)

@@ -1,4 +1,3 @@
-
 import uk.gov.hmrc.DefaultBuildSettings
 
 ThisBuild / majorVersion := 0
@@ -20,7 +19,7 @@ lazy val microservice = Project("eacd-file-processor", file("."))
 lazy val it = project
   .enablePlugins(PlayScala)
   .dependsOn(microservice % "test->test")
-  .settings(DefaultBuildSettings.itSettings())
+  .settings(DefaultBuildSettings.itSettings(true))
   .settings(libraryDependencies ++= AppDependencies.it)
 
 resolvers += MavenRepository("HMRC-open-artefacts-maven2", "https://open.artefacts.tax.service.gov.uk/maven2")
