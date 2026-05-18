@@ -16,13 +16,12 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
-import com.codahale.metrics.{Counter, MetricRegistry}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatestplus.mockito.MockitoSugar.mock
 import org.scalatestplus.play.PlaySpec
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, LockingRepository}
+import uk.gov.hmrc.eacdfileprocessor.repository.LockingRepository
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -31,11 +30,6 @@ class LockServiceSpec extends PlaySpec {
 
   val mockLockingRepo = mock[LockingRepository]
   val testService: LockService = new LockService {
-    override val metricsService: MetricsService = new MetricsService {
-      override val metrics: MetricRegistry = mock[MetricRegistry]
-      override val fileRepository: FileRepository = mock[FileRepository]
-      override val scheduleMetric: Counter = mock[Counter]
-    }
     override val lockingRepository: LockingRepository = mockLockingRepo
   }
 

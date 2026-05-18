@@ -23,7 +23,7 @@ import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 @Singleton
 class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig) {
 
-  val appName: String = config.get[String]("appName")
+  val appName: String = getString("appName")
   val timeToLive: String = getString("time-to-live.time")
   val internalAuthService: String = servicesConfig.baseUrl("internal-auth")
   val internalAuthToken: String = getString("internal-auth.token")
@@ -31,11 +31,11 @@ class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig)
   val workItemTimeToLive = getInt("work-item.ttlInHours")
   val lockingTimeout = getInt("locking.timeoutMinutes")
 
-  def getString(key: String): String =
+  private[config] def getString(key: String): String =
     config.getOptional[String](key).filter(!_.isBlank)
       .getOrElse(throw new RuntimeException(s"Could not find config key '$key'"))
 
-  def getInt(key: String): Int =
+  private[config] def getInt(key: String): Int =
     config.getOptional[Int](key)
       .getOrElse(throw new RuntimeException(s"Could not find config key '$key'"))
 }

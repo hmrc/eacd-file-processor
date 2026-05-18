@@ -26,18 +26,17 @@ sealed trait LockResponse
 case object MongoLocked extends LockResponse
 case object UnlockingFailed extends LockResponse
 
-class DefaultLockService @Inject()(val metricsService: MetricsService,
-                                   val lockingRepository: LockingRepository) extends LockService
+class DefaultLockService @Inject()(val lockingRepository: LockingRepository) extends LockService
 
 trait LockService extends Logging {
 
-  val metricsService: MetricsService
   val lockingRepository: LockingRepository
 
   def lockAndRelease[T](job: String)(f: => Future[T])(implicit ec: ExecutionContext): Future[Either[T, LockResponse]] = {
     lockingRepository.lockJob(job) flatMap {
       case false => Future(Right(MongoLocked))
-      case true  => metricsService.setScheduleFileInstance[T](f).flatMap { x =>
+      case true  => //metricsService.setScheduleFileInstance[T](f).flatMap { x =>
+        f.flatMap { x =>
         lockingRepository.releaseLock(job) map {
           if(_) Left(x) else Right(UnlockingFailed)
         }

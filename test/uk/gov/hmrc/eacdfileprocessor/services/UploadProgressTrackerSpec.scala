@@ -19,14 +19,15 @@ package uk.gov.hmrc.eacdfileprocessor.services
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito.{times, verify, when}
+import org.scalatestplus.play.PlaySpec
 import play.api.http.Status.CREATED
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
-import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.objectstore.client.*
+import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 
 import java.net.URL
 import java.time.Instant
@@ -35,7 +36,7 @@ import scala.concurrent.{Future, TimeoutException}
 class UploadProgressTrackerSpec extends TestSupport with TestData:
   private lazy val mockAppConfig = mock[AppConfig]
   private lazy val reference = initiateUploadDetails.reference
-  
+
   trait Setup {
     val repository = mock[FileRepository]
     val objectStoreClient = mock[PlayObjectStoreClient]
@@ -49,7 +50,7 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
     when(mockRequestBuilder.execute(any[HttpReads[HttpResponse]], any()))
       .thenReturn(Future.successful(HttpResponse(CREATED, body = "")))
   }
-  
+
   when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
   when(mockAppConfig.internalAuthToken).thenReturn("12345678")
   when(mockAppConfig.appName).thenReturn("eacd-file-processor")
@@ -77,7 +78,7 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
           )
         )
       )
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl,successfulUploadedDetails.mimeType,
+      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl, successfulUploadedDetails.mimeType,
         successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
 
       progressTracker.registerUploadResult(reference, successfulUploadedDetails)
@@ -86,7 +87,7 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
 
     "update failed upload file details" in new Setup {
       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      
+
       progressTracker.registerUploadResult(reference, failedFileDetails)
       verify(repository, times(0)).updateStatus(any(), any())
     }

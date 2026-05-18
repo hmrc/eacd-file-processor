@@ -43,7 +43,6 @@ class ServiceBindings extends Module {
   )
 
   private def bindServices(): Seq[Binding[?]] = Seq(
-    bindClass(classOf[MetricsService]).to(classOf[DefaultMetricsService]).eagerly(),
     bindClass(classOf[LockService]).to(classOf[DefaultLockService]).eagerly(),
     bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly()
   )
