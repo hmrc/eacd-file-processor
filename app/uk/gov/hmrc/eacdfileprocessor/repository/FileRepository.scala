@@ -230,14 +230,5 @@ class FileRepository @Inject()(
       )
       .toFutureOption()
 
-  def countDocuments(query: Bson): Future[Int] = {
-    metrics.timeCompletionOfFuture("countDocumentsMongoTimer", {
-      collection.countDocuments(
-        query,
-        options = model.CountOptions().skip(0)
-      ).toFuture().map(_.toInt)
-    })
-  }
-
   def dropCollection(): Future[Unit] =
     collection.drop().toFuture().map(_ => ())
