@@ -37,15 +37,9 @@ class StatusController @Inject()(
                                   val configuration: Configuration,
                                   val auth: BackendAuthComponents
                                 )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
-  val providedPermission: Predicate = Predicate.or(
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("services-enrolments-helpdesk-frontend")),
-      IAAction("ADMIN")
-    ),
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("emac-support-frontend")),
-      IAAction("ADMIN")
-    )
+  val providedPermission: Predicate = Predicate.Permission(
+    Resource(ResourceType("eacd-file-processor"), ResourceLocation("status")),
+    IAAction("ADMIN")
   )
 
   def updateStatus(reference: String): Action[JsValue] = authorisedEntity(providedPermission, "status")
