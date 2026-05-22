@@ -79,13 +79,13 @@ class ProcessApprovedFileServiceSpec extends TestSupport with TestData with Unit
         when(mockFileRepository.findOldestApprovedFile).thenReturn(Future(Some(scannedUploadedDetails.copy(status = APPROVED))))
         when(objectStoreClient.getObject[String](any(), any())(any(), any())).thenReturn(Future.successful(Some(o)))
         when(deEnrolmentWorkItemRepository.saveRecordDetails(any(), any())).thenReturn(Future.successful(deEnrolmentWorkItems))
-        await(processApprovedFileService.getOldestFileFromObjectStore)
+        await(processApprovedFileService.createWorkItemsFromOldestFile)
         verify(deEnrolmentWorkItemRepository, times(1)).saveRecordDetails(any(), any())
         verify(mockFileRepository, times(1)).setTotalEntryCount(any(), any())
       }
       "not save record details into DeEnrolmentWorkItem when there is no approved file" in new Setup {
         when(mockFileRepository.findOldestApprovedFile).thenReturn(Future(None))
-        processApprovedFileService.getOldestFileFromObjectStore
+        processApprovedFileService.createWorkItemsFromOldestFile
         verify(deEnrolmentWorkItemRepository, times(0)).saveRecordDetails(any(), any())
         verify(mockFileRepository, times(0)).setTotalEntryCount(any(), any())
       }
@@ -93,7 +93,7 @@ class ProcessApprovedFileServiceSpec extends TestSupport with TestData with Unit
         when(mockFileRepository.findOldestApprovedFile).thenReturn(Future(Some(scannedUploadedDetails.copy(status = APPROVED))))
         when(objectStoreClient.getObject[String](any(), any())(any(), any())).thenReturn(Future.successful(Some(o)))
         when(deEnrolmentWorkItemRepository.saveRecordDetails(any(), any())).thenReturn(Future(throw new RuntimeException(s"Only 1 items were saved")))
-        await(processApprovedFileService.getOldestFileFromObjectStore)
+        await(processApprovedFileService.createWorkItemsFromOldestFile)
         verify(deEnrolmentWorkItemRepository, times(1)).saveRecordDetails(any(), any())
         verify(mockFileRepository, times(0)).setTotalEntryCount(any(), any())
       }
@@ -101,7 +101,7 @@ class ProcessApprovedFileServiceSpec extends TestSupport with TestData with Unit
         when(mockFileRepository.findOldestApprovedFile).thenReturn(Future(Some(failedUploadedDetails.copy(status = APPROVED))))
 
         val exception = intercept[RuntimeException] {
-          await(processApprovedFileService.getOldestFileFromObjectStore)
+          await(processApprovedFileService.createWorkItemsFromOldestFile)
         }
 
         exception.getMessage contains s"Can't find file name for reference: ${failedUploadedDetails.reference.value}" shouldBe true
@@ -110,7 +110,7 @@ class ProcessApprovedFileServiceSpec extends TestSupport with TestData with Unit
         when(mockFileRepository.findOldestApprovedFile).thenReturn(Future(Some(initiateUploadDetails.copy(status = APPROVED))))
 
         val exception = intercept[RuntimeException] {
-          await(processApprovedFileService.getOldestFileFromObjectStore)
+          await(processApprovedFileService.createWorkItemsFromOldestFile)
         }
 
         exception.getMessage contains s"Can't find file name for reference: ${initiateUploadDetails.reference.value}" shouldBe true
@@ -120,7 +120,7 @@ class ProcessApprovedFileServiceSpec extends TestSupport with TestData with Unit
         when(objectStoreClient.getObject[String](any(), any())(any(), any())).thenReturn(Future.successful(None))
 
         val exception = intercept[ObjectStoreFileNotFoundException] {
-          await(processApprovedFileService.getOldestFileFromObjectStore)
+          await(processApprovedFileService.createWorkItemsFromOldestFile)
         }
 
         exception.getMessage contains s"No record found for the requested reference: ${scannedUploadedDetails.reference.value} in Object Store" shouldBe true

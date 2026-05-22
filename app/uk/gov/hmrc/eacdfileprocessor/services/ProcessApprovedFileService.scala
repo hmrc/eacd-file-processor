@@ -56,7 +56,7 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
 
   override def invoke(implicit ec: ExecutionContext): Future[Either[Unit, LockResponse]] =
     lockService.lockAndRelease(this.getClass.getSimpleName) {
-      getOldestFileFromObjectStore
+      createWorkItemsFromOldestFile
     }
 
   private def getFileStringFromObjectStore(reference: Reference, fileName: String): Future[Option[String]] = {
@@ -66,7 +66,7 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
     ).map(_.map(obj => obj.content))
   }
 
-  private[services] def getOldestFileFromObjectStore: Future[Unit] = {
+  private[services] def createWorkItemsFromOldestFile: Future[Unit] = {
     fileRepository.findOldestApprovedFile.flatMap {
       case Some(uploadedDetail) =>
         val reference = uploadedDetail.reference
