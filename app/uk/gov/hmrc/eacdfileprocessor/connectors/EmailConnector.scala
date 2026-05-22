@@ -51,7 +51,6 @@ class EmailConnectorImpl @Inject()(http: HttpClientV2, val runModeConfiguration:
                 reference: String, failureReason: String, failureMessage: String, templateId: String)
                (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
 
-
     val params = Map(
       "requestorName" -> requestorName,
       "fileName" -> fileName,
