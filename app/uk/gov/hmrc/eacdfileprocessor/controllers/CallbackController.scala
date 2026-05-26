@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import play.api.Logging
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.JsValue
 import play.api.mvc.{Action, ControllerComponents, Request}
 import uk.gov.hmrc.eacdfileprocessor.models.CallbackBody
 import uk.gov.hmrc.eacdfileprocessor.services.UpscanCallbackService
@@ -33,8 +33,6 @@ class CallbackController @Inject()(
                                   )(implicit ec: ExecutionContext) extends BackendController(cc) with Logging {
 
   val callback: Action[JsValue] = Action.async(parse.json) { implicit request: Request[JsValue] =>
-
-    logger.info(s"Received callback notification [${Json.stringify(request.body)}]")
 
     withJsonBody[CallbackBody] { callbackBody =>
       upscanCallbackService.handleCallback(callbackBody)

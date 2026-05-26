@@ -42,16 +42,4 @@ class UpscanCallbackServiceSpec extends TestSupport with TestData:
       callbackService.handleCallback(failedCallbackBody)
       verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any())
     }
-
-    "throws exception when MIME doesn't match" in new Setup {
-      val expectedException = BadRequestException("Incorrect file type uploaded, preferred file type was: text/csv")
-      val failedResult: Future[Any] = callbackService.handleCallback(wrongMIMEReadyCallbackBody)
-      ScalaFutures.whenReady(failedResult.failed) {
-        case e: BadRequestException =>
-          e.getClass shouldBe expectedException.getClass
-          e.getMessage shouldBe expectedException.getMessage
-        case other =>
-          fail(s"Unexpected exception: $other")
-      }
-    }
   }

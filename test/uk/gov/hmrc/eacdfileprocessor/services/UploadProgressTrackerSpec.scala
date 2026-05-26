@@ -43,7 +43,7 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
     val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
     val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
 
-    val progressTracker = UploadProgressTracker(repository, mockAppConfig, mockHttpClientV2, objectStoreClient)
+    val progressTracker = UploadProgressTracker(repository, mockAppConfig, objectStoreClient)()
 
     when(mockHttpClientV2.post(any())(any())).thenReturn(mockRequestBuilder)
     when(mockRequestBuilder.withBody(any())(any(), any(), any())).thenReturn(mockRequestBuilder)

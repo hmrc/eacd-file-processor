@@ -17,20 +17,17 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import uk.gov.hmrc.eacdfileprocessor.models.{CallbackBody, Details, FailedCallbackBody, ReadyCallbackBody}
-import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier}
+import uk.gov.hmrc.http.HeaderCarrier
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class UpscanCallbackService @Inject()(sessionStorage: UploadProgressTracker) {
-  private val allowedMimeTypes: Set[String] = Set(
-    "text/csv" // .csv
-  )
+class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker) {
 
   def handleCallback(callback: CallbackBody)(implicit ex: ExecutionContext, hc: HeaderCarrier): Future[Unit] = {
     val uploadStatus: Option[Details] = callback match {
-      case s: ReadyCallbackBody if allowedMimeTypes.contains(s.uploadDetails.fileMimeType) =>
+      case s: ReadyCallbackBody =>
         Some(Details.UploadedSuccessfully(
           name = s.uploadDetails.fileName,
           mimeType = s.uploadDetails.fileMimeType,
@@ -43,12 +40,11 @@ class UpscanCallbackService @Inject()(sessionStorage: UploadProgressTracker) {
           failureReason = f.failureDetails.failureReason,
           message = f.failureDetails.message
         ))
-      case _ => None
     }
 
     uploadStatus match {
-      case Some(status) => sessionStorage.registerUploadResult(callback.reference, status)
-      case None => Future(throw new BadRequestException("Incorrect file type uploaded, preferred file type was: text/csv"))
+      case Some(status) => callbackStorage.registerUploadResult(callback.reference, status)
+      case None => Future.unit
     }
   }
 }

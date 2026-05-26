@@ -17,16 +17,11 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import play.api.Logging
-import play.api.http.Status.CREATED
-import play.api.libs.json.Json
-import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
-import play.api.mvc.Results.BadRequest
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{FAILED, SCANNED, STORED}
 import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
-import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.objectstore.client.{Path, RetentionPeriod, Sha256Checksum}
@@ -39,7 +34,6 @@ import scala.util.{Failure, Success}
 @Singleton
 class UploadProgressTracker @Inject()(repository: FileRepository,
                                       appConfig: AppConfig,
-                                      httpClient: HttpClientV2,
                                       osClient: PlayObjectStoreClient)(implicit ec: ExecutionContext) extends Logging {
 
   def registerUploadResult(fileReference: Reference, details: Details)(implicit hc: HeaderCarrier): Future[Unit] =
@@ -62,47 +56,6 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
     } yield
       ()
 
-  def getUploadResult(reference: Reference): Future[Option[UploadedDetails]] =
-    repository.findByReference(reference)
-
-  private[services] def createClientAuthToken(): Future[Unit] = {
-    logger.info("[InternalAuthTokenInitialiser][createClientAuthToken] Initialising auth token")
-    httpClient
-      .post(url"${appConfig.internalAuthService}/test-only/token")(HeaderCarrier())
-      .withBody(
-        Json.obj(
-          "token" -> appConfig.internalAuthToken,
-          "principal" -> appConfig.appName,
-          "permissions" -> Seq(
-            Json.obj(
-              "resourceType" -> "object-store",
-              "resourceLocation" -> "eacd-file-processor",
-              "actions" -> List("READ", "WRITE", "DELETE")
-            ),
-            Json.obj(
-              "resourceType" -> "eacd-bulk-de-enrol",
-              "resourceLocation" -> "*",
-              "actions" -> List("*")
-            )
-          )
-        )
-      )
-      .execute()
-      .flatMap { response =>
-        if (response.status == CREATED) {
-          logger.info(
-            "[InternalAuthTokenInitialiser][createClientAuthToken] Auth token initialised"
-          )
-          Future.unit
-        } else {
-          logger.error(
-            "[InternalAuthTokenInitialiser][createClientAuthToken] Unable to initialise internal-auth token"
-          )
-          Future.failed(new RuntimeException("Unable to initialise internal-auth token"))
-        }
-      }
-  }
-
   private[services] def transferToObjectStore(
                                                downloadUrl: URL,
                                                mimeType: String,
@@ -122,22 +75,14 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
       )(hc.copy(authorization = Some(Authorization(appConfig.internalAuthToken))))
       .transformWith {
         case Failure(exception) =>
-          logger.error(s"Failure to upload to object store because of $exception")
-          logger.warn("FAILED_OBJECT_STORE_UPDATE Failed upload file to object store")
-          exception.printStackTrace()
-          Future.successful(BadRequest(s"Failure to upload to object store because of $exception"))
+          logger.warn(s"FAILED_OBJECT_STORE_UPDATE Failed upload file to object store for reference: ${fileReference.value} $exception")
+          Future.unit
         case Success(objectWithMD5) =>
-          Future.successful(
-            for {
-              uploadedDetails <- repository.updateStatus(fileReference, STORED)
-              success <- uploadedDetails match {
-                case Some(result) =>
-                  Future.successful(result)
-                case None =>
-                  Future.successful(new Exception(s"Could not update file status for reference: ${fileReference.value}"))
-              }
-            } yield success
-          )
+          repository.updateStatus(fileReference, STORED).map {
+            case None =>
+              logger.warn(s"Could not update file status for reference: ${fileReference.value}")
+            case _ => ()
+          }
       }
   }
 }
