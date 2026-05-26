@@ -40,7 +40,7 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData:
   lazy val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
   val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
 
-  val progressTracker = UploadProgressTracker(fileRepository, appConfig, mockHttpClientV2, objectStoreClient)
+  val progressTracker = UploadProgressTracker(fileRepository, appConfig, objectStoreClient)()
   val reference = initiateUploadDetails.reference
   val sucessfulDetails = Details.UploadedSuccessfully(
     name = "bulk-de-enrol.csv",
