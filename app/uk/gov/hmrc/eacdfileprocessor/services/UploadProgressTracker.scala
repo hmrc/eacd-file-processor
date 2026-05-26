@@ -81,9 +81,7 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
           repository.updateStatus(fileReference, STORED).map {
             case None =>
               logger.warn(s"Could not update file status for reference: ${fileReference.value}")
-              Future.unit
-            case _ =>
-              Future.unit
+            case _ => ()
           }
       }
   }
