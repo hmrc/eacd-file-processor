@@ -17,14 +17,13 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import com.google.inject.ImplementedBy
-import org.mongodb.scala.bson.conversions.Bson
-import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
+import org.mongodb.scala.model.*
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
-import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields, WorkItemRepository}
+import uk.gov.hmrc.mongo.workitem.{WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
 
 import java.time.{Duration, Instant}
