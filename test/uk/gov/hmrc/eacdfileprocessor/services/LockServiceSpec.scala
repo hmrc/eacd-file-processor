@@ -21,23 +21,21 @@ import org.mockito.Mockito.when
 import org.scalatestplus.mockito.MockitoSugar.mock
 import org.scalatestplus.play.PlaySpec
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.repository.LockingRepository
+import uk.gov.hmrc.eacdfileprocessor.repository.JobLockRepository
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 class LockServiceSpec extends PlaySpec {
 
-  val mockLockingRepo = mock[LockingRepository]
-  val testService: LockService = new LockService {
-    override val lockingRepository: LockingRepository = mockLockingRepo
-  }
+  val mockJobLockRepo = mock[JobLockRepository]
+  val testService: LockService = new LockService(mockJobLockRepo)
 
   def testFuture: Future[String] = Future("testString")
 
   "lockAndRelease" should {
     "return a MongoLocked" in {
-      when(mockLockingRepo.lockJob(any()))
+      when(mockJobLockRepo.lockJob(any()))
         .thenReturn(Future.successful(false))
 
       val result = await(testService.lockAndRelease("testJob") {
@@ -48,10 +46,10 @@ class LockServiceSpec extends PlaySpec {
     }
 
     "return a UnlockingFailed" in {
-      when(mockLockingRepo.lockJob(any()))
+      when(mockJobLockRepo.lockJob(any()))
         .thenReturn(Future.successful(true))
 
-      when(mockLockingRepo.releaseLock(any()))
+      when(mockJobLockRepo.releaseLock(any()))
         .thenReturn(Future.successful(false))
 
       val result = await(testService.lockAndRelease("testJob") {
@@ -62,10 +60,10 @@ class LockServiceSpec extends PlaySpec {
     }
 
     "return a String" in {
-      when(mockLockingRepo.lockJob(any()))
+      when(mockJobLockRepo.lockJob(any()))
         .thenReturn(Future.successful(true))
 
-      when(mockLockingRepo.releaseLock(any()))
+      when(mockJobLockRepo.releaseLock(any()))
         .thenReturn(Future.successful(true))
 
       val result = await(testService.lockAndRelease("testJob") {

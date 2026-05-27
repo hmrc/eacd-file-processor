@@ -17,7 +17,7 @@
 package helper
 
 import com.codahale.metrics.{Counter, MetricRegistry}
-import org.scalatest.BeforeAndAfterEach
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.must.Matchers
 import org.scalatestplus.mockito.MockitoSugar
@@ -25,17 +25,18 @@ import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test.Injecting
-import play.api.{Application, Configuration}
+import play.api.Application
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, LockingRepository}
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, JobLockRepository, LockingRepository}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 trait IntegrationSpec extends PlaySpec
   with GuiceOneAppPerSuite
+  with BeforeAndAfterAll
   with Matchers
   with MockitoSugar
   with Injecting
@@ -49,17 +50,15 @@ trait IntegrationSpec extends PlaySpec
   lazy val lockingTestTimeout: Int = 25
 
   lazy val fileRepository = app.injector.instanceOf[FileRepository]
+  lazy val jobLockRepository: JobLockRepository = app.injector.instanceOf[JobLockRepository]
   lazy val lockingRepo: LockingRepository = app.injector.instanceOf[LockingRepository]
   lazy val metricRegistry = app.injector.instanceOf[MetricRegistry]
   lazy val counter = app.injector.instanceOf[Counter]
   lazy val mongoRepository: MongoComponent = app.injector.instanceOf[MongoComponent]
-  lazy val configuration = Configuration.from(appConfigMap)
-  lazy val servicesConfig: ServicesConfig = new ServicesConfig(configuration)
-  lazy val appConfig: AppConfig = new AppConfig(configuration, servicesConfig)
+  lazy val appConfig: AppConfig = app.injector.instanceOf[AppConfig]
 
   def appConfigMap: Map[String, Any] = Map(
     "appName" -> "eacd-file-processor",
-    "mongo.uri" -> "mongodb://localhost:27017/eacd-file-processor",
     "microservice.services.internal-auth.protocol" -> "http",
     "microservice.services.internal-auth.host" -> "localhost",
     "microservice.services.internal-auth.port" -> 8470,
@@ -67,6 +66,8 @@ trait IntegrationSpec extends PlaySpec
     "internal-auth.token" -> "12345678",
     "object-store.default-retention-period" -> "6-months",
     "internalAuth.enabled" -> false,
+    "schedules.ProcessApprovedFileJob.enabled" -> false,
+    "schedules.FileWorkItemPullJob.enabled" -> false,
     "work-item.retry-in-progress-after.seconds" -> 30,
     "work-item.ttlInHours" -> 720,
     "locking.timeoutMinutes" -> lockingTestTimeout,

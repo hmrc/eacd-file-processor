@@ -16,13 +16,13 @@
 
 package uk.gov.hmrc.eacdfileprocessor.repository
 
+import helper.IntegrationSpec
 import org.bson.types.ObjectId
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
 
-class FileRecordValidationErrorRepositoryISpec extends TestSupport {
+class FileRecordValidationErrorRepositoryISpec extends IntegrationSpec {
 
   lazy val repository: FileRecordValidationErrorRepository = app.injector.instanceOf[FileRecordValidationErrorRepository]
 
@@ -51,5 +51,4 @@ class FileRecordValidationErrorRepositoryISpec extends TestSupport {
     }
   }
 }
-
 
