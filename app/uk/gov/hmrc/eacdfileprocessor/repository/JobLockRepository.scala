@@ -39,7 +39,7 @@ class JobLockRepository @Inject()(mongoComponent: MongoComponent, appConfig: App
       import JobLock.given
       summon[play.api.libs.json.Format[JobLock]]
     },
-    indexes = Seq(IndexModel(org.mongodb.scala.model.Indexes.ascending("job"), IndexOptions().name("job").unique(true))),
+    indexes = Seq(IndexModel(org.mongodb.scala.model.Indexes.ascending("job"), IndexOptions().name("Job").unique(true))),
     replaceIndexes = true
   ) {
 
@@ -67,7 +67,3 @@ class JobLockRepository @Inject()(mongoComponent: MongoComponent, appConfig: App
   def releaseLock(job: String): Future[Boolean] =
     collection.deleteOne(equal("job", job)).toFuture().map(_.wasAcknowledged())
 }
-
-
-
-
