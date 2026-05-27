@@ -17,10 +17,13 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import helper.IntegrationSpec
-import org.mongodb.scala.{Document, SingleObservableFuture}
+import org.mongodb.scala.model.Updates
+import org.mongodb.scala.{Document, ObservableFuture, SingleObservableFuture}
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.helper.AssertionHelpers
-import uk.gov.hmrc.eacdfileprocessor.models.JobLock
+import uk.gov.hmrc.eacdfileprocessor.selectors.JobLockSelectors
+import uk.gov.hmrc.mongo.play.json.Codecs
+import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -38,9 +41,17 @@ class LockingRepositoryISpec extends AssertionHelpers with IntegrationSpec {
           _ mustBe true
         }
       }
-      "its lock has expired" in {
-        val expiredExpiration = Instant.now().minus(1, ChronoUnit.MINUTES)
-        await(lockingRepo.collection.insertOne(JobLock("testJob", expiredExpiration)).toFuture())
+      s"it was locked over $lockingTestTimeout minutes ago" in {
+        await(lockingRepo.lockJob("testJob"))
+        await(
+          lockingRepo.collection.updateOne(
+            JobLockSelectors.jobLockedOf("testJob"),
+            Updates.set(
+              "lockCreatedAt",
+              Codecs.toBson(Instant.now().minus(lockingTestTimeout, ChronoUnit.MINUTES))(using MongoJavatimeFormats.instantFormat)
+            )
+          ).toFuture()
+        )
 
         awaitAndAssert(lockingRepo.lockJob("testJob")) {
           _ mustBe true
@@ -49,9 +60,17 @@ class LockingRepositoryISpec extends AssertionHelpers with IntegrationSpec {
     }
 
     "not lock a job" when {
-      "its lock has not expired" in {
-        val futureExpiration = Instant.now().plus(lockingTestTimeout - 1, ChronoUnit.MINUTES)
-        await(lockingRepo.collection.insertOne(JobLock("testJob", futureExpiration)).toFuture())
+      s"it was locked under $lockingTestTimeout minutes ago" in {
+        await(lockingRepo.lockJob("testJob"))
+        await(
+          lockingRepo.collection.updateOne(
+            JobLockSelectors.jobLockedOf("testJob"),
+            Updates.set(
+              "lockCreatedAt",
+              Codecs.toBson(Instant.now().minus(lockingTestTimeout - 1, ChronoUnit.MINUTES))(using MongoJavatimeFormats.instantFormat)
+            )
+          ).toFuture()
+        )
 
         awaitAndAssert(lockingRepo.lockJob("testJob")) {
           _ mustBe false
@@ -68,9 +87,17 @@ class LockingRepositoryISpec extends AssertionHelpers with IntegrationSpec {
         }
       }
 
-      "its lock has expired" in {
-        val expiredExpiration = Instant.now().minus(1, ChronoUnit.MINUTES)
-        await(lockingRepo.collection.insertOne(JobLock("testJob", expiredExpiration)).toFuture())
+      s"it was locked over $lockingTestTimeout minutes ago" in {
+        await(lockingRepo.lockJob("testJob"))
+        await(
+          lockingRepo.collection.updateOne(
+            JobLockSelectors.jobLockedOf("testJob"),
+            Updates.set(
+              "lockCreatedAt",
+              Codecs.toBson(Instant.now().minus(lockingTestTimeout, ChronoUnit.MINUTES))(using MongoJavatimeFormats.instantFormat)
+            )
+          ).toFuture()
+        )
 
         awaitAndAssert(lockingRepo.isJobLocked("testJob")) {
           _ mustBe false
@@ -79,10 +106,18 @@ class LockingRepositoryISpec extends AssertionHelpers with IntegrationSpec {
     }
 
     "state a job is still locked" when {
-      "its lock has not expired" in {
-        val futureExpiration = Instant.now().plus(lockingTestTimeout - 1, ChronoUnit.MINUTES)
-        await(lockingRepo.collection.insertOne(JobLock("testJob", futureExpiration)).toFuture())
-
+      s"it was locked under $lockingTestTimeout minutes ago" in {
+        await(lockingRepo.lockJob("testJob"))
+        await(
+          lockingRepo.collection.updateOne(
+            JobLockSelectors.jobLockedOf("testJob"),
+            Updates.set(
+              "lockCreatedAt",
+              Codecs.toBson(Instant.now().minus(lockingTestTimeout - 1, ChronoUnit.MINUTES))(using MongoJavatimeFormats.instantFormat)
+            )
+          ).toFuture()
+        )
+        lockingRepo.collection.find(JobLockSelectors.jobLockedOf("testJob")).toFuture()
         awaitAndAssert(lockingRepo.isJobLocked("testJob")) {
           _ mustBe true
         }
