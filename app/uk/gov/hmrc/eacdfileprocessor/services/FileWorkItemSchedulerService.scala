@@ -21,7 +21,7 @@ import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, FileWorkItem}
 import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository, FileWorkItemRepository}
-import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
+import uk.gov.hmrc.eacdfileprocessor.utils.ScheduledService
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.workitem.WorkItem
 
@@ -37,20 +37,13 @@ class FileWorkItemSchedulerService @Inject()(
   lockService: LockService,
   agentServiceCache: AgentServiceCache,
   validator: FileWorkItemValidator
-) extends ScheduledService[Unit] with Logging {
+) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
 
   private given HeaderCarrier = HeaderCarrier()
 
-  override def invoke(using ExecutionContext): Future[Unit] =
+  override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] =
     lockService.lockAndRelease("FileWorkItemPullJob") {
       processBatch()
-    }.map {
-      case Left(_) =>
-        logger.info("File work-item batch processed")
-      case Right(MongoLocked) =>
-        logger.info("File work-item scheduler skipped due to lock")
-      case Right(UnlockingFailed) =>
-        logger.warn("File work-item scheduler completed, but lock release failed")
     }
 
   private def processBatch()(using ExecutionContext): Future[Unit] =

@@ -25,6 +25,7 @@ import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.Codecs.logger
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
+import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -39,7 +40,7 @@ class LockingRepository @Inject()(mongo: MongoComponent,
   extends PlayMongoRepository[JobLock](
     mongoComponent = mongo,
     collectionName = "job-locks",
-    domainFormat = JobLock.jobLockFormat,
+    domainFormat = JobLock.given_Format_JobLock,
     indexes = Seq(
       IndexModel(
         ascending("job"),
@@ -51,11 +52,11 @@ class LockingRepository @Inject()(mongo: MongoComponent,
     )
   ) {
 
-  val lockDuration: Int = config.lockingTimeout
+  val lockDuration: Int = config.lockTimeoutMinutes
 
   def lockJob(job: String): Future[Boolean] = {
     val now = Instant.now()
-    val newDocument = Updates.set("lockExpiration", Codecs.toBson(now.toEpochMilli))
+    val newDocument = Updates.set("lockCreatedAt", Codecs.toBson(now)(using MongoJavatimeFormats.instantFormat))
 
     metrics.timeCompletionOfFuture("lockJobFindMongoTimer", {
       collection.find(JobLockSelectors.jobLockedOf(job)).toFuture().map(_.toSeq).flatMap {
