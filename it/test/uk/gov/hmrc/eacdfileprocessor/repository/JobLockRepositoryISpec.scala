@@ -16,15 +16,15 @@
 
 package uk.gov.hmrc.eacdfileprocessor.repository
 
+import helper.IntegrationSpec
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.mongo.MongoComponent
 
 import java.time.{Clock, Instant, ZoneId}
 
-class JobLockRepositoryISpec extends TestSupport {
+class JobLockRepositoryISpec extends IntegrationSpec {
 
   private final class MutableClock(var now: Instant, zone: ZoneId = ZoneId.of("UTC")) extends Clock {
     override def getZone: ZoneId = zone
@@ -34,7 +34,6 @@ class JobLockRepositoryISpec extends TestSupport {
 
   private val mutableClock = MutableClock(Instant.parse("2026-01-01T00:00:00Z"))
   private lazy val mongoComponent: MongoComponent = app.injector.instanceOf[MongoComponent]
-  private lazy val appConfig: AppConfig = app.injector.instanceOf[AppConfig]
   lazy val repository: JobLockRepository = new JobLockRepository(mongoComponent, appConfig, mutableClock)
 
   override def beforeEach(): Unit = {

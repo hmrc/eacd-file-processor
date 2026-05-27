@@ -16,14 +16,15 @@
 
 package uk.gov.hmrc.eacdfileprocessor.repository
 
+import helper.IntegrationSpec
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.await
 import play.api.test.Helpers.defaultAwaitTimeout
-import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
+import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.FileWorkItem
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus
 
-class FileWorkItemRepositoryISpec extends TestSupport with TestData {
+class FileWorkItemRepositoryISpec extends IntegrationSpec with TestData {
 
   lazy val repository: FileWorkItemRepository = app.injector.instanceOf[FileWorkItemRepository]
 
