@@ -43,7 +43,7 @@ class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with
   val executionContext = ec
   val fileRepo = fileRepository
   private val objectStoreClient = mock[PlayObjectStoreClient]
-  val mockLockService = new LockService(jobLockRepository)
+  val mockLockService = new LockService(lockingRepo)
 
   private val deEnrolmentWorkItemRepository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, appConfiguration)
 

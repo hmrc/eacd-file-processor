@@ -16,16 +16,15 @@
 
 package uk.gov.hmrc.eacdfileprocessor.models
 
-import play.api.libs.json.{Format, Json}
+import play.api.libs.json.{Format, Json, OFormat}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
 
-final case class JobLock(job: String, lockCreatedAt: Instant)
+
+case class JobLock(job : String, lockExpiration : Instant)
 
 object JobLock {
-  private given Format[Instant] = MongoJavatimeFormats.instantFormat
-  given Format[JobLock] = Json.format[JobLock]
+  private implicit val instantFormat: Format[Instant] = MongoJavatimeFormats.instantFormat
+  implicit val jobLockFormat: OFormat[JobLock] = Json.format[JobLock]
 }
-
-
