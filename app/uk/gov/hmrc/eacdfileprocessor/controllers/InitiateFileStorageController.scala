@@ -42,7 +42,7 @@ class InitiateFileStorageController @Inject()(
   def initiateFileRecordStore(): Action[JsValue] =
     authorisedEntity(
       providedPermission = Predicate.Permission(
-        Resource(ResourceType("eacd-file-processor"), ResourceLocation("services-enrolments-helpdesk-frontend")),
+        Resource(ResourceType("eacd-file-processor"), ResourceLocation("initiate")),
         IAAction("ADMIN")
       ),
       apiName = "initiate"

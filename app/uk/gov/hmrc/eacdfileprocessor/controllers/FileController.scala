@@ -35,21 +35,15 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class FileController @Inject()(
-                                  fileUploadRepo: FileRepository,
-                                  val cc: ControllerComponents,
-                                  val configuration: Configuration,
-                                  val auth: BackendAuthComponents,
-                                  val objectStoreClient: PlayObjectStoreClient
-                                )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
-  val providedPermission = Predicate.or(
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("services-enrolments-helpdesk-frontend")),
-      IAAction("ADMIN")
-    ),
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("emac-support-frontend")),
-      IAAction("ADMIN")
-    )
+                                fileUploadRepo: FileRepository,
+                                val cc: ControllerComponents,
+                                val configuration: Configuration,
+                                val auth: BackendAuthComponents,
+                                val objectStoreClient: PlayObjectStoreClient
+                              )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
+  val providedPermission = Predicate.Permission(
+    Resource(ResourceType("eacd-file-processor"), ResourceLocation("file")),
+    IAAction("ADMIN")
   )
 
   def getFile(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "status")
