@@ -25,7 +25,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.{Details, FileRecordValidationError, FileWorkItem, FileStatus, Reference, UploadedDetails}
-import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository, FileWorkItemRepository, JobLockRepository}
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository, FileWorkItemRepository, LockingRepository}
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem}
 import uk.gov.hmrc.http.HeaderCarrier
 
@@ -62,7 +62,7 @@ class FileWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with Mo
         Future.successful(Set("HMRC-MTD-IT"))
     }
     val validator: FileWorkItemValidator = mock[FileWorkItemValidator]
-    val lockRepository: JobLockRepository = mock[JobLockRepository]
+    val lockRepository: LockingRepository = mock[LockingRepository]
 
     when(appConfig.fileWorkItemConcurrency).thenReturn(5)
 
