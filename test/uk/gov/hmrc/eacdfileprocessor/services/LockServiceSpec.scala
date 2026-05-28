@@ -21,14 +21,14 @@ import org.mockito.Mockito.when
 import org.scalatestplus.mockito.MockitoSugar.mock
 import org.scalatestplus.play.PlaySpec
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.repository.JobLockRepository
+import uk.gov.hmrc.eacdfileprocessor.repository.LockingRepository
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 class LockServiceSpec extends PlaySpec {
 
-  val mockJobLockRepo = mock[JobLockRepository]
+  val mockJobLockRepo = mock[LockingRepository]
   val testService: LockService = new LockService(mockJobLockRepo)
 
   def testFuture: Future[String] = Future("testString")

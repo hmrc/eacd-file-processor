@@ -17,15 +17,14 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import org.mongodb.scala.model.Indexes.ascending
-import org.mongodb.scala.model.{IndexModel, IndexOptions, Updates}
+import org.mongodb.scala.model.{IndexModel, IndexOptions}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.JobLock
 import uk.gov.hmrc.eacdfileprocessor.selectors.JobLockSelectors
 import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.Codecs.logger
-import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
-import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
+import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -40,7 +39,7 @@ class LockingRepository @Inject()(mongo: MongoComponent,
   extends PlayMongoRepository[JobLock](
     mongoComponent = mongo,
     collectionName = "job-locks",
-    domainFormat = JobLock.given_Format_JobLock,
+    domainFormat = JobLock.jobLockFormat,
     indexes = Seq(
       IndexModel(
         ascending("job"),
@@ -56,13 +55,16 @@ class LockingRepository @Inject()(mongo: MongoComponent,
 
   def lockJob(job: String): Future[Boolean] = {
     val now = Instant.now()
-    val newDocument = Updates.set("lockCreatedAt", Codecs.toBson(now)(using MongoJavatimeFormats.instantFormat))
+    val newExpiration = now.plus(lockDuration, ChronoUnit.MINUTES)
 
     metrics.timeCompletionOfFuture("lockJobFindMongoTimer", {
       collection.find(JobLockSelectors.jobLockedOf(job)).toFuture().map(_.toSeq).flatMap {
-        case Seq(JobLock(_, time)) if time.plus(lockDuration, ChronoUnit.MINUTES).isBefore(Instant.now()) =>
+        case Seq(JobLock(_, expiration)) if expiration.isAfter(now) =>
+          logger.warn(s"[lockJob] - $job is still locked")
+          Future.successful(false)
+        case Seq(_) =>
           metrics.timeCompletionOfFuture("lockJobUpdateMongoTimer", {
-            collection.updateOne(JobLockSelectors.jobLockedOf(job), newDocument).toFuture() map { uwr =>
+            collection.replaceOne(JobLockSelectors.jobLockedOf(job), JobLock(job, newExpiration)).toFuture() map { uwr =>
               uwr.wasAcknowledged() -> uwr.getMatchedCount match {
                 case (true, 1) => true
                 case (_, 0) =>
@@ -74,12 +76,9 @@ class LockingRepository @Inject()(mongo: MongoComponent,
               }
             }
           })
-        case Seq(JobLock(_, _)) =>
-          logger.warn(s"[lockJob] - $job is still locked")
-          Future.successful(false)
         case _ =>
           metrics.timeCompletionOfFuture("lockJobInsertMongoTimer", {
-            collection.insertOne(JobLock(job, Instant.now())).toFuture() map { wr =>
+            collection.insertOne(JobLock(job, newExpiration)).toFuture() map { wr =>
               if (wr.wasAcknowledged()) {
                 logger.info(s"[lockJob] - Locking $job")
                 true
@@ -96,12 +95,11 @@ class LockingRepository @Inject()(mongo: MongoComponent,
   def isJobLocked(job: String): Future[Boolean] = {
     metrics.timeCompletionOfFuture("isJobLockedMongoTimer", {
       collection.find(JobLockSelectors.jobLockedOf(job)).toFuture().map(_.toSeq).map {
-        case Seq(JobLock(_, time)) if time.plus(lockDuration, ChronoUnit.MINUTES).isBefore(Instant.now()) =>
-          false
-        case Seq(JobLock(_, _)) =>
+        case Seq(JobLock(_, expiration)) if expiration.isAfter(Instant.now()) =>
           logger.warn(s"[isJobLocked] - $job is currently locked")
           true
-        case _ => false
+        case _ =>
+          false
       }
     })
   }
