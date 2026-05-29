@@ -36,6 +36,10 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
                                       appConfig: AppConfig,
                                       osClient: PlayObjectStoreClient)(implicit ec: ExecutionContext) extends Logging {
 
+
+  def getUploadResult(reference: Reference): Future[Option[UploadedDetails]] =
+    repository.findByReference(reference)
+    
   def registerUploadResult(fileReference: Reference, details: Details)(implicit hc: HeaderCarrier): Future[Unit] =
     for {
       status <- details match {
