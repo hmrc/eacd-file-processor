@@ -30,6 +30,7 @@ import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.Inject
 import scala.concurrent.Future
+import java.time.Instant
 
 class InitiateFileStorageController @Inject()(
                                                val fileRepo: FileRepository,
@@ -49,7 +50,7 @@ class InitiateFileStorageController @Inject()(
     ).async(parse.json) { implicit request: Request[JsValue] =>
       validateJsonBody { initiateRequestModel =>
         fileRepo.createFileRecord(UploadedDetails(ObjectId.get(), Reference(initiateRequestModel.reference), INITIAL,
-          initiateRequestModel.requestorPID, initiateRequestModel.requestorEmail, initiateRequestModel.requestorName)).map {
+          initiateRequestModel.requestorPID, initiateRequestModel.requestorEmail, initiateRequestModel.requestorName, Instant.now())).map {
           case true =>
             Created
           case _ =>

@@ -105,6 +105,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "requestorPID").format[String]
       ~ (__ \ "requestorEmail").format[String]
       ~ (__ \ "requestorName").format[String]
+      ~ (__ \ "creationDateTime").format[Instant]
       ~ (__ \ "details").formatNullable[Details]
       ~ (__ \ "approverDetails").formatNullable[ApproverDetails]
       ~ (__ \ "totalEntryCount").formatNullable[Int]
