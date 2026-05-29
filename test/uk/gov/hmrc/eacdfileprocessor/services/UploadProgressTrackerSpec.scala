@@ -37,12 +37,13 @@ import scala.concurrent.{ExecutionContext, Future, TimeoutException}
 class UploadProgressTrackerSpec extends TestSupport with TestData:
   private lazy val mockAppConfig = mock[AppConfig]
   private lazy val reference = initiateUploadDetails.reference
-override lazy implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.global
+  override lazy implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.global
   override implicit val hc: HeaderCarrier = HeaderCarrier()
 
   when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
   when(mockAppConfig.internalAuthToken).thenReturn("12345678")
   when(mockAppConfig.appName).thenReturn("eacd-file-processor")
+
   trait Setup {
     val repository: FileRepository = mock[FileRepository]
     val objectStoreClient: PlayObjectStoreClient = mock[PlayObjectStoreClient]

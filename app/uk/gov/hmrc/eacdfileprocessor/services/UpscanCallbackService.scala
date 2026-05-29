@@ -29,7 +29,7 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class UpscanCallbackService @Inject()(sessionStorage: UploadProgressTracker,
+class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker,
                                       val auditConnector: AuditConnector,
                                       emailConnector: EmailConnector) extends AuditEvents with Logging {
 
@@ -46,7 +46,7 @@ class UpscanCallbackService @Inject()(sessionStorage: UploadProgressTracker,
         ))
       case f: FailedCallbackBody =>
         (for {
-          uploadDetails <- sessionStorage.getUploadResult(callback.reference).map {
+          uploadDetails <- callbackStorage.getUploadResult(callback.reference).map {
             case Some(details) => details
             case None => throw new RuntimeException("Upload details not found for reference: " + callback.reference)
           }
