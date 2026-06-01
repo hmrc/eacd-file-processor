@@ -18,12 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{times, verify}
-import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.matchers.should.Matchers.shouldBe
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.http.BadRequestException
-
-import scala.concurrent.Future
 
 class UpscanCallbackServiceSpec extends TestSupport with TestData:
 

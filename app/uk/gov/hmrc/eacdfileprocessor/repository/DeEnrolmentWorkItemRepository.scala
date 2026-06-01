@@ -17,11 +17,14 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import com.google.inject.ImplementedBy
+import org.bson.types.ObjectId
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
+import org.mongodb.scala.model.Filters.{and, equal, in}
 import org.mongodb.scala.model.*
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
 import uk.gov.hmrc.mongo.workitem.{WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
@@ -34,6 +37,11 @@ import scala.concurrent.{ExecutionContext, Future}
 @ImplementedBy(classOf[DeEnrolmentWorkItemMongoRepository])
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
+  def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
+  def markAsSucceeded(id: ObjectId): Future[Boolean]
+  def markAsFailed(id: ObjectId): Future[Boolean]
+  def countIncompleteByReference(reference: String): Future[Long]
+  def hasAnyFailedByReference(reference: String): Future[Boolean]
 }
 
 @Singleton
@@ -96,4 +104,43 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
 
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)
+
+  override def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
+    val failedBefore = now()
+    val availableBefore = now()
+
+    def loop(acc: Vector[WorkItem[DeEnrolmentWorkItem]], remaining: Int): Future[Vector[WorkItem[DeEnrolmentWorkItem]]] =
+      if (remaining <= 0) {
+        Future.successful(acc)
+      } else {
+        pullOutstanding(failedBefore = failedBefore, availableBefore = availableBefore).flatMap {
+          case Some(workItem) => loop(acc :+ workItem, remaining - 1)
+          case None => Future.successful(acc)
+        }
+      }
+
+    loop(Vector.empty, limit).map(_.toSeq)
+  }
+
+  override def markAsSucceeded(id: ObjectId): Future[Boolean] =
+    complete(id, ProcessingStatus.Succeeded)
+
+  override def markAsFailed(id: ObjectId): Future[Boolean] =
+    complete(id, ProcessingStatus.Failed)
+
+  override def countIncompleteByReference(reference: String): Future[Long] =
+    collection.countDocuments(
+      and(
+        equal("item.reference", reference),
+        in(WorkItemFields.default.status, ProcessingStatus.ToDo.name, ProcessingStatus.InProgress.name)
+      )
+    ).toFuture()
+
+  override def hasAnyFailedByReference(reference: String): Future[Boolean] =
+    collection.countDocuments(
+      and(
+        equal("item.reference", reference),
+        equal(WorkItemFields.default.status, ProcessingStatus.Failed.name)
+      )
+    ).toFuture().map(_ > 0)
 }

@@ -18,6 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.utils
 
 import org.scalatestplus.play.PlaySpec
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
+import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
 import uk.gov.hmrc.eacdfileprocessor.services.LockResponse
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -27,14 +28,18 @@ class ScheduledServiceSpec extends PlaySpec {
   "a scheduled service" should {
     "invoke its corresponding invocation method" when {
       "it derives from scheduled service" in {
-        val testScheduledService: ScheduledService[Int] = (_: ExecutionContext) => Future.successful(5)
+        val testScheduledService: ScheduledService[Int] = new ScheduledService[Int] {
+          def invoke(using ec: ExecutionContext): Future[Int] = Future.successful(5)
+        }
 
         val res: Int = await(testScheduledService.invoke)
         res mustBe 5
       }
 
       "it derives from scheduled service with locking" in {
-        val testScheduledService: ScheduledService[Left[Int, Nothing]] = (_: ExecutionContext) => Future.successful(Left(5))
+        val testScheduledService: ScheduledService[Left[Int, Nothing]] = new ScheduledService[Left[Int, Nothing]] {
+          def invoke(using ec: ExecutionContext): Future[Left[Int, Nothing]] = Future.successful(Left(5))
+        }
 
         val Left(value): Either[Int, LockResponse] = await(testScheduledService.invoke)
         value mustBe 5

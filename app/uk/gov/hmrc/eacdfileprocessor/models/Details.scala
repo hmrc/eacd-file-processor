@@ -52,5 +52,5 @@ case class UploadedDetails(
                             uploadedDateTime: Option[Instant] = None,
                             lastUpdatedDateTime: Instant = Instant.now(),
                             approvedAtDateTime: Option[Instant] = None,
-                            totalFailureCount: Int = 0
+                            totalFailureCount: Option[Int] = None
                           )

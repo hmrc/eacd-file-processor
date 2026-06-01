@@ -27,8 +27,10 @@ import play.api.test.{DefaultAwaitTimeout, FakeRequest}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.Reference
+import org.bson.types.ObjectId
 
 import scala.concurrent.Future
+import java.util.UUID
 
 class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec:
 
@@ -105,7 +107,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       }
     }
     "return 400 when approver pid is the same as requestor pid" in {
-      val reference: Reference = Reference("ref1")
+      val reference: Reference = Reference(UUID.randomUUID().toString)
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference.value).url)
         .withJsonBody(Json.obj(
           "status" -> "approved",
@@ -115,7 +117,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(reference = reference, status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(id = ObjectId.get(), reference = reference, status = STORED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST

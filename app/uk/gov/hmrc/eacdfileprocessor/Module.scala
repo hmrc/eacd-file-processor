@@ -23,19 +23,9 @@ import java.time.Clock
 class Module extends AppModule {
 
   override def bindings(
-                          environment: Environment,
-                          configuration: Configuration
-                        ): Seq[Binding[_]] = {
-    val clockBinding = bind[Clock].toInstance(Clock.systemDefaultZone) // inject if current time needs to be controlled in unit tests
-
-    // Only eager bind SchedulerStartup in non-test environments
-    if (!environment.mode.equals(play.api.Mode.Test)) {
-      Seq(
-        clockBinding,
-        bind[SchedulerStartup].toSelf.eagerly()
-      )
-    } else {
-      Seq(clockBinding)
-    }
-  }
+                         environment: Environment,
+                         configuration: Configuration
+                       ): Seq[Binding[_]] =
+    bind[Clock].toInstance(Clock.systemDefaultZone) :: // inject if current time needs to be controlled in unit tests
+      Nil
 }
