@@ -19,9 +19,10 @@ package uk.gov.hmrc.eacdfileprocessor.services
 import org.bson.types.ObjectId
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, FileWorkItem}
-import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository, FileWorkItemRepository}
-import uk.gov.hmrc.eacdfileprocessor.utils.ScheduledService
+import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, FileRecordValidationError, FileStatus, Reference}
+import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
+import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
+import uk.gov.hmrc.eacdfileprocessor.utils.FileWorkItemValidator
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.workitem.WorkItem
 
@@ -31,7 +32,7 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class FileWorkItemSchedulerService @Inject()(
   appConfig: AppConfig,
-  fileWorkItemRepository: FileWorkItemRepository,
+  deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository,
   fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
   fileRepository: FileRepository,
   lockService: LockService,
@@ -49,37 +50,55 @@ class FileWorkItemSchedulerService @Inject()(
   private def processBatch()(using ExecutionContext): Future[Unit] =
     for {
       agentServices <- agentServiceCache.getAgentServices()
-      pulled <- fileWorkItemRepository.pullOutstandingBatch(appConfig.fileWorkItemConcurrency)
-      _ <- Future.sequence(pulled.map(processWorkItem(_, agentServices)))
+      pulled <- deEnrolmentWorkItemRepository.pullOutstandingBatch(appConfig.fileWorkItemConcurrency)
+      _ <- Future.traverse(pulled)(processWorkItem(_, agentServices))
     } yield ()
 
-  private def processWorkItem(workItem: WorkItem[FileWorkItem], agentServices: Set[String])(using ExecutionContext): Future[Unit] = {
+  private def processWorkItem(workItem: WorkItem[DeEnrolmentWorkItem], agentServices: Set[String])(using ExecutionContext): Future[Unit] = {
     val item = workItem.item
     val maybeError = validator.validate(item.recordDetail, agentServices)
+    val reference = Reference(item.reference)
 
-    val validationEffect: Future[Unit] = maybeError match {
+    val validationEffect: Future[Boolean] = maybeError match {
       case Some(errorMessage) =>
-        val errorRecord = FileRecordValidationError(
-          id = ObjectId.get(),
-          reference = item.reference,
-          fileName = item.fileName,
-          recordDetail = item.recordDetail,
-          errorMessage = errorMessage
-        )
         for {
-          _ <- fileRecordValidationErrorRepository.create(errorRecord)
-          _ <- fileRepository.incrementFailureCount(item.reference)
-        } yield ()
+          fileName <- fileRepository.getNameOfFile(reference).map(_.getOrElse(""))
+          _ <- fileRecordValidationErrorRepository.create(
+            FileRecordValidationError(
+              id = ObjectId.get(),
+              reference = reference,
+              fileName = fileName,
+              recordDetail = item.recordDetail,
+              errorMessage = errorMessage
+            )
+          )
+          _ <- fileRepository.incrementFailureCount(reference)
+          result <- deEnrolmentWorkItemRepository.markAsFailed(workItem.id)
+        } yield result
       case None =>
-        Future.unit
+        deEnrolmentWorkItemRepository.markAsSucceeded(workItem.id)
     }
 
     validationEffect
-      .flatMap(_ => fileWorkItemRepository.markAsSucceeded(workItem.id).map(_ => ()))
+      .map(_ => ())
+      .flatMap(_ => updateFileStatusIfComplete(reference, item.reference))
       .recover { case e =>
         logger.error(s"Failed to process work item ${workItem.id.toHexString}: ${e.getMessage}", e)
       }
   }
-}
 
+  private def updateFileStatusIfComplete(reference: Reference, rawReference: String)(using ExecutionContext): Future[Unit] =
+    for {
+      incomplete <- deEnrolmentWorkItemRepository.countIncompleteByReference(rawReference)
+      _ <- if (incomplete == 0) {
+        deEnrolmentWorkItemRepository.hasAnyFailedByReference(rawReference).flatMap { anyFailed =>
+          val finalStatus = if (anyFailed) FileStatus.FAILED else FileStatus.UPLOADED
+          logger.info(s"All work items for reference $rawReference complete. Setting file status to $finalStatus")
+          fileRepository.updateStatus(reference, finalStatus).map(_ => ())
+        }
+      } else {
+        Future.unit
+      }
+    } yield ()
+}
 
