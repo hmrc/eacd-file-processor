@@ -42,6 +42,8 @@ trait DeEnrolmentWorkItemRepository {
   def incompleteWorkItemsCountForRef(reference: String): Future[Int]
 
   def deleteWorkItemsByReference(reference: String): Future[Unit]
+
+  def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 }
 
 @Singleton
@@ -120,4 +122,9 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
 
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)
+
+  override def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
+    val filter: Bson = Filters.equal("item.reference", reference)
+    collection.find(filter).toFuture()
+  }
 }
