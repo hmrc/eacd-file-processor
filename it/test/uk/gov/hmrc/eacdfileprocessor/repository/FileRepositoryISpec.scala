@@ -129,7 +129,7 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
 
 
         val actual = await(repository.findByStatus(status))
-        actual shouldBe Seq(statusDetailsModel.copy(fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = None))
+        actual shouldBe Seq(statusDetailsModel.copy(fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = Some(createdAt)))
 
       }
 
@@ -147,8 +147,8 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
 
         val actual = await(repository.findByStatus(status))
         actual shouldBe Seq(
-          statusDetailsModel.copy(reference = "ref3", fileName = None, fileStatus = status.value, creationDateTime = None),
-          statusDetailsModel.copy(reference = "ref4", fileName = None, fileStatus = status.value, creationDateTime = None)
+          statusDetailsModel.copy(reference = "ref3", fileName = None, fileStatus = status.value, creationDateTime = Some(createdAt)),
+          statusDetailsModel.copy(reference = "ref4", fileName = None, fileStatus = status.value, creationDateTime = Some(createdAt))
         )
       }
 
@@ -157,7 +157,7 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
         await(repository.createFileRecord(initiateUploadDetails.copy(reference = Reference("ref6"), status = FileStatus.STORED, id = ObjectId("6975a038d540b44c4403aee3"))))
 
         val actual = await(repository.findByStatus(initiateUploadDetails.copy(reference = Reference("ref5")).status))
-        actual shouldBe Seq(statusDetailsModel.copy(reference = "ref5", fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = None))
+        actual shouldBe Seq(statusDetailsModel.copy(reference = "ref5", fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = Some(createdAt)))
       }
     }
 
