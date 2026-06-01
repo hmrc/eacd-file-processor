@@ -18,6 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.scalatest.matchers.should.Matchers.shouldBe
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
+import uk.gov.hmrc.eacdfileprocessor.utils.FileWorkItemValidator
 
 class FileWorkItemValidatorSpec extends TestSupport {
 

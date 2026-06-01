@@ -16,20 +16,15 @@
 
 package uk.gov.hmrc.eacdfileprocessor
 
-import play.api.{Application, Configuration, Logging}
+import play.api.{Application, Logging}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.FileWorkItemPullJob
 
 import javax.inject.Inject
 
-/**
- * Starts the FileWorkItemPullJob scheduler after the Play application is fully initialized.
- * This avoids Quartz scheduler conflicts when tests run multiple test app instances.
- */
 class SchedulerStartup @Inject()(app: Application) extends Logging {
-  private lazy val config: Configuration = app.configuration
 
-  // Only start scheduler if enabled and not in test mode
-  private val schedulerEnabled = config.getOptional[Boolean]("schedules.FileWorkItemPullJob.enabled").getOrElse(false)
+  private val schedulerEnabled =
+    app.configuration.getOptional[Boolean]("schedules.FileWorkItemPullJob.enabled").getOrElse(false)
 
   if (schedulerEnabled) {
     try {
@@ -43,5 +38,4 @@ class SchedulerStartup @Inject()(app: Application) extends Logging {
     logger.info("FileWorkItemPullJob scheduler is disabled")
   }
 }
-
 
