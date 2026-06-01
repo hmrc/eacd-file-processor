@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.services
+package uk.gov.hmrc.eacdfileprocessor.utils
 
 import javax.inject.Singleton
 
@@ -35,12 +35,10 @@ class FileWorkItemValidator {
       val serviceKey = extractServiceKey(columns(0))
       val actionType = columns(1).toLowerCase
 
-      if (agentServices.contains(serviceKey) && actionType != "agent") {
+      if (!agentServices.contains(serviceKey) && actionType == "agent" || !validActions.contains(actionType)) {
+        Some("Invalid action type")
+      } else if (agentServices.contains(serviceKey) && actionType != "agent") {
         Some("Agent principal deallocation must specify 'agent'")
-      } else if (!agentServices.contains(serviceKey) && actionType == "agent") {
-        Some("Invalid action type")
-      } else if (!validActions.contains(actionType)) {
-        Some("Invalid action type")
       } else {
         None
       }

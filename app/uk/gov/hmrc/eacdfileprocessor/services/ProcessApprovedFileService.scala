@@ -22,7 +22,7 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.ObjectStoreFileNotFoundException
 import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRepository}
-import uk.gov.hmrc.eacdfileprocessor.utils.ScheduledService
+import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.objectstore.client.Path
 import uk.gov.hmrc.objectstore.client.play.Implicits.*
@@ -70,7 +70,7 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
     fileRepository.findOldestApprovedFile.flatMap {
       case Some(uploadedDetail) =>
         val reference = uploadedDetail.reference
-        getFileStringFromObjectStore(reference, getFileName(uploadedDetail)).map {
+        getFileStringFromObjectStore(reference, getFileName(uploadedDetail)).flatMap {
           case Some(contentStr) =>
             pushWorkItems(generateWorkItems(contentStr, reference.value), reference)
           case None =>
@@ -97,12 +97,13 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
       .filter(_.nonEmpty)
       .map(DeEnrolmentWorkItem(reference, _, createdAt))
 
-  private def pushWorkItems(workItems: Seq[DeEnrolmentWorkItem], reference: Reference) =
+  private def pushWorkItems(workItems: Seq[DeEnrolmentWorkItem], reference: Reference): Future[Unit] =
     if (workItems.nonEmpty)
       workItemRepository.saveRecordDetails(workItems, reference.value)
-        .map(workItems => fileRepository.setTotalEntryCount(reference, workItems.size))
+        .flatMap(savedWorkItems => fileRepository.setTotalEntryCount(reference, savedWorkItems.size).map(_ => ()))
         .recover {
-          case e: RuntimeException =>
+          case _: RuntimeException =>
             logger.warn(s"CANNOT_LOAD_WORKITEMS for file reference $reference")
         }
+    else Future.unit
 }

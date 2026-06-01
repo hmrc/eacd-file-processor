@@ -22,8 +22,9 @@ import play.inject.Module.bindClass
 import play.inject.{Binding, Module}
 import uk.gov.hmrc.eacdfileprocessor.controllers.{CallbackController, FileController, InitiateFileStorageController, StatusController}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, DeEnrolmentWorkItemRepository, FileRepository, LockingRepository}
-import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.ProcessApprovedFileJob
+import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{FileWorkItemPullJob, ProcessApprovedFileJob}
 import uk.gov.hmrc.eacdfileprocessor.services.*
+import uk.gov.hmrc.eacdfileprocessor.utils.FileWorkItemValidator
 
 import java.util
 import scala.jdk.CollectionConverters.*
@@ -43,9 +44,10 @@ class ServiceBindings extends Module {
   )
 
   private def bindServices(): Seq[Binding[?]] = Seq(
-    bindClass(classOf[LockService]).toSelf.eagerly(),
-    bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly()
-  )
+      bindClass(classOf[LockService]).toSelf.eagerly(),
+      bindClass(classOf[FileWorkItemValidator]).toSelf.eagerly(),
+      bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly()
+    )
 
   private def bindControllers(): Seq[Binding[?]] = Seq(
     bindClass(classOf[CallbackController]).toSelf.eagerly(),
@@ -61,6 +63,7 @@ class ServiceBindings extends Module {
   )
 
   private def bindSchedulers(): Seq[Binding[?]] = Seq(
-    bindClass(classOf[ProcessApprovedFileJob]).toSelf.eagerly()
+    bindClass(classOf[ProcessApprovedFileJob]).toSelf.eagerly(),
+    bindClass(classOf[FileWorkItemPullJob]).toSelf.eagerly()
   )
 }
