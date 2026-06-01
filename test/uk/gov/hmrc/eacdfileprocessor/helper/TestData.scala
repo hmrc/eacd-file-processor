@@ -66,6 +66,7 @@ trait TestData:
     requestorPID = "12345678",
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
+    creationDateTime = createdAt,
     lastUpdatedDateTime = createdAt
   )
 
@@ -90,6 +91,7 @@ trait TestData:
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
     details = Some(successfulUploadedDetails),
+    creationDateTime = createdAt,
     lastUpdatedDateTime = createdAt
   )
 
@@ -103,6 +105,7 @@ trait TestData:
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
     details = Some(failedFileDetails),
+    creationDateTime = createdAt,
     lastUpdatedDateTime = createdAt
   )
 

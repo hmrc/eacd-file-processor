@@ -105,6 +105,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "requestorPID").format[String]
       ~ (__ \ "requestorEmail").format[String]
       ~ (__ \ "requestorName").format[String]
+      ~ (__ \ "creationDateTime").format[Instant]
       ~ (__ \ "details").formatNullable[Details]
       ~ (__ \ "approverDetails").formatNullable[ApproverDetails]
       ~ (__ \ "totalEntryCount").formatNullable[Int]
@@ -186,7 +187,7 @@ class FileRepository @Inject()(
       StatusDetailsModel(reference = details.reference.value, requestorEmail = details.requestorEmail, requestorPID = details.requestorPID, requestorName = details.requestorName, fileName = details.details.map {
         case details: Details.UploadedSuccessfully => details.name
         case _ => ""
-      }, fileStatus = details.status.value, creationDateTime = details.uploadedDateTime)
+      }, fileStatus = details.status.value, creationDateTime = Some(details.creationDateTime))
     ))
   }
 
