@@ -17,6 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.connectors
 
 import play.api.Logging
+import play.api.http.Status.OK
 import play.api.libs.json.JsValue
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.http.client.HttpClientV2
@@ -35,7 +36,7 @@ class Sec0Connector @Inject()(httpClient: HttpClientV2, appConfig: AppConfig)(us
       .get(url"${appConfig.enrolmentStoreProxyBaseUrl}${appConfig.sec0AgentServicesPath}?affinityGroup=agent")
       .execute(readRaw)
       .map { response =>
-        if (response.status >= 200 && response.status < 300) {
+        if (response.status == OK) {
           extractServices(response.json)
         } else {
           logger.warn(s"SEC0 lookup returned status ${response.status}; using empty service list")
