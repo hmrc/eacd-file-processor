@@ -19,7 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.utils
 import javax.inject.Singleton
 
 @Singleton
-class FileWorkItemValidator {
+class DeEnrolmentWorkItemValidator {
 
   private val validActions = Set("principal", "delegated", "both", "agent")
 
@@ -35,7 +35,7 @@ class FileWorkItemValidator {
       val serviceKey = extractServiceKey(columns(0))
       val actionType = columns(1).toLowerCase
 
-      if (!agentServices.contains(serviceKey) && actionType == "agent" || !validActions.contains(actionType)) {
+      if (!validActions.contains(actionType) || !agentServices.contains(serviceKey) && actionType == "agent") {
         Some("Invalid action type")
       } else if (agentServices.contains(serviceKey) && actionType != "agent") {
         Some("Agent principal deallocation must specify 'agent'")

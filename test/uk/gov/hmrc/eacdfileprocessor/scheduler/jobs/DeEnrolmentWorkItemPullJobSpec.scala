@@ -21,12 +21,12 @@ import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
-import uk.gov.hmrc.eacdfileprocessor.services.FileWorkItemSchedulerService
+import uk.gov.hmrc.eacdfileprocessor.services.DeEnrolmentWorkItemSchedulerService
 
 import java.util.concurrent.{Callable, CompletionStage}
 import scala.concurrent.Future
 
-class FileWorkItemPullJobSpec extends TestSupport {
+class DeEnrolmentWorkItemPullJobSpec extends TestSupport {
 
   private class StubLifecycle extends ApplicationLifecycle {
     var stopHookCalls: Int = 0
@@ -38,16 +38,16 @@ class FileWorkItemPullJobSpec extends TestSupport {
     override def stop(): Future[?] = Future.unit
   }
 
-  "FileWorkItemPullJob" should {
+  "DeEnrolmentWorkItemPullJob" should {
 
     "initialize with expected defaults and register stop hook" in {
       val lifecycle = StubLifecycle()
-      val schedulerService = mock[FileWorkItemSchedulerService]
-      val config = Configuration.from(Map("schedules.FileWorkItemPullJob.enabled" -> false))
+      val schedulerService = mock[DeEnrolmentWorkItemSchedulerService]
+      val config = Configuration.from(Map("schedules.DeEnrolmentWorkItemPullJob.enabled" -> false))
 
-      val job = FileWorkItemPullJob(config, schedulerService, lifecycle)
+      val job = DeEnrolmentWorkItemPullJob(config, schedulerService, lifecycle)
 
-      job.jobName shouldBe "FileWorkItemPullJob"
+      job.jobName shouldBe "DeEnrolmentWorkItemPullJob"
       job.fileWorkItemSchedulerService shouldBe schedulerService
       job.expression shouldBe ""
       lifecycle.stopHookCalls shouldBe 1

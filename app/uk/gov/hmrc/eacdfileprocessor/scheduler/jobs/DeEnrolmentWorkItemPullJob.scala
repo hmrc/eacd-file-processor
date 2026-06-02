@@ -21,18 +21,18 @@ import play.api.inject.ApplicationLifecycle
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledJob
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.FileWorkItemPullMessage
-import uk.gov.hmrc.eacdfileprocessor.services.FileWorkItemSchedulerService
+import uk.gov.hmrc.eacdfileprocessor.services.DeEnrolmentWorkItemSchedulerService
 
 import javax.inject.Inject
 import scala.concurrent.Future
 
-class FileWorkItemPullJob @Inject()(
-  val config: Configuration,
-  val fileWorkItemSchedulerService: FileWorkItemSchedulerService,
-  lifecycle: ApplicationLifecycle
+class DeEnrolmentWorkItemPullJob @Inject()(
+                                            val config: Configuration,
+                                            val fileWorkItemSchedulerService: DeEnrolmentWorkItemSchedulerService,
+                                            lifecycle: ApplicationLifecycle
 ) extends ScheduledJob {
 
-  val jobName: String = "FileWorkItemPullJob"
+  val jobName: String = "DeEnrolmentWorkItemPullJob"
   val actorSystem: ActorSystem = ActorSystem(jobName)
   val scheduledMessage = FileWorkItemPullMessage(fileWorkItemSchedulerService)
 
