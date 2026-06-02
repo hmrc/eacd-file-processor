@@ -65,7 +65,7 @@ trait IntegrationSpec extends PlaySpec
     "object-store.default-retention-period" -> "6-months",
     "internalAuth.enabled" -> false,
     "schedules.ProcessApprovedFileJob.enabled" -> false,
-    "schedules.FileWorkItemPullJob.enabled" -> false,
+    "schedules.DeEnrolmentWorkItemPullJob.enabled" -> false,
     "work-item.retry-in-progress-after.seconds" -> 30,
     "work-item.ttlInHours" -> 720,
     "locking.timeoutMinutes" -> lockingTestTimeout

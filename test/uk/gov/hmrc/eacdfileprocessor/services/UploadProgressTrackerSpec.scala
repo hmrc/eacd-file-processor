@@ -51,65 +51,62 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
       .thenReturn(Future.successful(HttpResponse(CREATED, body = "")))
   }
 
-  when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
-  when(mockAppConfig.internalAuthToken).thenReturn("12345678")
-  when(mockAppConfig.appName).thenReturn("eacd-file-processor")
+   when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
+   when(mockAppConfig.internalAuthToken).thenReturn("12345678")
+   when(mockAppConfig.appName).thenReturn("eacd-file-processor")
 
-  "UploadProgressTracker" should {
-    "update successful upload file details and correctly update status" in new Setup {
-      when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      when(
-        objectStoreClient.uploadFromUrl(
-          from = any[URL],
-          to = any[Path.File],
-          retentionPeriod = any[RetentionPeriod],
-          contentType = any[Option[String]],
-          contentMd5 = any[Option[Md5Hash]],
-          contentSha256 = any[Option[Sha256Checksum]],
-          owner = any[String]
-        )(using any[HeaderCarrier])
-      ).thenReturn(
-        Future.successful(
-          ObjectSummaryWithMd5(
-            location = Path.File("/some/file.txt"),
-            contentLength = 100,
-            contentMd5 = Md5Hash("md5hash"),
-            lastModified = Instant.now()
-          )
-        )
-      )
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl, successfulUploadedDetails.mimeType,
-        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
+   "UploadProgressTracker" should {
+     "update successful upload file details and correctly update status" in new Setup {
+       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
+       when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
+       when(
+         objectStoreClient.uploadFromUrl(
+           from = any[URL],
+           to = any[Path.File],
+           retentionPeriod = any[RetentionPeriod],
+           contentType = any[Option[String]],
+           contentMd5 = any[Option[Md5Hash]],
+           contentSha256 = any[Option[Sha256Checksum]],
+           owner = any[String]
+         )(using any[HeaderCarrier])
+       ).thenReturn(
+         Future.successful(
+           ObjectSummaryWithMd5(
+             location = Path.File("/some/file.txt"),
+             contentLength = 100,
+             contentMd5 = Md5Hash("md5hash"),
+             lastModified = Instant.now()
+           )
+         )
+       )
 
-      progressTracker.registerUploadResult(reference, successfulUploadedDetails)
-      verify(repository, times(1)).updateStatus(any(), any())
-    }
+       progressTracker.registerUploadResult(reference, successfulUploadedDetails).futureValue
+       verify(repository, times(1)).updateStatus(any(), any())
+     }
 
-    "update failed upload file details" in new Setup {
-      when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
+     "update failed upload file details" in new Setup {
+       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
 
-      progressTracker.registerUploadResult(reference, failedFileDetails)
-      verify(repository, times(0)).updateStatus(any(), any())
-    }
+       progressTracker.registerUploadResult(reference, failedFileDetails).futureValue
+       verify(repository, times(0)).updateStatus(any(), any())
+     }
 
-    "Failed to upload file to object store and status remained scanned" in new Setup {
-      when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      when(
-        objectStoreClient.uploadFromUrl(
-          from = any[URL],
-          to = any[Path.File],
-          retentionPeriod = any[RetentionPeriod],
-          contentType = any[Option[String]],
-          contentMd5 = any[Option[Md5Hash]],
-          contentSha256 = any[Option[Sha256Checksum]],
-          owner = any[String]
-        )(using any[HeaderCarrier])
-      ).thenReturn(Future.failed(new TimeoutException("Unable to upload, time out.")))
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl, successfulUploadedDetails.mimeType,
-        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
+     "Failed to upload file to object store and status remained scanned" in new Setup {
+       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
+       when(
+         objectStoreClient.uploadFromUrl(
+           from = any[URL],
+           to = any[Path.File],
+           retentionPeriod = any[RetentionPeriod],
+           contentType = any[Option[String]],
+           contentMd5 = any[Option[Md5Hash]],
+           contentSha256 = any[Option[Sha256Checksum]],
+           owner = any[String]
+         )(using any[HeaderCarrier])
+       ).thenReturn(Future.failed(new TimeoutException("Unable to upload, time out.")))
 
-      progressTracker.registerUploadResult(reference, successfulUploadedDetails)
+       progressTracker.registerUploadResult(reference, successfulUploadedDetails).futureValue
 
-      verify(repository, times(0)).updateStatus(any(), any())
-    }
-  }
+       verify(repository, times(0)).updateStatus(any(), any())
+     }
+   }

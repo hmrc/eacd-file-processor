@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.bson.types.ObjectId
-import org.mockito.ArgumentMatchers.{any, eq as eqTo}
+import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{never, verify, when}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
@@ -26,7 +26,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, FileStatus, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository, LockingRepository}
-import uk.gov.hmrc.eacdfileprocessor.utils.FileWorkItemValidator
+import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem}
 import uk.gov.hmrc.http.HeaderCarrier
 
@@ -63,17 +63,17 @@ class FileWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with Mo
       override def getAgentServices()(using HeaderCarrier): Future[Set[String]] =
         Future.successful(Set("HMRC-MTD-IT"))
     }
-    val validator: FileWorkItemValidator = mock[FileWorkItemValidator]
+    val validator: DeEnrolmentWorkItemValidator = mock[DeEnrolmentWorkItemValidator]
     val lockRepository: LockingRepository = mock[LockingRepository]
 
-    when(appConfig.fileWorkItemConcurrency).thenReturn(5)
+    when(appConfig.DeEnrolmentWorkItemConcurrency).thenReturn(5)
 
     val lockService: LockService = new LockService(lockRepository) {
       override def lockAndRelease[T](job: String)(f: => Future[T])(using ExecutionContext): Future[Either[T, LockResponse]] =
         f.map(Left(_))
     }
 
-    val service = new FileWorkItemSchedulerService(
+    val service = new DeEnrolmentWorkItemSchedulerService(
       appConfig,
       deEnrolmentWorkItemRepository,
       fileRecordValidationErrorRepository,
@@ -100,12 +100,7 @@ class FileWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with Mo
     )
 
     when(deEnrolmentWorkItemRepository.pullOutstandingBatch(5)).thenReturn(Future.successful(Seq(workItem)))
-    when(deEnrolmentWorkItemRepository.markAsSucceeded(eqTo(workItem.id))).thenReturn(Future.successful(true))
-    when(deEnrolmentWorkItemRepository.markAsFailed(eqTo(workItem.id))).thenReturn(Future.successful(true))
-    when(deEnrolmentWorkItemRepository.countIncompleteByReference(payload.reference)).thenReturn(Future.successful(0L))
-    when(deEnrolmentWorkItemRepository.hasAnyFailedByReference(payload.reference)).thenReturn(Future.successful(false))
     when(fileRepository.getNameOfFile(uploadedDetails.reference)).thenReturn(Future.successful(Some("abc.csv")))
-    when(fileRepository.updateStatus(eqTo(uploadedDetails.reference), any[FileStatus])).thenReturn(Future.successful(Some(uploadedDetails)))
   }
 
   "FileWorkItemSchedulerService" should {
@@ -113,36 +108,20 @@ class FileWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with Mo
       when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT"))).thenReturn(Some("Invalid action type"))
       when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
       when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
-      when(deEnrolmentWorkItemRepository.hasAnyFailedByReference(payload.reference)).thenReturn(Future.successful(true))
 
       Await.result(service.invoke, 5.seconds)
 
       verify(fileRecordValidationErrorRepository).create(any[FileRecordValidationError])
       verify(fileRepository).incrementFailureCount(Reference(payload.reference))
-      verify(deEnrolmentWorkItemRepository).markAsFailed(workItem.id)
-      verify(deEnrolmentWorkItemRepository, never()).markAsSucceeded(any())
-      verify(fileRepository).updateStatus(uploadedDetails.reference, FileStatus.FAILED)
     }
 
-    "only mark work item as succeeded for valid rows and update file status to UPLOADED when all items complete" in new Setup {
+    "only mark work item as succeeded for valid rows" in new Setup {
       when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT"))).thenReturn(None)
 
       Await.result(service.invoke, 5.seconds)
 
       verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
       verify(fileRepository, never()).incrementFailureCount(any())
-      verify(deEnrolmentWorkItemRepository).markAsSucceeded(workItem.id)
-      verify(fileRepository).updateStatus(uploadedDetails.reference, FileStatus.UPLOADED)
-    }
-
-    "not update file status when there are still incomplete work items" in new Setup {
-      when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT"))).thenReturn(None)
-      when(deEnrolmentWorkItemRepository.countIncompleteByReference(payload.reference)).thenReturn(Future.successful(3L))
-
-      Await.result(service.invoke, 5.seconds)
-
-      verify(deEnrolmentWorkItemRepository).markAsSucceeded(workItem.id)
-      verify(fileRepository, never()).updateStatus(any[Reference], any[FileStatus])
     }
 
     "skip processing when lock is already held" in new Setup {
@@ -151,7 +130,7 @@ class FileWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with Mo
           Future.successful(Right(MongoLocked))
       }
 
-      override val service = new FileWorkItemSchedulerService(
+      override val service = new DeEnrolmentWorkItemSchedulerService(
         appConfig,
         deEnrolmentWorkItemRepository,
         fileRecordValidationErrorRepository,
@@ -164,8 +143,6 @@ class FileWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with Mo
       Await.result(service.invoke, 5.seconds)
 
       verify(deEnrolmentWorkItemRepository, never()).pullOutstandingBatch(any[Int])
-      verify(deEnrolmentWorkItemRepository, never()).markAsSucceeded(any())
-      verify(deEnrolmentWorkItemRepository, never()).markAsFailed(any())
     }
   }
 }
