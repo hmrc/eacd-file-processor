@@ -18,11 +18,11 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.scalatest.matchers.should.Matchers.shouldBe
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
-import uk.gov.hmrc.eacdfileprocessor.utils.FileWorkItemValidator
+import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 
 class FileWorkItemValidatorSpec extends TestSupport {
 
-  private val validator = new FileWorkItemValidator
+  private val validator = new DeEnrolmentWorkItemValidator
 
   "FileWorkItemValidator" should {
     "return row structure invalid when there are not exactly 2 columns" in {
