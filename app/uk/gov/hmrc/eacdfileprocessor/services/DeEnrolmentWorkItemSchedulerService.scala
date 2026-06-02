@@ -19,10 +19,10 @@ package uk.gov.hmrc.eacdfileprocessor.services
 import org.bson.types.ObjectId
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, FileRecordValidationError, FileStatus, Reference}
+import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, FileRecordValidationError, Reference}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
-import uk.gov.hmrc.eacdfileprocessor.utils.FileWorkItemValidator
+import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.workitem.WorkItem
 
@@ -30,27 +30,27 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class FileWorkItemSchedulerService @Inject()(
+class DeEnrolmentWorkItemSchedulerService @Inject()(
   appConfig: AppConfig,
   deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository,
   fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
   fileRepository: FileRepository,
   lockService: LockService,
   agentServiceCache: AgentServiceCache,
-  validator: FileWorkItemValidator
+  validator: DeEnrolmentWorkItemValidator
 ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
 
   private given HeaderCarrier = HeaderCarrier()
 
   override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] =
-    lockService.lockAndRelease("FileWorkItemPullJob") {
+    lockService.lockAndRelease("DeEnrolmentWorkItemPullJob") {
       processBatch()
     }
 
   private def processBatch()(using ExecutionContext): Future[Unit] =
     for {
       agentServices <- agentServiceCache.getAgentServices()
-      pulled <- deEnrolmentWorkItemRepository.pullOutstandingBatch(appConfig.fileWorkItemConcurrency)
+      pulled <- deEnrolmentWorkItemRepository.pullOutstandingBatch(appConfig.DeEnrolmentWorkItemConcurrency)
       _ <- Future.traverse(pulled)(processWorkItem(_, agentServices))
     } yield ()
 
@@ -72,33 +72,16 @@ class FileWorkItemSchedulerService @Inject()(
               errorMessage = errorMessage
             )
           )
-          _ <- fileRepository.incrementFailureCount(reference)
-          result <- deEnrolmentWorkItemRepository.markAsFailed(workItem.id)
+          result <- fileRepository.incrementFailureCount(reference).map(_ => true)
         } yield result
-      case None =>
-        deEnrolmentWorkItemRepository.markAsSucceeded(workItem.id)
+      case None => Future.successful(false)
     }
 
     validationEffect
       .map(_ => ())
-      .flatMap(_ => updateFileStatusIfComplete(reference, item.reference))
       .recover { case e =>
         logger.error(s"Failed to process work item ${workItem.id.toHexString}: ${e.getMessage}", e)
       }
   }
-
-  private def updateFileStatusIfComplete(reference: Reference, rawReference: String)(using ExecutionContext): Future[Unit] =
-    for {
-      incomplete <- deEnrolmentWorkItemRepository.countIncompleteByReference(rawReference)
-      _ <- if (incomplete == 0) {
-        deEnrolmentWorkItemRepository.hasAnyFailedByReference(rawReference).flatMap { anyFailed =>
-          val finalStatus = if (anyFailed) FileStatus.FAILED else FileStatus.UPLOADED
-          logger.info(s"All work items for reference $rawReference complete. Setting file status to $finalStatus")
-          fileRepository.updateStatus(reference, finalStatus).map(_ => ())
-        }
-      } else {
-        Future.unit
-      }
-    } yield ()
 }
 
