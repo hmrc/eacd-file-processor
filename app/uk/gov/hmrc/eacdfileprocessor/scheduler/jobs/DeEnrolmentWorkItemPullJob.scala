@@ -20,7 +20,7 @@ import org.apache.pekko.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledJob
-import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.FileWorkItemPullMessage
+import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.DeEnrolmentWorkItemPullMessage
 import uk.gov.hmrc.eacdfileprocessor.services.DeEnrolmentWorkItemSchedulerService
 
 import javax.inject.Inject
@@ -28,13 +28,13 @@ import scala.concurrent.Future
 
 class DeEnrolmentWorkItemPullJob @Inject()(
                                             val config: Configuration,
-                                            val fileWorkItemSchedulerService: DeEnrolmentWorkItemSchedulerService,
+                                            val deEnrolmentWorkItemSchedulerService: DeEnrolmentWorkItemSchedulerService,
                                             lifecycle: ApplicationLifecycle
 ) extends ScheduledJob {
 
   val jobName: String = "DeEnrolmentWorkItemPullJob"
   val actorSystem: ActorSystem = ActorSystem(jobName)
-  val scheduledMessage = FileWorkItemPullMessage(fileWorkItemSchedulerService)
+  val scheduledMessage = DeEnrolmentWorkItemPullMessage(deEnrolmentWorkItemSchedulerService)
 
   // Delay schedule initialization until app is fully started to avoid Quartz conflicts in test
   lifecycle.addStopHook(() => Future.successful(()))

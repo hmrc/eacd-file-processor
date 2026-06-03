@@ -23,7 +23,7 @@ import org.mockito.Mockito.{never, verify}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
-import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.FileWorkItemPullMessage
+import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.DeEnrolmentWorkItemPullMessage
 import uk.gov.hmrc.eacdfileprocessor.services.LockResponse
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -35,7 +35,7 @@ class ScheduledJobSpec extends TestSupport {
   }
 
   private class TestScheduledJob(configMap: Map[String, Any]) extends ScheduledJob {
-    override val scheduledMessage = FileWorkItemPullMessage(scheduledService)
+    override val scheduledMessage = DeEnrolmentWorkItemPullMessage(scheduledService)
     override val config: Configuration = Configuration.from(configMap)
     override val actorSystem: ActorSystem = mock[ActorSystem]
     override val jobName: String = "TestScheduledJob"
