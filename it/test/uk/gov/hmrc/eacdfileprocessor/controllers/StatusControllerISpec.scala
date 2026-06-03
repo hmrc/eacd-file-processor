@@ -32,6 +32,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.Reference
 import java.time.Instant.now
 import java.time.temporal.ChronoUnit.DAYS
 import scala.concurrent.Future
+import java.util.UUID
 
 class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec:
 
@@ -108,7 +109,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       }
     }
     "return 400 when approver pid is the same as requestor pid" in {
-      val reference: Reference = Reference("ref1")
+      val reference: Reference = Reference(UUID.randomUUID().toString)
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference.value).url)
         .withJsonBody(Json.obj(
           "status" -> "approved",

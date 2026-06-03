@@ -81,4 +81,25 @@ trait AuditEvents {
     }
 
   }
+
+  object DownloadFileEvent {
+    def apply(path: String, fileReference: String, requesterId: String, requesterName: String, fileName: String, hc: HeaderCarrier)
+             (implicit request: Request[_]): ExtendedDataEvent = {
+
+      ExtendedDataEvent(
+        auditSource = auditSource,
+        auditType = "DownloadFile",
+        tags = getTags(hc, "Helpdesk user downloads bulk de-enrolment file", path),
+        detail = JsObject(
+          Seq(
+            "fileReference" -> JsString(fileReference),
+            "requesterId" -> JsString(requesterId),
+            "requesterName" -> JsString(requesterName),
+            "fileName" -> JsString(fileName)
+          )
+        )
+      )
+    }
+  }
+  
 }
