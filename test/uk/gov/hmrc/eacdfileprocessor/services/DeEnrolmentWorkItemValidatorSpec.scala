@@ -20,11 +20,11 @@ import org.scalatest.matchers.should.Matchers.shouldBe
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 
-class FileWorkItemValidatorSpec extends TestSupport {
+class DeEnrolmentWorkItemValidatorSpec extends TestSupport {
 
   private val validator = new DeEnrolmentWorkItemValidator
 
-  "FileWorkItemValidator" should {
+  "DeEnrolmentWorkItemValidator" should {
     "return row structure invalid when there are not exactly 2 columns" in {
       validator.validate("IR-SA~UTR~1234567890,principal,extra", Set.empty) shouldBe Some("Row structure invalid")
       validator.validate("IR-SA~UTR~1234567890", Set.empty) shouldBe Some("Row structure invalid")

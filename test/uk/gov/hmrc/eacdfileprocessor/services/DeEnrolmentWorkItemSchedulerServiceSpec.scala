@@ -35,7 +35,7 @@ import java.time.Instant
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
 
-class FileWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with MockitoSugar with ScalaFutures {
+class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with MockitoSugar with ScalaFutures {
 
   private given ExecutionContext = ExecutionContext.global
 
@@ -103,7 +103,7 @@ class FileWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with Mo
     when(fileRepository.getNameOfFile(uploadedDetails.reference)).thenReturn(Future.successful(Some("abc.csv")))
   }
 
-  "FileWorkItemSchedulerService" should {
+  "DeEnrolmentWorkItemSchedulerService" should {
     "persist validation errors and increment total failure count for invalid rows" in new Setup {
       when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT"))).thenReturn(Some("Invalid action type"))
       when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
@@ -120,6 +120,38 @@ class FileWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with Mo
 
       Await.result(service.invoke, 5.seconds)
 
+      verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
+      verify(fileRepository, never()).incrementFailureCount(any())
+    }
+
+    "not call agentServiceCache when no work items are pulled" in new Setup {
+      when(deEnrolmentWorkItemRepository.pullOutstandingBatch(5)).thenReturn(Future.successful(Seq.empty))
+
+      var agentServicesCalled = false
+      override val agentServiceCache: AgentServiceCache = new AgentServiceCache(
+        sec0Connector = null,
+        appConfig = null,
+        clock = null
+      ) {
+        override def getAgentServices()(using HeaderCarrier): Future[Set[String]] = {
+          agentServicesCalled = true
+          Future.successful(Set("HMRC-MTD-IT"))
+        }
+      }
+
+      override val service = new DeEnrolmentWorkItemSchedulerService(
+        appConfig,
+        deEnrolmentWorkItemRepository,
+        fileRecordValidationErrorRepository,
+        fileRepository,
+        lockService,
+        agentServiceCache,
+        validator
+      )
+
+      Await.result(service.invoke, 5.seconds)
+
+      agentServicesCalled shouldBe false
       verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
       verify(fileRepository, never()).incrementFailureCount(any())
     }

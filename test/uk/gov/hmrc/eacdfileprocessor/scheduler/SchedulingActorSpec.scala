@@ -20,7 +20,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{verify, when}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
-import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.{FileWorkItemPullMessage, ProcessApprovedFileMessage}
+import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.{DeEnrolmentWorkItemPullMessage, ProcessApprovedFileMessage}
 import uk.gov.hmrc.eacdfileprocessor.services.{LockResponse, ProcessApprovedFileService}
 
 import scala.concurrent.duration.DurationInt
@@ -52,7 +52,7 @@ class SchedulingActorSpec extends TestSupport {
       verify(service).invoke(using any[ExecutionContext])
     }
 
-    "invoke ScheduledService when FileWorkItemPullMessage is received" in withActorSystem { system =>
+    "invoke ScheduledService when DeEnrolmentWorkItemPullMessage is received" in withActorSystem { system =>
       val actor = system.actorOf(SchedulingActor.props)
       val service = mock[ScheduledService[Either[Unit, LockResponse]]]
       val invoked = Promise[Unit]()
@@ -62,7 +62,7 @@ class SchedulingActorSpec extends TestSupport {
         Future.successful(Left(()): Either[Unit, LockResponse])
       }
 
-      actor ! FileWorkItemPullMessage(service)
+      actor ! DeEnrolmentWorkItemPullMessage(service)
 
       Await.result(invoked.future, 2.seconds)
       verify(service).invoke(using any[ExecutionContext])
@@ -84,8 +84,8 @@ class SchedulingActorSpec extends TestSupport {
         Future.successful(Left(()): Either[Unit, LockResponse])
       }
 
-      actor ! FileWorkItemPullMessage(failingService)
-      actor ! FileWorkItemPullMessage(succeedingService)
+      actor ! DeEnrolmentWorkItemPullMessage(failingService)
+      actor ! DeEnrolmentWorkItemPullMessage(succeedingService)
 
       Await.result(failingInvoked.future, 2.seconds)
       Await.result(succeedingInvoked.future, 2.seconds)
@@ -104,7 +104,7 @@ class SchedulingActorSpec extends TestSupport {
       }
 
       actor ! "unexpected-message"
-      actor ! FileWorkItemPullMessage(service)
+      actor ! DeEnrolmentWorkItemPullMessage(service)
 
       Await.result(invoked.future, 2.seconds)
       verify(service).invoke(using any[ExecutionContext])

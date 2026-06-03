@@ -48,7 +48,7 @@ class DeEnrolmentWorkItemPullJobSpec extends TestSupport {
       val job = DeEnrolmentWorkItemPullJob(config, schedulerService, lifecycle)
 
       job.jobName shouldBe "DeEnrolmentWorkItemPullJob"
-      job.fileWorkItemSchedulerService shouldBe schedulerService
+      job.deEnrolmentWorkItemSchedulerService shouldBe schedulerService
       job.expression shouldBe ""
       lifecycle.stopHookCalls shouldBe 1
 
