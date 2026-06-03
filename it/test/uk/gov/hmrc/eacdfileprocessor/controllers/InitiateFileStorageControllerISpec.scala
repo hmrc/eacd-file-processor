@@ -46,8 +46,7 @@ class InitiateFileStorageControllerISpec
         requestorPID = "12345678",
         requestorEmail = "test@hmrc.gov.uk",
         requestorName = "Test User",
-        creationDateTime = Instant.now,
-        lastUpdatedDateTime = Instant.now()
+        creationDateTime = Instant.now()
       ))
     )
 
@@ -118,7 +117,6 @@ class InitiateFileStorageControllerISpec
       uploadedDetails.requestorName shouldBe "Integration User 2"
       uploadedDetails.status shouldBe INITIAL
       uploadedDetails.creationDateTime.isBefore(Instant.now()) shouldBe true
-      uploadedDetails.lastUpdatedDateTime.isBefore(Instant.now()) shouldBe true
     }
   }
 }

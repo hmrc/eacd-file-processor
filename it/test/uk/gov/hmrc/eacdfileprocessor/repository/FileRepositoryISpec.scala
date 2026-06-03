@@ -24,7 +24,7 @@ import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.*
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, SCANNED, STORED}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, INITIAL, PROCESSING, SCANNED, STORED}
 
 import java.time.Instant
 import java.time.Instant.now
@@ -170,14 +170,14 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
       }
       "when there are two approved files" in {
         await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.APPROVED)))
-        await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.APPROVED, lastUpdatedDateTime = now(), reference = Reference("98aad019-7f66-4456-8d52-93f12109878f"), id = ObjectId("6975a038d540b44c4403aee4"))))
+        await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.APPROVED, lastUpdatedDateTime = Some(now()), reference = Reference("98aad019-7f66-4456-8d52-93f12109878f"), id = ObjectId("6975a038d540b44c4403aee4"))))
 
         val actual = await(repository.findOldestApprovedFile)
         actual.get shouldBe initiateUploadDetails.copy(status = FileStatus.PROCESSING)
       }
       "when there are one approved file and one not approved older file" in {
         await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.APPROVED)))
-        await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.STORED, lastUpdatedDateTime = createdAt.minus(2, DAYS), reference = Reference("98aad019-7f66-4456-8d52-93f12109878f"), id = ObjectId("6975a038d540b44c4403aee4"))))
+        await(repository.createFileRecord(initiateUploadDetails.copy(status = FileStatus.STORED, lastUpdatedDateTime = Some(createdAt.minus(2, DAYS)), reference = Reference("98aad019-7f66-4456-8d52-93f12109878f"), id = ObjectId("6975a038d540b44c4403aee4"))))
 
         val actual = await(repository.findOldestApprovedFile)
         actual.get shouldBe initiateUploadDetails.copy(status = FileStatus.PROCESSING)
@@ -187,6 +187,38 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
 
         val actual = await(repository.findOldestApprovedFile)
         actual shouldBe None
+      }
+    }
+    "Get status count" when {
+      "get status counts correctly should not include initial status" in {
+        await(repository.createFileRecord(initiateUploadDetails))
+        await(repository.createFileRecord(scannedUploadedDetails.copy(lastUpdatedDateTime = Some(now().minus(20, DAYS)))))
+        await(repository.createFileRecord(failedUploadedDetails.copy(reference= Reference("ref1"), lastUpdatedDateTime = Some(now().minus(5, DAYS)))))
+        await(repository.createFileRecord(scannedUploadedDetails.copy(id= ObjectId.get(), reference= Reference("ref2"), lastUpdatedDateTime = Some(now()))))
+        await(repository.createFileRecord(scannedUploadedDetails.copy(id= ObjectId.get(), reference= Reference("ref3"), status= PROCESSING, lastUpdatedDateTime = Some(now()))))
+        val actual = await(repository.getFileStatusCounts)
+        actual.size shouldBe 3
+        actual should contain(FileStatusCount(SCANNED.value, 2))
+        actual should contain(FileStatusCount(FAILED.value, 1))
+        actual should contain(FileStatusCount(PROCESSING.value, 1))
+        actual should not contain FileStatusCount(INITIAL.value, 1)
+      }
+      "get status counts correctly should not include lastUpdatedDateTime older than 60 days" in {
+        await(repository.createFileRecord(scannedUploadedDetails.copy(lastUpdatedDateTime = Some(now().minus(65, DAYS)))))
+        await(repository.createFileRecord(failedUploadedDetails.copy(reference = Reference("ref1"), lastUpdatedDateTime = Some(now().minus(5, DAYS)))))
+        await(repository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref2"), lastUpdatedDateTime = Some(now()))))
+        await(repository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref3"), status = PROCESSING, lastUpdatedDateTime = Some(now()))))
+        val actual = await(repository.getFileStatusCounts)
+        actual.size shouldBe 3
+        actual should contain(FileStatusCount(SCANNED.value, 1))
+        actual should contain(FileStatusCount(FAILED.value, 1))
+        actual should contain(FileStatusCount(PROCESSING.value, 1))
+      }
+      "should return empty if there isn't any records within 60 days" in {
+        await(repository.createFileRecord(initiateUploadDetails))
+        await(repository.createFileRecord(scannedUploadedDetails.copy(lastUpdatedDateTime = Some(now().minus(65, DAYS)))))
+        val actual = await(repository.getFileStatusCounts)
+        actual.size shouldBe 0
       }
     }
   }

@@ -39,3 +39,5 @@ enum FileStatus(val value: String):
   case REJECTED extends FileStatus("rejected")
   case APPROVED extends FileStatus("approved")
   case PROCESSING extends FileStatus("processing")
+  case PROCESSEDWITHERRORS extends FileStatus("processedWithErrors")
+  case PROCESSEDSUCCESSFULLY extends FileStatus("processedSuccessfully")

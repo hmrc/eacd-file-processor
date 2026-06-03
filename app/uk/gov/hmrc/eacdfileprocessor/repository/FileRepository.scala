@@ -19,12 +19,13 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import com.mongodb.client.model.Indexes.descending
 import com.mongodb.client.model.ReturnDocument
 import org.bson.types.ObjectId
-import org.mongodb.scala.{MongoWriteException, model}
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
+import org.mongodb.scala.model.Aggregates.{`match`, group}
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.{combine, set}
+import org.mongodb.scala.{MongoWriteException, model}
 import play.api.Logging
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
@@ -40,6 +41,7 @@ import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 
 import java.net.{URI, URL}
 import java.time.Instant
+import java.time.temporal.ChronoUnit.DAYS
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent
@@ -73,15 +75,17 @@ object FileUploadRepoFormat {
 
   given Format[FileStatus] =
     val read: Reads[FileStatus] = {
-      case JsString(INITIAL.value)        => JsSuccess(INITIAL)
-      case JsString(SCANNED.value)        => JsSuccess(SCANNED)
-      case JsString(FAILED.value)         => JsSuccess(FAILED)
-      case JsString(STORED.value)         => JsSuccess(STORED)
-      case JsString(UPLOADREJECTED.value) => JsSuccess(UPLOADREJECTED)
-      case JsString(UPLOADED.value)       => JsSuccess(UPLOADED)
-      case JsString(REJECTED.value)       => JsSuccess(REJECTED)
-      case JsString(APPROVED.value)       => JsSuccess(APPROVED)
-      case JsString(PROCESSING.value)     => JsSuccess(PROCESSING)
+      case JsString(INITIAL.value)               => JsSuccess(INITIAL)
+      case JsString(SCANNED.value)               => JsSuccess(SCANNED)
+      case JsString(FAILED.value)                => JsSuccess(FAILED)
+      case JsString(STORED.value)                => JsSuccess(STORED)
+      case JsString(UPLOADREJECTED.value)        => JsSuccess(UPLOADREJECTED)
+      case JsString(UPLOADED.value)              => JsSuccess(UPLOADED)
+      case JsString(REJECTED.value)              => JsSuccess(REJECTED)
+      case JsString(APPROVED.value)              => JsSuccess(APPROVED)
+      case JsString(PROCESSING.value)            => JsSuccess(PROCESSING)
+      case JsString(PROCESSEDWITHERRORS.value)   => JsSuccess(PROCESSEDWITHERRORS)
+      case JsString(PROCESSEDSUCCESSFULLY.value) => JsSuccess(PROCESSEDSUCCESSFULLY)
       case _ => JsError("Unknown file status")
     }
 
@@ -92,7 +96,6 @@ object FileUploadRepoFormat {
   private given Format[Reference] =
     Format.at[String](__ \ "value")
       .inmap[Reference](Reference.apply, _.value)
-
 
   private given Format[Instant] = MongoJavatimeFormats.instantFormat
 
@@ -105,13 +108,13 @@ object FileUploadRepoFormat {
       ~ (__ \ "requestorPID").format[String]
       ~ (__ \ "requestorEmail").format[String]
       ~ (__ \ "requestorName").format[String]
-      ~ (__ \ "creationDateTime").format[Instant]
       ~ (__ \ "details").formatNullable[Details]
       ~ (__ \ "approverDetails").formatNullable[ApproverDetails]
       ~ (__ \ "totalEntryCount").formatNullable[Int]
       ~ (__ \ "uploadedDateTime").formatNullable[Instant]
-      ~ (__ \ "lastUpdatedDateTime").format[Instant]
+      ~ (__ \ "lastUpdatedDateTime").formatNullable[Instant]
       ~ (__ \ "approvedAtDateTime").formatNullable[Instant]
+      ~ (__ \ "creationDateTime").format[Instant]
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 
@@ -134,14 +137,15 @@ class FileRepository @Inject()(
           .sparse(false)
       ),
       IndexModel(
-        descending("createdAt"),
+        descending("creationDateTime"),
         IndexOptions()
           .unique(false)
-          .name("createdAt")
+          .name("creationDateTime")
           .expireAfter(config.timeToLive.toLong, TimeUnit.HOURS)
       )
     ),
-    replaceIndexes = true
+    replaceIndexes = true,
+    extraCodecs = Seq(Codecs.playFormatCodec[FileStatusCount](implicitly[Format[FileStatusCount]]))
   ) with Logging:
 
   import FileUploadRepoFormat.given
@@ -209,7 +213,8 @@ class FileRepository @Inject()(
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =
     updateByReference(reference, Seq(set("status", Codecs.toBson(status)), set("details", Codecs.toBson(details))): _*)
 
-  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails, updateUploadedTime: Boolean, approvedAt : Option[Instant]): Future[Option[UploadedDetails]] = {
+  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails,
+                                     updateUploadedTime: Boolean, approvedAt: Option[Instant]): Future[Option[UploadedDetails]] = {
     val updates = Seq(
       set("status", Codecs.toBson(status)),
       set("approverDetails", Codecs.toBson(approverDetails))
@@ -221,6 +226,12 @@ class FileRepository @Inject()(
 
   def updateStatus(reference: Reference, status: FileStatus): Future[Option[UploadedDetails]] =
     updateByReference(reference, set("status", Codecs.toBson(status)))
+
+  def getFileStatusCounts: Future[Seq[FileStatusCount]] =
+    collection.aggregate[FileStatusCount](Seq(
+      `match`(Filters.gte("lastUpdatedDateTime", Instant.now().minus(config.fileExpiryDays, DAYS))),
+      group("$status", Accumulators.sum("count", 1))
+    )).toFuture()
 
   private def updateByReference(reference: Reference, updates: Bson*): Future[Option[UploadedDetails]] =
     collection
