@@ -35,6 +35,10 @@ import scala.concurrent.{ExecutionContext, Future}
 @ImplementedBy(classOf[DeEnrolmentWorkItemMongoRepository])
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
+
+  def inCompleteWorkItemsCount: Future[Int]
+
+  def deleteWorkItemsByReference(reference: String): Future[Unit]
 }
 
 @Singleton
@@ -94,6 +98,22 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     }
     MongoUtils.ensureIndexes(collection, deEnrolmentWorkItemIndexes, true)
   }
+
+  override def inCompleteWorkItemsCount: Future[Int] = {
+    collection.countDocuments(
+      Filters.in(
+        WorkItemFields.default.status,
+        ToDo.name,
+        ProcessingStatus.InProgress.name,
+        ProcessingStatus.Deferred.name
+      )
+    ).toFuture().map(_.toInt)
+  }
+
+  override def deleteWorkItemsByReference(reference: String): Future[Unit] = {
+    collection.deleteMany(Filters.eq(s"${WorkItemFields.default.item}.reference", reference)).toFuture().map(_ => ())
+  }
+
 
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)

@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 
 import helper.IntegrationSpec
 import org.mongodb.scala.SingleObservableFuture
-import org.mongodb.scala.model.Filters
+import org.mongodb.scala.model.{Filters, Updates}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
@@ -26,8 +26,9 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.MongoComponent
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
-import uk.gov.hmrc.mongo.workitem.WorkItem
+import uk.gov.hmrc.mongo.workitem.{WorkItem, WorkItemFields}
 
 import scala.language.postfixOps
 
@@ -47,6 +48,44 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
       result.size shouldBe 2
       result(0).status shouldBe ToDo
       result(1).status shouldBe ToDo
+    }
+
+    "delete work items by reference" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+
+      await(repository.deleteWorkItemsByReference("ref1"))
+      val count = await(repository.collection.countDocuments().toFuture())
+      count shouldBe 1
+    }
+
+
+    "return the count of incomplete work items" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref2"))
+
+      val count = await(repository.inCompleteWorkItemsCount)
+      count shouldBe 4
+    }
+
+    "return only incomplete statuses when one work item exists for each status" in {
+      val allStatuses = ProcessingStatus.values.toSeq
+      val incompleteStatuses = Set(ToDo, ProcessingStatus.InProgress, ProcessingStatus.Deferred)
+
+      allStatuses.foreach { status =>
+        val workItem = deEnrolmentWorkItems.head.copy(reference = s"ref-${status.name.toLowerCase}")
+        await(repository.saveRecordDetails(Seq(workItem), workItem.reference))
+        await(
+          repository.collection
+            .updateMany(
+              Filters.eq(s"${WorkItemFields.default.item}.reference", workItem.reference),
+              Updates.set(WorkItemFields.default.status, status.name)
+            )
+            .toFuture()
+        )
+      }
+
+      val count = await(repository.inCompleteWorkItemsCount)
+      count shouldBe 3
     }
   }
 }
