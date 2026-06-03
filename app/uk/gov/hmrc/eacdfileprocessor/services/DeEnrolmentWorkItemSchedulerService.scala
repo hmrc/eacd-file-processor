@@ -31,14 +31,14 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class DeEnrolmentWorkItemSchedulerService @Inject()(
-  appConfig: AppConfig,
-  deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository,
-  fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
-  fileRepository: FileRepository,
-  lockService: LockService,
-  agentServiceCache: AgentServiceCache,
-  validator: DeEnrolmentWorkItemValidator
-) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
+                                                     appConfig: AppConfig,
+                                                     deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository,
+                                                     fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
+                                                     fileRepository: FileRepository,
+                                                     lockService: LockService,
+                                                     agentServiceCache: AgentServiceCache,
+                                                     validator: DeEnrolmentWorkItemValidator
+                                                   ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
 
   private given HeaderCarrier = HeaderCarrier()
 
@@ -49,8 +49,8 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
 
   private def processBatch()(using ExecutionContext): Future[Unit] =
     for {
-      agentServices <- agentServiceCache.getAgentServices()
       pulled <- deEnrolmentWorkItemRepository.pullOutstandingBatch(appConfig.DeEnrolmentWorkItemConcurrency)
+      agentServices <- if pulled.nonEmpty then agentServiceCache.getAgentServices() else Future.successful(Set.empty)
       _ <- Future.traverse(pulled)(processWorkItem(_, agentServices))
     } yield ()
 
