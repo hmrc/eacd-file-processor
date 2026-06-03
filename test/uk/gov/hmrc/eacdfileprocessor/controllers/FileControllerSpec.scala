@@ -30,6 +30,7 @@ import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate, Retrieval}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
 import org.apache.pekko.NotUsed
@@ -46,6 +47,7 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
   val mockCC: ControllerComponents = Helpers.stubControllerComponents()
   val mockConfig: play.api.Configuration = mock[play.api.Configuration]
   val mockAuth: BackendAuthComponents = mock[BackendAuthComponents]
+  val mockAuditConnector: AuditConnector = mock[AuditConnector]
   val objectStoreClient = mock[PlayObjectStoreClient]
 
   implicit lazy val actorSystem: ActorSystem = ActorSystem()
@@ -55,7 +57,7 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
 
 
 
-  object TestStatusController extends FileController(repository, mockCC, mockConfig, mockAuth, objectStoreClient) {
+  object TestStatusController extends FileController(repository, mockCC, mockConfig, mockAuth, mockAuditConnector, objectStoreClient) {
     override def authorisedEntity(
                                    providedPermission: Predicate,
                                    apiName: String
