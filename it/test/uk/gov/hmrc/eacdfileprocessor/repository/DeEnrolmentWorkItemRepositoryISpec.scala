@@ -25,6 +25,7 @@ import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
@@ -88,6 +89,36 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
 
       val count = await(repository.incompleteWorkItemsCountForRef("ref1"))
       count shouldBe incompleteStatuses.size
+    }
+
+    "pull up to limit and not return already claimed items on subsequent calls" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref-limit"))
+
+      val firstPull = await(repository.pullOutstandingBatch(1))
+      firstPull.size shouldBe 1
+      firstPull.head.status shouldBe ProcessingStatus.InProgress
+
+      val secondPull = await(repository.pullOutstandingBatch(10))
+      secondPull.size shouldBe 1
+      secondPull.head.status shouldBe ProcessingStatus.InProgress
+
+      val thirdPull = await(repository.pullOutstandingBatch(10))
+      thirdPull shouldBe Seq.empty
+    }
+
+    "only allow markAsInProgress once for the same work item" in {
+      val result = await(repository.saveRecordDetails(Seq(deEnrolmentWorkItems.head), "ref-cas"))
+      val workItemId = result.head.id
+
+      await(repository.markAsInProgress(workItemId)) shouldBe true
+      await(repository.markAsInProgress(workItemId)) shouldBe false
+    }
+
+    "return empty for non-positive pull limits" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref-zero"))
+
+      await(repository.pullOutstandingBatch(0)) shouldBe Seq.empty
+      await(repository.pullOutstandingBatch(-1)) shouldBe Seq.empty
     }
   }
 }
