@@ -45,8 +45,7 @@ class InitiateFileStorageControllerISpec
         status = INITIAL,
         requestorPID = "12345678",
         requestorEmail = "test@hmrc.gov.uk",
-        requestorName = "Test User",
-        creationDateTime = Instant.now()
+        requestorName = "Test User"
       ))
     )
 
