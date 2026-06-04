@@ -147,7 +147,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
           case Some(workItem) =>
             markAsInProgress(workItem.id).flatMap {
               case true  => loop(acc :+ workItem.copy(status = ProcessingStatus.InProgress), remaining - 1)
-              case false => loop(acc, remaining)
+              case false => loop(acc, remaining - 1)
             }
           case None => Future.successful(acc)
         }
@@ -161,7 +161,6 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       .findOneAndUpdate(
         and(
           equal(WorkItemFields.default.id, id),
-          equal(WorkItemFields.default.status, ProcessingStatus.ToDo.name)
         ),
         Updates.combine(
           Updates.set(WorkItemFields.default.status, ProcessingStatus.InProgress.name),

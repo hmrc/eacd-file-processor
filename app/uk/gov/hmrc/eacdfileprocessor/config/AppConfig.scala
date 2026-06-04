@@ -32,8 +32,8 @@ class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig)
   val workItemTimeToLive: Int = config.getOptional[Int]("work-item.ttlInHours").getOrElse(720)
   val lockTimeoutMinutes: Int = config.getOptional[Int]("locking.timeoutMinutes").getOrElse(15)
   val sec0CacheRefreshHours: Int = config.getOptional[Int]("sec0.cache-refresh-hours").getOrElse(24)
-  val sec0AgentServicesPath: String = getString("sec0.agent-services-path")
-  val enrolmentStoreProxyBaseUrl: String = servicesConfig.baseUrl("enrolment-store-proxy")
+  val sec0GetServicesPath: String = getString("sec0.get-services-path")
+  val serviceEnrolmentConfigBaseUrl: String = servicesConfig.baseUrl("service-enrolment-config")
 
   private[config] def getString(key: String): String =
     config.getOptional[String](key).filter(!_.isBlank)
