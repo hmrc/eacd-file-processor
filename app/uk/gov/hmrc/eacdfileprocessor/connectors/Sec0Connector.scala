@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.connectors
 
 import play.api.Logging
-import play.api.http.Status.OK
+import play.api.http.Status.{BAD_REQUEST, OK}
 import play.api.libs.json.JsValue
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.http.client.HttpClientV2
@@ -33,20 +33,25 @@ class Sec0Connector @Inject()(httpClient: HttpClientV2, appConfig: AppConfig)(us
 
   def getAgentServiceKeys()(using HeaderCarrier): Future[Set[String]] =
     httpClient
-      .get(url"${appConfig.enrolmentStoreProxyBaseUrl}${appConfig.sec0AgentServicesPath}?affinityGroup=agent")
+      .get(url"${appConfig.serviceEnrolmentConfigBaseUrl}${appConfig.sec0GetServicesPath}?affinityGroup=agent")
       .execute(readRaw)
       .map { response =>
-        if (response.status == OK) {
-          extractServices(response.json)
-        } else {
-          logger.warn(s"SEC0 lookup returned status ${response.status}; using empty service list")
-          Set.empty[String]
+        response.status match {
+          case OK =>
+            extractServices(response.json)
+          case BAD_REQUEST =>
+            logger.warn("SEC0 lookup returned 400 Bad Request; check affinityGroup parameter")
+            Set.empty[String]
+          case status =>
+            logger.warn(s"SEC0 lookup returned unexpected status $status; using empty service list")
+            Set.empty[String]
         }
       }
 
   private def extractServices(json: JsValue): Set[String] =
-    (json \\ "service")
-      .flatMap(_.asOpt[String])
+    (json \ "serviceNames")
+      .asOpt[Seq[String]]
+      .getOrElse(Seq.empty)
       .map(_.trim)
       .filter(_.nonEmpty)
       .toSet
