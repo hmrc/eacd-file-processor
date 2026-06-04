@@ -23,9 +23,12 @@ import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, ToDo}
+import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.workitem.*
-import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
+import org.mongodb.scala.model.Filters.{and, equal, in}
+import uk.gov.hmrc.mongo.play.json.Codecs
 
 import java.time.{Duration, Instant}
 import java.util.concurrent.TimeUnit
@@ -36,7 +39,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
-  def inCompleteWorkItemsCount: Future[Int]
+  def incompleteWorkItemsCountForRef(reference: String): Future[Int]
 
   def deleteWorkItemsByReference(reference: String): Future[Unit]
 }
@@ -99,15 +102,15 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     MongoUtils.ensureIndexes(collection, deEnrolmentWorkItemIndexes, true)
   }
 
-  override def inCompleteWorkItemsCount: Future[Int] = {
-    collection.countDocuments(
-      Filters.in(
-        WorkItemFields.default.status,
-        ToDo.name,
-        ProcessingStatus.InProgress.name,
-        ProcessingStatus.Deferred.name
-      )
-    ).toFuture().map(_.toInt)
+  override def incompleteWorkItemsCountForRef(reference: String): Future[Int] = {
+    val selector = and(
+      equal(
+        s"${WorkItemFields.default.item}.reference", Codecs.toBson(reference)
+      ),
+      in(workItemFields.status, ToDo, InProgress)
+    )
+
+    collection.countDocuments(selector).toFuture().map(_.toInt)
   }
 
   override def deleteWorkItemsByReference(reference: String): Future[Unit] = {

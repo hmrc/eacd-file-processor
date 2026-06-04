@@ -63,29 +63,31 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
       await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
       await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref2"))
 
-      val count = await(repository.inCompleteWorkItemsCount)
-      count shouldBe 4
+      val count = await(repository.incompleteWorkItemsCountForRef("ref1"))
+      count shouldBe 2
     }
 
-    "return only incomplete statuses when one work item exists for each status" in {
+    "return only incomplete statuses when one work" in {
       val allStatuses = ProcessingStatus.values.toSeq
-      val incompleteStatuses = Set(ToDo, ProcessingStatus.InProgress, ProcessingStatus.Deferred)
+      val incompleteStatuses = Set(ToDo, ProcessingStatus.InProgress)
 
+
+      await(repository.saveRecordDetails(Seq(deEnrolmentWorkItems.last), "ref2"))
       allStatuses.foreach { status =>
-        val workItem = deEnrolmentWorkItems.head.copy(reference = s"ref-${status.name.toLowerCase}")
+        val workItem = deEnrolmentWorkItems.head.copy(recordDetail = s"IR-SA-UTR-${status.name.toLowerCase},principal")
         await(repository.saveRecordDetails(Seq(workItem), workItem.reference))
         await(
           repository.collection
             .updateMany(
-              Filters.eq(s"${WorkItemFields.default.item}.reference", workItem.reference),
+              Filters.eq(s"${WorkItemFields.default.item}.recordDetail", workItem.recordDetail),
               Updates.set(WorkItemFields.default.status, status.name)
             )
             .toFuture()
         )
       }
 
-      val count = await(repository.inCompleteWorkItemsCount)
-      count shouldBe 3
+      val count = await(repository.incompleteWorkItemsCountForRef("ref1"))
+      count shouldBe incompleteStatuses.size
     }
   }
 }
