@@ -125,35 +125,36 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)
 
   override def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
-    val availableBefore = now()
-    val WORK_ITEM_STATUS = WorkItemFields.default.status
-    val WORK_ITEM_AVAILABLE_AT = WorkItemFields.default.availableAt
+    if (limit <= 0) {
+      Future.successful(Seq.empty)
+    } else {
+      val availableBefore = now()
+      val WORK_ITEM_STATUS = WorkItemFields.default.status
+      val WORK_ITEM_AVAILABLE_AT = WorkItemFields.default.availableAt
 
-    def pullToDoItem(): Future[Option[WorkItem[DeEnrolmentWorkItem]]] =
-      collection
-        .find(
-          and(
-            equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo),
-            lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
+      def pullToDoItems(): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
+        collection
+          .find(
+            and(
+                equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
+              lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
+            )
           )
-        )
-        .headOption()
+          .limit(limit)
+          .toFuture()
 
-    def loop(acc: Vector[WorkItem[DeEnrolmentWorkItem]], remaining: Int): Future[Vector[WorkItem[DeEnrolmentWorkItem]]] =
-      if (remaining <= 0) {
-        Future.successful(acc)
-      } else {
-        pullToDoItem().flatMap {
-          case Some(workItem) =>
-            markAsInProgress(workItem.id).flatMap {
-              case true  => loop(acc :+ workItem.copy(status = ProcessingStatus.InProgress), remaining - 1)
-              case false => loop(acc, remaining - 1)
+      pullToDoItems().flatMap { workItems =>
+        workItems.foldLeft(Future.successful(Vector.empty[WorkItem[DeEnrolmentWorkItem]])) {
+          (accF, workItem) =>
+            accF.flatMap { acc =>
+              markAsInProgress(workItem.id).map {
+                case true  => acc :+ workItem.copy(status = ProcessingStatus.InProgress)
+                case false => acc
+              }
             }
-          case None => Future.successful(acc)
         }
       }
-
-    loop(Vector.empty, limit)
+    }
   }
 
   override def markAsInProgress(id: ObjectId): Future[Boolean] =
@@ -161,6 +162,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       .findOneAndUpdate(
         and(
           equal(WorkItemFields.default.id, id),
+          equal(WorkItemFields.default.status, ProcessingStatus.ToDo.name),
         ),
         Updates.combine(
           Updates.set(WorkItemFields.default.status, ProcessingStatus.InProgress.name),
