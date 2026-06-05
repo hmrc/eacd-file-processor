@@ -16,8 +16,9 @@
 
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
+import org.apache.pekko.stream.Materializer
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{verify, when}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import org.scalatestplus.mockito.MockitoSugar.mock
 import play.api.http.Status.{BAD_REQUEST, INTERNAL_SERVER_ERROR, NO_CONTENT, OK, SERVICE_UNAVAILABLE}
@@ -27,8 +28,9 @@ import play.api.mvc.*
 import play.api.test.Helpers.{contentAsJson, contentAsString, status}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, StatusDetailsModel}
+import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, FileStatusCount, StatusDetailsModel}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.services.StatusService
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}
@@ -40,11 +42,13 @@ import scala.concurrent.Future
 class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTimeout {
   private val repository = mock[FileRepository]
   private val mockStatusService = mock[StatusService]
+  private implicit val materializer: Materializer = mock[Materializer]
   val mockCC: ControllerComponents = Helpers.stubControllerComponents()
   val mockConfig: play.api.Configuration = mock[play.api.Configuration]
   val mockAuth: BackendAuthComponents = mock[BackendAuthComponents]
   when(mockConfig.getOptional[Boolean](any())(any())).thenReturn(Some(true))
 
+  val statusCounts = Seq(FileStatusCount(UPLOADED.value, 5), FileStatusCount(APPROVED.value, 3))
 
   object TestStatusController extends StatusController(repository, mockStatusService, mockCC, mockConfig, mockAuth) {
     override def authorisedEntity(
@@ -152,6 +156,55 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
         )
         status(result) shouldBe INTERNAL_SERVER_ERROR
         contentAsJson(result) shouldBe Json.toJson(ApiErrorResponse("INTERNAL_ERROR", "An error occurred"))
+      }
+    }
+
+    "getAllStatusCounts" should {
+      "return NO_CONTENT when there is no files within fileExpiryDays found" in {
+        when(repository.getFileStatusCounts).thenReturn(Future.successful(Seq.empty))
+        val result = TestStatusController.getAllStatusCounts(FakeRequest(
+          routes.StatusController.getAllStatusCounts)
+        )
+        status(result) shouldBe NO_CONTENT
+      }
+      "return OK with all the status counts when some files found" in {
+        when(repository.getFileStatusCounts).thenReturn(Future.successful(statusCounts))
+        val result = TestStatusController.getAllStatusCounts(FakeRequest(
+          routes.StatusController.getAllStatusCounts)
+        )
+        status(result) shouldBe OK
+        contentAsJson(result) shouldBe expectedStatusCounts
+      }
+      "return OK with all the status counts when all status files found" in {
+        when(repository.getFileStatusCounts).thenReturn(Future.successful(allStatusCounts))
+        val result = TestStatusController.getAllStatusCounts(FakeRequest(
+          routes.StatusController.getAllStatusCounts)
+        )
+        status(result) shouldBe OK
+        contentAsJson(result) shouldBe Json.toJson(allStatusCounts)
+      }
+    }
+    
+    "generateAllStatusCount" should {
+      "return a complete list of status counts when there are missing status counts" in {
+        val expected = Seq(
+          FileStatusCount(SCANNED.value, 0),
+          FileStatusCount(FAILED.value, 0),
+          FileStatusCount(STORED.value, 0),
+          FileStatusCount(UPLOADED.value, 5),
+          FileStatusCount(UPLOADREJECTED.value, 0),
+          FileStatusCount(REJECTED.value, 0),
+          FileStatusCount(APPROVED.value, 3),
+          FileStatusCount(PROCESSING.value, 0),
+          FileStatusCount(PROCESSEDWITHERRORS.value, 0),
+          FileStatusCount(PROCESSEDSUCCESSFULLY.value, 0)
+        )
+        val actual = TestStatusController.generateAllStatusCount(statusCounts)
+        actual shouldBe expected
+      }
+      "return a complete list of status counts when all the status counts are present" in {
+        val actual = TestStatusController.generateAllStatusCount(allStatusCounts)
+        actual shouldBe allStatusCounts
       }
     }
   }

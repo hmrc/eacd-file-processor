@@ -50,7 +50,7 @@ class InitiateFileStorageController @Inject()(
     ).async(parse.json) { implicit request: Request[JsValue] =>
       validateJsonBody { initiateRequestModel =>
         fileRepo.createFileRecord(UploadedDetails(ObjectId.get(), Reference(initiateRequestModel.reference), INITIAL,
-          initiateRequestModel.requestorPID, initiateRequestModel.requestorEmail, initiateRequestModel.requestorName, Instant.now())).map {
+          initiateRequestModel.requestorPID, initiateRequestModel.requestorEmail, initiateRequestModel.requestorName)).map {
           case true =>
             Created
           case _ =>

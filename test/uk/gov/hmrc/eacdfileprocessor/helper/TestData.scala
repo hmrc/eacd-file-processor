@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.helper
 
 import org.bson.types.ObjectId
 import play.api.libs.json.{JsValue, Json}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{FAILED, INITIAL, SCANNED}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.*
 
 import java.net.URL
@@ -67,7 +67,6 @@ trait TestData:
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
     creationDateTime = createdAt,
-    lastUpdatedDateTime = createdAt
   )
 
   val failedFileDetails = Details.UploadedFailed(
@@ -84,29 +83,27 @@ trait TestData:
   )
 
   val scannedUploadedDetails = UploadedDetails(
-    id = ObjectId("6994a038d540b44c4403aee3"),
-    reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
+    id = ObjectId("6994a038d540b44c4403aee4"),
+    reference = Reference("08aad019-7f66-4456-8d52-93f12109877f"),
     status = SCANNED,
     requestorPID = "12345678",
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
     details = Some(successfulUploadedDetails),
-    creationDateTime = createdAt,
-    lastUpdatedDateTime = createdAt
+    creationDateTime = createdAt
   )
 
   val statusDetailsModel = StatusDetailsModel(reference = "08aad019-7f66-4456-8d52-93f12109876f", requestorEmail = "test@hmrc.gov.uk", requestorPID = "12345678", requestorName = "Test User", fileName = Some("test.pdf"), fileStatus = "SCANNED", creationDateTime = Some(createdAt))
 
   val failedUploadedDetails = UploadedDetails(
-    id = ObjectId("6994a038d540b44c4403aee3"),
-    reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
+    id = ObjectId("6994a038d540b44c4403aee5"),
+    reference = Reference("08aad019-7f66-4456-8d52-93f12109878f"),
     status = FAILED,
     requestorPID = "12345678",
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
     details = Some(failedFileDetails),
-    creationDateTime = createdAt,
-    lastUpdatedDateTime = createdAt
+    creationDateTime = createdAt
   )
 
   val approverDetails = ApproverDetails(
@@ -120,6 +117,19 @@ trait TestData:
   val deEnrolmentWorkItems = Seq(
     DeEnrolmentWorkItem("ref1", "IR-SA-UTR-1234567890,principal", Instant.now()),
     DeEnrolmentWorkItem("ref2", "IR-SA-UTR-1234567892,principal", Instant.now())
+  )
+
+  val allStatusCounts = Seq(
+    FileStatusCount(SCANNED.value, 2),
+    FileStatusCount(FAILED.value, 1),
+    FileStatusCount(STORED.value, 4),
+    FileStatusCount(UPLOADED.value, 5),
+    FileStatusCount(UPLOADREJECTED.value, 0),
+    FileStatusCount(REJECTED.value, 3),
+    FileStatusCount(APPROVED.value, 3),
+    FileStatusCount(PROCESSING.value, 1),
+    FileStatusCount(PROCESSEDWITHERRORS.value, 0),
+    FileStatusCount(PROCESSEDSUCCESSFULLY.value, 6)
   )
 
   val missingFieldUploadedDetails: JsValue = Json.parse(
@@ -264,5 +274,52 @@ trait TestData:
       |  "approverPID": "12345678",
       |  "approverEmail": "approver1@hmrc.gov.uk"
       |  }
+      |""".stripMargin
+  )
+  
+  val expectedStatusCounts: JsValue = Json.parse(
+    """
+      |[
+      |  {
+      |    "status": "scanned",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "failed",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "stored",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "uploaded",
+      |    "count": 5
+      |  },
+      |  {
+      |    "status": "uploadRejected",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "rejected",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "approved",
+      |    "count": 3
+      |  },
+      |  {
+      |    "status": "processing",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "processedWithErrors",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "processedSuccessfully",
+      |    "count": 0
+      |  }
+      |]
       |""".stripMargin
   )

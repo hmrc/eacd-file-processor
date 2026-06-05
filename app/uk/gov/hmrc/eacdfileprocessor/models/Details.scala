@@ -17,6 +17,8 @@
 package uk.gov.hmrc.eacdfileprocessor.models
 
 import org.bson.types.ObjectId
+import play.api.libs.functional.syntax.*
+import play.api.libs.json.{Format, JsNumber, JsObject, JsString, Json, OFormat, Reads, Writes, __}
 
 import java.net.URL
 import java.time.Instant
@@ -45,11 +47,26 @@ case class UploadedDetails(
                             requestorPID: String,
                             requestorEmail: String,
                             requestorName: String,
-                            creationDateTime: Instant,
                             details: Option[Details] = None,
                             approverDetails: Option[ApproverDetails] = None,
                             totalEntryCount: Option[Int] = None,
                             uploadedDateTime: Option[Instant] = None,
-                            lastUpdatedDateTime: Instant = Instant.now(),
-                            approvedAtDateTime: Option[Instant] = None
+                            lastUpdatedDateTime: Option[Instant] = None,
+                            approvedAtDateTime: Option[Instant] = None,
+                            creationDateTime: Instant = Instant.now(),
                           )
+
+case class FileStatusCount(status: String, count: Int)
+
+object FileStatusCount {
+  given Format[FileStatusCount] = {
+    val read: Reads[FileStatusCount] =
+    ((__ \ "_id").format[String]
+      ~ (__ \ "count").format[Int]
+      )(FileStatusCount.apply, Tuple.fromProductTyped _)
+
+    val write: Writes[FileStatusCount] = (statusCount: FileStatusCount) => Json.format[FileStatusCount].writes(statusCount)
+    
+    Format(read, write)
+  }
+}

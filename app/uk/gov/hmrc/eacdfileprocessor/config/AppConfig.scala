@@ -30,6 +30,7 @@ class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig)
   val retryInProgressAfter = getInt("work-item.retry-in-progress-after.seconds")
   val workItemTimeToLive = getInt("work-item.ttlInHours")
   val lockingTimeout = getInt("locking.timeoutMinutes")
+  val fileExpiryDays = getInt("fileExpiryDays")
 
   private[config] def getString(key: String): String =
     config.getOptional[String](key).filter(!_.isBlank)
