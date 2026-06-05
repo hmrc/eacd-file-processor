@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.connectors
 
 import javax.inject.{Inject, Singleton}
 import play.api.libs.json.{Json, OWrites}
-import play.api.Configuration
+import play.api.{Configuration, Logging}
 import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
@@ -43,8 +43,7 @@ trait EmailConnector {
 
 @Singleton
 class EmailConnectorImpl @Inject()(http: HttpClientV2, val runModeConfiguration: Configuration,
-                                   val servicesConfig: ServicesConfig)
-  extends EmailConnector {
+                                   val servicesConfig: ServicesConfig) extends EmailConnector with Logging {
   lazy val serviceUrl: String = s"${servicesConfig.baseUrl("email")}/hmrc/email"
 
   def sendEmail(requestorName: String, fileName: String, uploadDateTime: Instant, to: String,
@@ -66,7 +65,9 @@ class EmailConnectorImpl @Inject()(http: HttpClientV2, val runModeConfiguration:
         case _ => false
       }
     }.recover {
-      case _ => false
+      case e =>
+        logger.error(s"issue encountered while sending email ${e.getMessage}")
+        false
     }
   }
 }
