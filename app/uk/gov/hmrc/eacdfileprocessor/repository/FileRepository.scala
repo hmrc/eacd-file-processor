@@ -19,7 +19,6 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import com.mongodb.client.model.Indexes.descending
 import com.mongodb.client.model.ReturnDocument
 import org.bson.types.ObjectId
-import org.mongodb.scala.{MongoWriteException, model}
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
@@ -216,8 +215,7 @@ class FileRepository @Inject()(
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =
     updateByReference(reference, Seq(set("status", Codecs.toBson(status)), set("details", Codecs.toBson(details))): _*)
 
-  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails,
-                                     updateUploadedTime: Boolean, approvedAt: Option[Instant]): Future[Option[UploadedDetails]] = {
+  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails, updateUploadedTime: Boolean, approvedAt: Option[Instant]): Future[Option[UploadedDetails]] = {
     val updates = Seq(
       set("status", Codecs.toBson(status)),
       set("approverDetails", Codecs.toBson(approverDetails))
@@ -227,11 +225,17 @@ class FileRepository @Inject()(
     updateByReference(reference, updates: _*)
   }
 
-  def updateStatus(reference: Reference, status: FileStatus): Future[Option[UploadedDetails]] =
+  def updateStatus(reference: Reference, status: FileStatus): Future[Option[UploadedDetails]] = {
     updateByReference(reference, set("status", Codecs.toBson(status)))
+  }
 
-  def incrementFailureCount(reference: Reference): Future[Option[UploadedDetails]] =
+  def incrementFailureCount(reference: Reference): Future[Option[UploadedDetails]] = {
     updateByReference(reference, inc("totalFailureCount", 1))
+  }
+
+  def incrementSuccessCount(reference: Reference): Future[Option[UploadedDetails]] = {
+    updateByReference(reference, inc("totalSuccessCount", 1))
+  }
 
   def getFileStatusCounts: Future[Seq[FileStatusCount]] =
     collection.aggregate[FileStatusCount](Seq(

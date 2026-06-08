@@ -19,16 +19,17 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import com.google.inject.ImplementedBy
 import org.mongodb.scala.bson.conversions.Bson
 import org.bson.types.ObjectId
+import org.mongodb.scala.model.*
+import org.mongodb.scala.model.Filters.{and, equal, lte}
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import org.mongodb.scala.model.Filters.{and, equal, lte}
 import org.mongodb.scala.model.*
-import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
-import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, ToDo}
-import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields, WorkItemRepository}
-import uk.gov.hmrc.mongo.workitem.*
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
+import uk.gov.hmrc.mongo.workitem.{WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
 import org.mongodb.scala.model.Filters.{and, equal, in}
 import uk.gov.hmrc.mongo.play.json.Codecs
@@ -41,10 +42,9 @@ import scala.concurrent.{ExecutionContext, Future}
 @ImplementedBy(classOf[DeEnrolmentWorkItemMongoRepository])
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
-  def incompleteWorkItemsCountForRef(reference: String): Future[Int]
-  def deleteWorkItemsByReference(reference: String): Future[Unit]
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
   def markAsInProgress(id: ObjectId): Future[Boolean]
+  def markAsComplete(id: ObjectId): Future[Boolean]
 }
 
 @Singleton
@@ -157,7 +157,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     }
   }
 
-  override def markAsInProgress(id: ObjectId): Future[Boolean] =
+  override def markAsInProgress(id: ObjectId): Future[Boolean] = {
     collection
       .findOneAndUpdate(
         and(
@@ -172,6 +172,25 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       )
       .toFutureOption()
       .map(_.isDefined)
+
+  }
+
+  override def markAsComplete(id: ObjectId): Future[Boolean] = {
+    collection
+      .findOneAndUpdate(
+        and(
+          equal(WorkItemFields.default.id, id),
+          equal(WorkItemFields.default.status, ProcessingStatus.InProgress.name)
+        ),
+        Updates.combine(
+          Updates.set(WorkItemFields.default.status, ProcessingStatus.Succeeded.name),
+          Updates.set(WorkItemFields.default.updatedAt, now())
+        ),
+        FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
+      )
+      .toFutureOption()
+      .map(_.isDefined)
+  }
 
 
 }
