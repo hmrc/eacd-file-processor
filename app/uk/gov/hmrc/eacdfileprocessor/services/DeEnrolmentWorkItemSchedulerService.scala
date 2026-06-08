@@ -18,8 +18,10 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.bson.types.ObjectId
 import play.api.Logging
+import play.api.http.Status.{NO_CONTENT, OK}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, FileRecordValidationError, Reference}
+import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
+import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, FileRecordValidationError, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
@@ -35,6 +37,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                                      deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository,
                                                      fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
                                                      fileRepository: FileRepository,
+                                                     espConnector: EspConnector,
                                                      lockService: LockService,
                                                      agentServiceCache: AgentServiceCache,
                                                      validator: DeEnrolmentWorkItemValidator
@@ -51,37 +54,79 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
     for {
       pulled <- deEnrolmentWorkItemRepository.pullOutstandingBatch(appConfig.DeEnrolmentWorkItemConcurrency)
       agentServices <- if pulled.nonEmpty then agentServiceCache.getAgentServices() else Future.successful(Set.empty)
-      _ <- Future.traverse(pulled)(processWorkItem(_, agentServices))
+      _ <- Future.traverse(pulled)(validateWorkItem(_, agentServices))
     } yield ()
 
-  private def processWorkItem(workItem: WorkItem[DeEnrolmentWorkItem], agentServices: Set[String])(using ExecutionContext): Future[Unit] = {
+  private def validateWorkItem(workItem: WorkItem[DeEnrolmentWorkItem], agentServices: Set[String])(using ExecutionContext): Future[Unit] = {
     val item = workItem.item
-    val maybeError = validator.validate(item.recordDetail, agentServices)
+    val validationResult = validator.validate(item.recordDetail, agentServices)
     val reference = Reference(item.reference)
 
-    val validationEffect: Future[Boolean] = maybeError match {
-      case Some(errorMessage) =>
-        for {
-          fileName <- fileRepository.getNameOfFile(reference).map(_.getOrElse(""))
-          _ <- fileRecordValidationErrorRepository.create(
-            FileRecordValidationError(
-              id = ObjectId.get(),
-              reference = reference,
-              fileName = fileName,
-              recordDetail = item.recordDetail,
-              errorMessage = errorMessage
-            )
-          )
-          result <- fileRepository.incrementFailureCount(reference).map(_ => true)
-        } yield result
-      case None => Future.successful(false)
+    (validationResult match {
+      case Left(errorMessage) =>
+        recordError(reference, item.recordDetail, errorMessage)
+      case Right((enrolmentKey, actionType)) =>
+        actionType match {
+          case "principal" | "agent" => processWorkItem(enrolmentKey, "principal", reference, item.recordDetail, workItem.id)
+          case "delegated" => processWorkItem(enrolmentKey, "delegated", reference, item.recordDetail, workItem.id)
+          case "both" => Future.successful(()) //need Part 3 here
+          case _ => Future.successful(())
+        }
+    }).recover { case e =>
+      logger.error(s"Failed to process work item ${workItem.id.toHexString}: ${e.getMessage}", e)
     }
-
-    validationEffect
-      .map(_ => ())
-      .recover { case e =>
-        logger.error(s"Failed to process work item ${workItem.id.toHexString}: ${e.getMessage}", e)
-      }
   }
+
+  private def processWorkItem(enrolmentKey: String, actionType: String, reference: Reference, recordDetail: String, workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
+    espConnector.callES1(enrolmentKey, actionType).flatMap { es1Response =>
+      es1Response.status match {
+        case NO_CONTENT => fileRepository.incrementSuccessCount(reference).map(_ => ())
+        case OK => deEnrolWorkItem(enrolmentKey, extractGroupIds(es1Response.json), reference, recordDetail, workItemId)
+        case _ => recordError(reference, recordDetail, extractErrorMessage(es1Response.json))
+      }
+    }
+  }
+
+  private def deEnrolWorkItem(enrolmentKey: String, groupIds: Seq[String], reference: Reference, recordDetail: String, workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
+    Future.sequence(groupIds.map { groupId =>
+      espConnector.callES9(groupId, enrolmentKey).flatMap { response =>
+        if response.status == NO_CONTENT then
+          fileRepository.incrementSuccessCount(reference)
+            .flatMap(_ => deEnrolmentWorkItemRepository.markAsComplete(workItemId))
+            .map(_ => ())
+        else
+          val errorMessage = if groupIds.size > 1 then "Partial processing due to unknown error, review manually"
+          else extractErrorMessage(response.json)
+          recordError(reference, recordDetail, errorMessage)
+      }
+    }).map(_ => ())
+  }
+
+
+  private def recordError(reference: Reference, recordDetail: String, errorMessage: String)(using ExecutionContext): Future[Unit] = {
+    for {
+      fileName <- fileRepository.getNameOfFile(reference).map(_.getOrElse(""))
+      _ <- fileRecordValidationErrorRepository.create(
+        FileRecordValidationError(
+          id = ObjectId.get(),
+          reference = reference,
+          fileName = fileName,
+          recordDetail = recordDetail,
+          errorMessage = errorMessage
+        )
+      )
+      _ <- fileRepository.incrementFailureCount(reference)
+    } yield ()
+  }
+
+  private def extractGroupIds(json: play.api.libs.json.JsValue): Seq[String] = {
+    (json \ "principalGroupIds").asOpt[Seq[String]].getOrElse(Seq.empty) ++
+      (json \ "delegatedAgentGroupIds").asOpt[Seq[String]].getOrElse(Seq.empty)
+  }
+
+  private def extractErrorMessage(json: play.api.libs.json.JsValue): String = {
+    (json \ "message").asOpt[String].getOrElse("Unknown error")
+  }
+
 }
 
