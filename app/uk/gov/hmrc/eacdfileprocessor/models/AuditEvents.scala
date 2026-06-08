@@ -28,7 +28,7 @@ trait AuditEvents {
 
   private val auditSource = "eacd-file-processor"
 
-  private def getTags(hc: HeaderCarrier, transactionName: Option[String] = None, path: Option[String] = None): Map[String, String] = {
+  private def getTags(hc: HeaderCarrier): Map[String, String] = {
     hc.headers(
       Seq(
         "Akamai-Reputation",
@@ -39,8 +39,21 @@ trait AuditEvents {
         "clientPort",
         "deviceID"
       )
+    ).toMap
+  }
+
+
+  private def getDownloadTags(hc: HeaderCarrier, path: Option[String] = None): Map[String, String] = {
+    hc.headers(
+      Seq(
+        "clientIP",
+        "X-Request-ID",
+        "deviceID",
+        "clientPort",
+        "X-Request-Chain",
+        "X-Session-ID",
+      )
     ).toMap ++ AuditExtensions.auditHeaderCarrier(hc).toAuditTags(
-      transactionName.getOrElse(""),
       path.getOrElse("")
     )
   }
@@ -60,7 +73,21 @@ trait AuditEvents {
       ) ++ extraItems
     )
   }
+  
+  private def getDownloadDetails(fileReference: String, requestorId: String, requestorName: String, fileName: String)
+                        (implicit request: Request[_]): JsValue = {
 
+
+    JsObject(
+      Seq(
+        "fileReference" -> JsString(fileReference),
+        "requesterId" -> JsString(requestorId),
+        "requesterName" -> JsString(requestorName),
+        "fileName" -> JsString(fileName)
+      )
+    )
+  }
+  
   object EmailEvent {
     def apply(fileReference: String, requestorId: String, requestorName: String, failureReason: String, failureMessage: String,
               emailAlertSentTo: String, hc: HeaderCarrier)
@@ -92,14 +119,12 @@ trait AuditEvents {
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "DownloadFile",
-        tags = getTags(hc, Some("Helpdesk user downloads bulk de-enrolment file"), Some(path)),
-        detail = JsObject(
-          Seq(
-            "fileReference" -> JsString(fileReference),
-            "requesterId" -> JsString(requesterId),
-            "requesterName" -> JsString(requesterName),
-            "fileName" -> JsString(fileName)
-          )
+        tags = getDownloadTags(hc, Some(path)),
+          detail = getDownloadDetails(
+          fileReference,
+          requesterId,
+          requesterName,
+          fileName
         )
       )
     }
