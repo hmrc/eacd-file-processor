@@ -16,8 +16,6 @@
 
 package uk.gov.hmrc.eacdfileprocessor.models
 
-import play.api.Configuration
-import play.api.i18n.Messages
 import play.api.libs.json.*
 import play.api.mvc.Request
 import uk.gov.hmrc.http.HeaderCarrier
@@ -73,7 +71,7 @@ trait AuditEvents {
       ) ++ extraItems
     )
   }
-  
+
   private def getDownloadDetails(fileReference: String, requestorId: String, requestorName: String, fileName: String)
                         (implicit request: Request[_]): JsValue = {
 
@@ -87,7 +85,7 @@ trait AuditEvents {
       )
     )
   }
-  
+
   object EmailEvent {
     def apply(fileReference: String, requestorId: String, requestorName: String, failureReason: String, failureMessage: String,
               emailAlertSentTo: String, hc: HeaderCarrier)

@@ -120,7 +120,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(reference = reference, status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(id = ObjectId.get(), reference = reference, status = STORED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
