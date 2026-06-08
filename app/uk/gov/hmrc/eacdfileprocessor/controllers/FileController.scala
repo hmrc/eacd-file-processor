@@ -21,7 +21,7 @@ import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.eacdfileprocessor.models.{AuditEvents, Reference}
+import uk.gov.hmrc.eacdfileprocessor.models.{AuditEvents, Details, Reference}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
@@ -51,29 +51,34 @@ class FileController @Inject()(
 
   def getFile(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "status")
     .async { implicit request: AuthRequest[AnyContent] =>
-      fileUploadRepo.getNameOfFile(Reference(reference)).flatMap {
-        case Some(fileName) =>
-          val fileLocation = Path.Directory(reference).file(fileName)
-          objectStoreClient.getObject[Source[ByteString, NotUsed]](fileLocation).map {
-            _.map { o =>
-              val requester = request.retrieval.toString
-              auditConnector.sendExtendedEvent(
-                DownloadFileEvent(
-                  path = routes.FileController.getFile(reference).url,
-                  fileReference = reference,
-                  requesterId = requester,
-                  requesterName = requester,
-                  fileName = fileName,
-                  hc = request.headerCarrier
-                )
-              )
-              Ok.chunked(o.content)
-            }.getOrElse {
-              logger.warn("No record found for the requested reference in Object Store")
-              NoContent
-            }
+      fileUploadRepo.findByReference(Reference(reference)).flatMap {
+        case Some(uploadDetails) =>
+          uploadDetails.details.collect { case Details.UploadedSuccessfully(name, _, _, _, _) => name } match {
+            case Some(fileName) =>
+              val fileLocation = Path.Directory(reference).file(fileName)
+              objectStoreClient.getObject[Source[ByteString, NotUsed]](fileLocation).map {
+                _.map { o =>
+                  auditConnector.sendExtendedEvent(
+                    DownloadFileEvent(
+                      path = routes.FileController.getFile(reference).url,
+                      fileReference = reference,
+                      requesterId = uploadDetails.requestorPID,
+                      requesterName = uploadDetails.requestorName,
+                      fileName = fileName,
+                      hc = request.headerCarrier
+                    )
+                  )
+                  Ok.chunked(o.content)
+                }.getOrElse {
+                  logger.warn("No record found for the requested reference in Object Store")
+                  NoContent
+                }
+              }
+            case None =>
+              logger.warn("No uploaded file details found for the requested reference")
+              Future.successful(NoContent)
           }
-        case _ =>
+        case None =>
           logger.warn("No record found for the requested reference")
           Future.successful(NoContent)
       }
