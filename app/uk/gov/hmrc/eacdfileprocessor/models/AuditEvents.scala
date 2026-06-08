@@ -28,7 +28,7 @@ trait AuditEvents {
 
   private val auditSource = "eacd-file-processor"
 
-  private def getTags(hc: HeaderCarrier): Map[String, String] = {
+  private def getTags(hc: HeaderCarrier, transactionName: Option[String] = None, path: Option[String] = None): Map[String, String] = {
     hc.headers(
       Seq(
         "Akamai-Reputation",
@@ -39,7 +39,10 @@ trait AuditEvents {
         "clientPort",
         "deviceID"
       )
-    ).toMap
+    ).toMap ++ AuditExtensions.auditHeaderCarrier(hc).toAuditTags(
+      transactionName.getOrElse(""),
+      path.getOrElse("")
+    )
   }
 
 
@@ -89,7 +92,7 @@ trait AuditEvents {
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "DownloadFile",
-        tags = getTags(hc, "Helpdesk user downloads bulk de-enrolment file", path),
+        tags = getTags(hc, Some("Helpdesk user downloads bulk de-enrolment file"), Some(path)),
         detail = JsObject(
           Seq(
             "fileReference" -> JsString(fileReference),
@@ -101,5 +104,5 @@ trait AuditEvents {
       )
     }
   }
-  
+
 }
