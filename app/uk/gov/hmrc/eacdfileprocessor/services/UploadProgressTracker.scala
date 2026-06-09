@@ -46,7 +46,7 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
         case f: Details.UploadedFailed => Future(FAILED)
         case s: Details.UploadedSuccessfully => Future(SCANNED)
       }
-      _ <- repository.updateStatusAndDetails(fileReference, status, details).flatMap {
+      _ <- repository.updateStatusAndDetails(fileReference, status, details).map {
         case Some(_) if status == SCANNED =>
           val uploadedDetails = details.asInstanceOf[UploadedSuccessfully]
           transferToObjectStore(downloadUrl = uploadedDetails.downloadUrl,
