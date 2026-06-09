@@ -35,7 +35,8 @@ class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig)
   val sec0CacheRefreshHours: Int = config.getOptional[Int]("sec0.cache-refresh-hours").getOrElse(24)
   val sec0GetServicesPath: String = getString("sec0.get-services-path")
   val serviceEnrolmentConfigBaseUrl: String = servicesConfig.baseUrl("service-enrolment-config")
-
+  val enrolmentStoreProxyBaseUrl: String = servicesConfig.baseUrl("enrolment-store-proxy")
+  
   private[config] def getString(key: String): String =
     config.getOptional[String](key).filter(!_.isBlank)
       .getOrElse(throw new RuntimeException(s"Could not find config key '$key'"))

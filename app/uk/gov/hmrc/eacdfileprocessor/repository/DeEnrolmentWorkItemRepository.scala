@@ -17,18 +17,22 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import com.google.inject.ImplementedBy
+import org.mongodb.scala.bson.conversions.Bson
 import org.bson.types.ObjectId
+import org.mongodb.scala.model.*
+import org.mongodb.scala.model.Filters.{and, equal, lte}
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import org.mongodb.scala.model.Filters.{and, equal, lte}
 import org.mongodb.scala.model.*
-import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
-import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, ToDo}
-import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields, WorkItemRepository}
-import uk.gov.hmrc.mongo.workitem.*
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
+import uk.gov.hmrc.mongo.workitem.{WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
+import org.mongodb.scala.model.Filters.{and, equal, in}
+import uk.gov.hmrc.mongo.play.json.Codecs
 
 import java.time.{Duration, Instant}
 import java.util.concurrent.TimeUnit
@@ -39,7 +43,6 @@ import scala.concurrent.{ExecutionContext, Future}
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
-
   def markAsInProgress(id: ObjectId): Future[Boolean]
   def markAsComplete(id: ObjectId): Future[Boolean]
 }
