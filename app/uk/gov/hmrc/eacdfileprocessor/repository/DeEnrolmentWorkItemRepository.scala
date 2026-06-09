@@ -28,7 +28,7 @@ import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus
-import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, ToDo}
 import uk.gov.hmrc.mongo.workitem.{WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
 import org.mongodb.scala.model.Filters.{and, equal, in}
@@ -42,6 +42,8 @@ import scala.concurrent.{ExecutionContext, Future}
 @ImplementedBy(classOf[DeEnrolmentWorkItemMongoRepository])
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
+  def incompleteWorkItemsCountForRef(reference: String): Future[Int]
+  def deleteWorkItemsByReference(reference: String): Future[Unit]
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
   def markAsInProgress(id: ObjectId): Future[Boolean]
   def markAsComplete(id: ObjectId): Future[Boolean]
