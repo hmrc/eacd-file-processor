@@ -26,36 +26,6 @@ trait AuditEvents {
 
   private val auditSource = "eacd-file-processor"
 
-  private def getTags(hc: HeaderCarrier): Map[String, String] = {
-    hc.headers(
-      Seq(
-        "Akamai-Reputation",
-        "X-Request-Chain",
-        "X-Request-ID",
-        "X-Session-ID",
-        "clientIP",
-        "clientPort",
-        "deviceID"
-      )
-    ).toMap
-  }
-
-
-  private def getDownloadTags(hc: HeaderCarrier, path: Option[String] = None): Map[String, String] = {
-    hc.headers(
-      Seq(
-        "clientIP",
-        "X-Request-ID",
-        "deviceID",
-        "clientPort",
-        "X-Request-Chain",
-        "X-Session-ID",
-      )
-    ).toMap ++ AuditExtensions.auditHeaderCarrier(hc).toAuditTags(
-      path.getOrElse("")
-    )
-  }
-
 
   private def getDetails(fileReference: String, requestorId: String, requestorName: String, extraItems: Seq[(String, JsValue)])
                         (implicit request: Request[_]): JsValue = {
@@ -94,7 +64,7 @@ trait AuditEvents {
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "FileFailed",
-        tags = getTags(hc),
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
         detail = getDetails(
           fileReference,
           requestorId,
@@ -117,7 +87,7 @@ trait AuditEvents {
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "DownloadFile",
-        tags = getDownloadTags(hc, Some(path)),
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
           detail = getDownloadDetails(
           fileReference,
           requesterId,
