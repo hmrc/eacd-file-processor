@@ -33,9 +33,6 @@ object FileRecordValidationErrorFormats {
   private given Format[ObjectId] = MongoFormats.objectIdFormat
   private given Format[Instant] = MongoJavatimeFormats.instantFormat
 
-  private given Format[Reference] =
-    Format.at[String](__ \ "value").inmap[Reference](Reference.apply, _.value)
-
   val fileRecordValidationErrorFormat: Format[FileRecordValidationError] =
     ((__ \ "_id").format[ObjectId]
       ~ (__ \ "reference").format[Reference]

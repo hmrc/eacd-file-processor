@@ -16,8 +16,8 @@
 
 package uk.gov.hmrc.eacdfileprocessor
 
+import play.api.inject.{Binding, Module as AppModule}
 import play.api.{Configuration, Environment}
-import play.api.inject.{Binding, Module => AppModule}
 
 import java.time.Clock
 
@@ -29,7 +29,6 @@ class Module extends AppModule {
                        ): Seq[Binding[_]] = {
     bind[Clock].toInstance(Clock.systemDefaultZone) :: // inject if current time needs to be controlled in unit tests
       Nil
-    bind[EmailConnector].to[EmailConnectorImpl] :: Nil
   }
 
 }
