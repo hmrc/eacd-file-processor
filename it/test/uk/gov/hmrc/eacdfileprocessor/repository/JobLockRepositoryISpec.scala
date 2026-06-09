@@ -55,7 +55,7 @@ class JobLockRepositoryISpec extends IntegrationSpec {
       await(repository.lockJob("job-b")) shouldBe true
 
       val updated = await(repository.collection.find(org.mongodb.scala.model.Filters.equal("job", "job-b")).headOption()).value
-      updated.lockCreatedAt.isAfter(Instant.EPOCH) shouldBe true
+      updated.lockExpiration.isAfter(Instant.EPOCH) shouldBe true
     }
 
     "release lock" in {

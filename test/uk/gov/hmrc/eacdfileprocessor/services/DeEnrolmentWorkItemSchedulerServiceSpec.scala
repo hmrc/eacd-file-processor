@@ -26,11 +26,11 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.http.Status.NO_CONTENT
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
-import uk.gov.hmrc.eacdfileprocessor.models.*
+import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, FileStatus, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository, LockingRepository}
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
-import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse}
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse}
 
 import java.net.URI
 import java.time.Instant
@@ -53,7 +53,6 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
   )
 
   trait Setup {
-    given HeaderCarrier = HeaderCarrier()
     val appConfig: AppConfig = mock[AppConfig]
     val deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository = mock[DeEnrolmentWorkItemRepository]
     val fileRecordValidationErrorRepository: FileRecordValidationErrorRepository = mock[FileRecordValidationErrorRepository]
@@ -119,6 +118,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       verify(fileRecordValidationErrorRepository).create(any[FileRecordValidationError])
       verify(fileRepository).incrementFailureCount(Reference(payload.reference))
     }
+
     "only mark work item as succeeded for valid rows" in new Setup {
       when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
         .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
@@ -130,6 +130,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
       verify(fileRepository, never()).incrementFailureCount(any())
     }
+
     "not call agentServiceCache when no work items are pulled" in new Setup {
       when(deEnrolmentWorkItemRepository.pullOutstandingBatch(5)).thenReturn(Future.successful(Seq.empty))
 

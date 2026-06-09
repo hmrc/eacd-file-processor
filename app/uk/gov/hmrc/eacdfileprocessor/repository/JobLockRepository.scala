@@ -49,7 +49,7 @@ class JobLockRepository @Inject()(mongoComponent: MongoComponent, appConfig: App
 
   def lockJob(job: String): Future[Boolean] =
     collection.find(equal("job", job)).headOption().flatMap {
-      case Some(existing) if existing.lockCreatedAt.plus(lockDurationMinutes, ChronoUnit.MINUTES).isAfter(Instant.now(clock)) =>
+      case Some(existing) if existing.lockExpiration.plus(lockDurationMinutes, ChronoUnit.MINUTES).isAfter(Instant.now(clock)) =>
         Future.successful(false)
       case Some(_) =>
         collection
