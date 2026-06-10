@@ -30,6 +30,7 @@ import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate, Retrieval}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
 import org.apache.pekko.NotUsed
@@ -40,12 +41,16 @@ import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import org.bson.types.ObjectId
+import uk.gov.hmrc.eacdfileprocessor.models.{Details, FileStatus, Reference, UploadedDetails}
+import java.net.URL
 
 class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTimeout {
   private val repository = mock[FileRepository]
   val mockCC: ControllerComponents = Helpers.stubControllerComponents()
   val mockConfig: play.api.Configuration = mock[play.api.Configuration]
   val mockAuth: BackendAuthComponents = mock[BackendAuthComponents]
+  val mockAuditConnector: AuditConnector = mock[AuditConnector]
   val objectStoreClient = mock[PlayObjectStoreClient]
 
   implicit lazy val actorSystem: ActorSystem = ActorSystem()
@@ -55,7 +60,7 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
 
 
 
-  object TestStatusController extends FileController(repository, mockCC, mockConfig, mockAuth, objectStoreClient) {
+  object TestStatusController extends FileController(repository, mockCC, mockConfig, mockAuth, mockAuditConnector, objectStoreClient) {
     override def authorisedEntity(
                                    providedPermission: Predicate,
                                    apiName: String
@@ -91,7 +96,24 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
         )
       )
 
-      when(repository.getNameOfFile(any())).thenReturn(Future.successful(Some("test.csv")))
+      val uploadedDetails = UploadedDetails(
+        id = ObjectId.get(),
+        reference = Reference("test-ref"),
+        status = FileStatus.STORED,
+        requestorPID = "pid-123",
+        requestorEmail = "test@example.com",
+        requestorName = "Test User",
+        creationDateTime = Instant.now(),
+        details = Some(Details.UploadedSuccessfully(
+          name = "test.csv",
+          mimeType = "text/csv",
+          downloadUrl = new URL("http://example.com/file"),
+          size = Some(10L),
+          checksum = "abc"
+        ))
+      )
+
+      when(repository.findByReference(any())).thenReturn(Future.successful(Some(uploadedDetails)))
       when(objectStoreClient.getObject[Source[ByteString, NotUsed]](any(), any())(any(), any()))
         .thenReturn(Future.successful(Some(o)))
       val request = FakeRequest(routes.FileController.getFile("test-ref"))
@@ -101,7 +123,24 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
     }
 
     "return NO_CONTENT when no item is found in object store" in {
-      when(repository.getNameOfFile(any())).thenReturn(Future.successful(Some("test.csv")))
+      val uploadedDetails = UploadedDetails(
+        id = ObjectId.get(),
+        reference = Reference("test-ref"),
+        status = FileStatus.STORED,
+        requestorPID = "pid-123",
+        requestorEmail = "test@example.com",
+        requestorName = "Test User",
+        creationDateTime = Instant.now(),
+        details = Some(Details.UploadedSuccessfully(
+          name = "test.csv",
+          mimeType = "text/csv",
+          downloadUrl = new URL("http://example.com/file"),
+          size = Some(10L),
+          checksum = "abc"
+        ))
+      )
+
+      when(repository.findByReference(any())).thenReturn(Future.successful(Some(uploadedDetails)))
       when(objectStoreClient.getObject[Source[ByteString, NotUsed]](any(), any())(any(), any()))
         .thenReturn(Future.successful(None))
       val request = FakeRequest(routes.FileController.getFile("test-ref"))
@@ -110,7 +149,7 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
     }
 
     "return NO_CONTENT when file reference is not found" in {
-      when(repository.getNameOfFile(any())).thenReturn(Future.successful(None))
+      when(repository.findByReference(any())).thenReturn(Future.successful(None))
       val request = FakeRequest(routes.FileController.getFile("test-ref"))
       val result = TestStatusController.getFile("test-ref")(request)
       status(result) shouldBe NO_CONTENT

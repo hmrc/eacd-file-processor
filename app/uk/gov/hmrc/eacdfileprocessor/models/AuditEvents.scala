@@ -16,8 +16,6 @@
 
 package uk.gov.hmrc.eacdfileprocessor.models
 
-import play.api.Configuration
-import play.api.i18n.Messages
 import play.api.libs.json.*
 import play.api.mvc.Request
 import uk.gov.hmrc.http.HeaderCarrier
@@ -27,20 +25,6 @@ import uk.gov.hmrc.play.audit.model.ExtendedDataEvent
 trait AuditEvents {
 
   private val auditSource = "eacd-file-processor"
-
-  private def getTags(hc: HeaderCarrier): Map[String, String] = {
-    hc.headers(
-      Seq(
-        "Akamai-Reputation",
-        "X-Request-Chain",
-        "X-Request-ID",
-        "X-Session-ID",
-        "clientIP",
-        "clientPort",
-        "deviceID"
-      )
-    ).toMap
-  }
 
 
   private def getDetails(fileReference: String, requestorId: String, requestorName: String, extraItems: Seq[(String, JsValue)])
@@ -58,6 +42,20 @@ trait AuditEvents {
     )
   }
 
+  private def getDownloadDetails(fileReference: String, requestorId: String, requestorName: String, fileName: String)
+                        (implicit request: Request[_]): JsValue = {
+
+
+    JsObject(
+      Seq(
+        "fileReference" -> JsString(fileReference),
+        "requesterId" -> JsString(requestorId),
+        "requesterName" -> JsString(requestorName),
+        "fileName" -> JsString(fileName)
+      )
+    )
+  }
+
   object EmailEvent {
     def apply(fileReference: String, requestorId: String, requestorName: String, failureReason: String, failureMessage: String,
               emailAlertSentTo: String, hc: HeaderCarrier)
@@ -66,7 +64,7 @@ trait AuditEvents {
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "FileFailed",
-        tags = getTags(hc),
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
         detail = getDetails(
           fileReference,
           requestorId,
@@ -81,4 +79,23 @@ trait AuditEvents {
     }
 
   }
+
+  object DownloadFileEvent {
+    def apply(path: String, fileReference: String, requesterId: String, requesterName: String, fileName: String, hc: HeaderCarrier)
+             (implicit request: Request[_]): ExtendedDataEvent = {
+
+      ExtendedDataEvent(
+        auditSource = auditSource,
+        auditType = "DownloadFile",
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
+          detail = getDownloadDetails(
+          fileReference,
+          requesterId,
+          requesterName,
+          fileName
+        )
+      )
+    }
+  }
+
 }

@@ -19,9 +19,10 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
-import play.api.mvc.{Action, AnyContent, ControllerComponents, Request}
+import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.eacdfileprocessor.models.Reference
+import uk.gov.hmrc.eacdfileprocessor.models.{AuditEvents, Details, Reference}
+import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.internalauth.client.*
@@ -29,6 +30,7 @@ import uk.gov.hmrc.objectstore.client.Path
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.objectstore.client.play.Implicits.*
+import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -39,29 +41,46 @@ class FileController @Inject()(
                                 val cc: ControllerComponents,
                                 val configuration: Configuration,
                                 val auth: BackendAuthComponents,
+                                val auditConnector: AuditConnector,
                                 val objectStoreClient: PlayObjectStoreClient
-                              )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
+                              )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging with AuditEvents {
   val providedPermission = Predicate.Permission(
     Resource(ResourceType("eacd-file-processor"), ResourceLocation("file")),
     IAAction("ADMIN")
   )
 
   def getFile(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "status")
-    .async { implicit request: Request[AnyContent] =>
-        fileUploadRepo.getNameOfFile(Reference(reference)).flatMap {
-          case Some(fileName) =>
-            val fileLocation = Path.Directory(reference).file(fileName)
-            objectStoreClient.getObject[Source[ByteString, NotUsed]](fileLocation).map {
-              _.map { o =>
-                Ok.chunked(o.content)
-              }.getOrElse {
-                logger.warn("No record found for the requested reference in Object Store")
-                NoContent
+    .async { implicit request: AuthRequest[AnyContent] =>
+      fileUploadRepo.findByReference(Reference(reference)).flatMap {
+        case Some(uploadDetails) =>
+          uploadDetails.details.collect { case Details.UploadedSuccessfully(name, _, _, _, _) => name } match {
+            case Some(fileName) =>
+              val fileLocation = Path.Directory(reference).file(fileName)
+              objectStoreClient.getObject[Source[ByteString, NotUsed]](fileLocation).map {
+                _.map { o =>
+                  auditConnector.sendExtendedEvent(
+                    DownloadFileEvent(
+                      path = routes.FileController.getFile(reference).url,
+                      fileReference = reference,
+                      requesterId = uploadDetails.requestorPID,
+                      requesterName = uploadDetails.requestorName,
+                      fileName = fileName,
+                      hc = request.headerCarrier
+                    )
+                  )
+                  Ok.chunked(o.content)
+                }.getOrElse {
+                  logger.warn("No record found for the requested reference in Object Store")
+                  NoContent
+                }
               }
-            }
-          case _ =>
-            logger.warn("No record found for the requested reference")
-            Future.successful(NoContent)
-        }
+            case None =>
+              logger.warn("No uploaded file details found for the requested reference")
+              Future.successful(NoContent)
+          }
+        case None =>
+          logger.warn("No record found for the requested reference")
+          Future.successful(NoContent)
+      }
     }
 }

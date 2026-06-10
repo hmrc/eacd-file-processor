@@ -32,13 +32,15 @@ import uk.gov.hmrc.eacdfileprocessor.models.Reference
 import java.time.Instant.now
 import java.time.temporal.ChronoUnit.DAYS
 import scala.concurrent.Future
+import java.util.UUID
 
 class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec:
 
   val reference = "08aad019-7f66-4456-8d52-93f12109876f"
 
   override def beforeEach(): Unit = {
-    await(fileRepository.collection.deleteMany(Filters.exists("_id")).toFuture())
+    await(fileRepository.dropCollection())
+    await(fileRepository.ensureIndexes())
   }
 
   "POST /status:reference (integration)" should {
@@ -108,7 +110,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       }
     }
     "return 400 when approver pid is the same as requestor pid" in {
-      val reference: Reference = Reference("ref1")
+      val reference: Reference = Reference(UUID.randomUUID().toString)
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference.value).url)
         .withJsonBody(Json.obj(
           "status" -> "approved",
@@ -118,7 +120,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(reference = reference, status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(id = ObjectId.get(), reference = reference, status = STORED))
         result <- route(app, request).get
       } yield result
       status(resultF) shouldBe BAD_REQUEST
