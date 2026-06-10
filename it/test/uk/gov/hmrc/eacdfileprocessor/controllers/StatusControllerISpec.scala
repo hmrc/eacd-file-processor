@@ -40,7 +40,8 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
   val reference = "08aad019-7f66-4456-8d52-93f12109876f"
 
   override def beforeEach(): Unit = {
-    await(fileRepository.collection.deleteMany(Filters.exists("_id")).toFuture())
+    await(fileRepository.dropCollection())
+    await(fileRepository.ensureIndexes())
   }
 
   "POST /status:reference (integration)" should {
