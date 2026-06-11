@@ -50,7 +50,7 @@ class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker,
           }
           _ <-
             auditConnector.sendExtendedEvent(
-              EmailEvent(
+              EmailEventFailed(
                 fileReference = uploadDetails.reference.value,
                 requestorId = uploadDetails.requestorPID,
                 requestorName = uploadDetails.requestorName,
@@ -61,7 +61,7 @@ class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker,
               )
             )
           _ <-
-            emailConnector.sendEmail(
+            emailConnector.sendFailedEmail(
               requestorName = uploadDetails.requestorName,
               fileName = uploadDetails.details.map {
                 case Details.UploadedSuccessfully(name, _, _, _, _) => name
