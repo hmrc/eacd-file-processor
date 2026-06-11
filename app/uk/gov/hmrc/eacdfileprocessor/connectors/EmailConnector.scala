@@ -16,15 +16,15 @@
 
 package uk.gov.hmrc.eacdfileprocessor.connectors
 
-import javax.inject.{Inject, Singleton}
 import play.api.libs.json.{Json, OWrites}
-import play.api.{Configuration, Logging}
 import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
+import play.api.{Configuration, Logging}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import java.time.Instant
+import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 case class SendEmailRequest(to: Seq[String], templateId: String, parameters: Map[String, String])
@@ -35,14 +35,17 @@ object SendEmailRequest {
 
 trait EmailConnector {
 
-  def sendFailedEmail(requestorName: String, fileName: String, uploadDateTime: Instant, to: String,
-                      reference: String, failureReason: String, failureMessage: String, templateId: String)(
-    implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
+  def sendFailedEmail(requestorName: String, fileName: String, uploadedDateTime: Instant, to: String,
+                          reference: String, failureReason: String, failureMessage: String, templateId: String)(
+                           implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
 
   def sendSuccessEmail(requestorName: String, fileName: String, uploadDateTime: Instant, to: String,
-                      reference: String, fileExpiryDays: String, templateId: String)(
-    implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
+                       reference: String, fileExpiryDays: String, templateId: String)(
+                        implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
 
+  def sendUpdateFileStatusEmail(requestorName: String, fileName: String, uploadedDateTime: Instant, to: String,
+                                approverName: String, approverEmail: String, reference: String, templateId: String)(
+                                 implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
 }
 
 @Singleton
@@ -50,29 +53,20 @@ class EmailConnectorImpl @Inject()(http: HttpClientV2, val runModeConfiguration:
                                    val servicesConfig: ServicesConfig) extends EmailConnector with Logging {
   lazy val serviceUrl: String = s"${servicesConfig.baseUrl("email")}/hmrc/email"
 
-  def sendFailedEmail(requestorName: String, fileName: String, uploadDateTime: Instant, to: String,
-                      reference: String, failureReason: String, failureMessage: String, templateId: String)
-                     (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
+  def sendFailedEmail(requestorName: String, fileName: String, uploadedDateTime: Instant, to: String,
+                          reference: String, failureReason: String, failureMessage: String, templateId: String)
+                         (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
 
     val params = Map(
       "requestorName" -> requestorName,
       "fileName" -> fileName,
-      "uploadedDateTime" -> uploadDateTime.toString,
-      "reference" -> reference ,
+      "uploadedDateTime" -> uploadedDateTime.toString,
+      "reference" -> reference,
       "failureReason" -> failureReason,
       "failureMessage" -> failureMessage
     )
 
-    http.post(url"$serviceUrl").withBody(Json.toJson(SendEmailRequest(Seq(to), templateId, params))).execute.map { resp =>
-      resp.status match {
-        case 202 => true
-        case _ => false
-      }
-    }.recover {
-      case e =>
-        logger.error(s"issue encountered while sending email ${e.getMessage}")
-        false
-    }
+    sendEmail(params, to, templateId)
   }
 
   def sendSuccessEmail(requestorName: String, fileName: String, uploadDateTime: Instant, to: String, reference: String,
@@ -85,6 +79,27 @@ class EmailConnectorImpl @Inject()(http: HttpClientV2, val runModeConfiguration:
       "reference" -> reference,
       "fileExpiryDays" -> fileExpiryDays
     )
+
+    sendEmail(params, to, templateId)
+  }
+
+  def sendUpdateFileStatusEmail(requestorName: String, fileName: String, uploadedDateTime: Instant, to: String,
+                                approverName: String, approverEmail: String, reference: String, templateId: String)
+                               (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
+    val params = Map(
+      "requestorName" -> requestorName,
+      "fileName" -> fileName,
+      "uploadedDateTime" -> uploadedDateTime.toString,
+      "approverName" -> approverName,
+      "approverEmail" -> approverEmail,
+      "reference" -> reference
+    )
+
+    sendEmail(params, to, templateId)
+  }
+
+  private def sendEmail(params: Map[String, String], to: String, templateId: String)
+                       (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
 
     http.post(url"$serviceUrl").withBody(Json.toJson(SendEmailRequest(Seq(to), templateId, params))).execute.map { resp =>
       resp.status match {

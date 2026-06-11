@@ -18,16 +18,13 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{times, verify, when}
-import org.scalatestplus.mockito.MockitoSugar.mock
 import play.api.mvc.AnyContentAsEmpty
 import play.api.test.FakeRequest
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.{Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
 import uk.gov.hmrc.play.audit.http.connector.{AuditConnector, AuditResult}
-import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 
 import scala.concurrent.Future
 
@@ -49,22 +46,21 @@ class UpscanCallbackServiceSpec extends TestSupport with TestData:
 
   "UpscanCallbackService" should {
     "handle ready callback correctly" in new Setup {
-      when(repository.findByReference(any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      when(mockUploadProgressTracker.registerUploadResult(any(), any())(any(), any())).thenReturn(Future.unit)
+      when(mockUploadProgressTracker.registerUploadResult(any(), any())(any())).thenReturn(Future.unit)
 
       await(callbackService.handleCallback(readyCallbackBody))
-      verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any(), any())
+      verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any())
     }
 
     "handle failed callback correctly" in new Setup {
       when(mockUploadProgressTracker.getUploadResult(any())).thenReturn(Future.successful(Some(uploadDetailsWithTimestamp)))
-      when(mockUploadProgressTracker.registerUploadResult(any(), any())(any(), any())).thenReturn(Future.unit)
+      when(mockUploadProgressTracker.registerUploadResult(any(), any())(any())).thenReturn(Future.unit)
       when(mockAuditConnector.sendExtendedEvent(any())(any(), any())).thenReturn(Future.successful(AuditResult.Success))
       when(mockEmailConnector.sendFailedEmail(any(), any(), any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(true))
 
       await(callbackService.handleCallback(failedCallbackBody))
 
-      verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any(), any())
+      verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any())
       verify(mockAuditConnector, org.mockito.Mockito.timeout(1000).times(1)).sendExtendedEvent(any())(any(), any())
       verify(mockEmailConnector, org.mockito.Mockito.timeout(2000).times(1)).sendFailedEmail(
         any(),
@@ -80,11 +76,10 @@ class UpscanCallbackServiceSpec extends TestSupport with TestData:
 
     "handles failed callback when no upload details can be found" in new Setup {
       when(mockUploadProgressTracker.getUploadResult(any())).thenReturn(Future.successful(None))
-      when(mockUploadProgressTracker.registerUploadResult(any(), any())(any(), any())).thenReturn(Future.unit)
-      when(mockAuditConnector.sendExtendedEvent(any())(any(), any())).thenReturn(Future.successful(AuditResult.Success))
+      when(mockUploadProgressTracker.registerUploadResult(any(), any())(any())).thenReturn(Future.unit)
 
       await(callbackService.handleCallback(failedCallbackBody))
 
-      verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any(), any())
+      verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any())
     }
   }

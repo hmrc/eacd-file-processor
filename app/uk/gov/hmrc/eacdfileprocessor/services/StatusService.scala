@@ -31,7 +31,9 @@ import scala.util.{Failure, Success, Try}
 import java.time.Instant
 
 @Singleton
-class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: ExecutionContext) extends Logging {
+class StatusService @Inject()(fileUploadRepo: FileRepository,
+                              auditService: AuditService,
+                              emailService: EmailService)(implicit ec: ExecutionContext) extends Logging {
 
   def updateStatus(reference: String, currentStatus: FileStatus, requestorPID: String, statusApproverDetails: StatusApproverDetails): Future[Result] = {
     Try(FileStatus.valueOf(statusApproverDetails.status.toUpperCase)) match {
@@ -117,7 +119,12 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
     val approverDetails = (Json.toJson(statusApproverDetails).as[JsObject] - "status").as[ApproverDetails]
     fileUploadRepo.updateStatusAndApproverDetails(Reference(reference), FileStatus.valueOf(statusApproverDetails.status.toUpperCase),
       approverDetails, isUploadedRelatedStatus, approvedAt) map {
-      case Some(_) =>
+      case Some(uploadedDetails) =>
+        statusApproverDetails.status match {
+          case APPROVED.value | REJECTED.value =>
+            auditService.auditUpdateFileStatusEvent(uploadedDetails)
+            emailService.sendUpdateFileStatusEmail(uploadedDetails)
+        }
         NoContent
       case None =>
         logger.warn("SERVICE_UNAVAILABLE An unexpected error has occurred")

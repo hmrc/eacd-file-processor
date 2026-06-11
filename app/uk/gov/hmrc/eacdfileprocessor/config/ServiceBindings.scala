@@ -44,16 +44,18 @@ class ServiceBindings extends Module {
   private def bindConfigure(): Seq[Binding[?]] = Seq(
     bindClass(classOf[AppConfig]).toSelf.eagerly()
   )
-  
+
   private def bindConnector(): Seq[Binding[?]] = Seq(
       bindClass(classOf[EmailConnector]).to(classOf[EmailConnectorImpl]).eagerly()
   )
 
   private def bindServices(): Seq[Binding[?]] = Seq(
-      bindClass(classOf[LockService]).toSelf.eagerly(),
-      bindClass(classOf[DeEnrolmentWorkItemValidator]).toSelf.eagerly(),
-      bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly()
-    )
+    bindClass(classOf[LockService]).to(classOf[DefaultLockService]).eagerly(),
+    bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly(),
+    bindClass(classOf[DeEnrolmentWorkItemValidator]).toSelf.eagerly(),
+    bindClass(classOf[AuditService]).toSelf.eagerly(),
+    bindClass(classOf[EmailService]).toSelf.eagerly()
+  )
 
   private def bindControllers(): Seq[Binding[?]] = Seq(
     bindClass(classOf[CallbackController]).toSelf.eagerly(),
