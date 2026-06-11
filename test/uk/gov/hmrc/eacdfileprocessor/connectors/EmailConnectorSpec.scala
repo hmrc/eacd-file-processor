@@ -72,7 +72,7 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
           .thenReturn(Future.successful(HttpResponse(202)))
 
         whenReady(
-          connector.sendEmail(
+          connector.sendFileFailedEmail(
             requestorName, fileName, uploadDateTime, to, reference, failureReason, failureMessage, templateId
           )(hc, ec)) { details =>
           details shouldBe true
@@ -90,7 +90,7 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
           when(mockRequestBuilder.execute[HttpResponse](any(), any()))
             .thenReturn(Future.successful(HttpResponse(status)))
 
-          whenReady(connector.sendEmail(
+          whenReady(connector.sendFileFailedEmail(
             requestorName, fileName, uploadDateTime, to, reference, failureReason, failureMessage, templateId
           )(hc, ec)) { details =>
             details shouldBe false
@@ -108,7 +108,7 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
         when(mockRequestBuilder.execute)
           .thenReturn(Future.failed(new Exception))
 
-        whenReady(connector.sendEmail(
+        whenReady(connector.sendFileFailedEmail(
           requestorName, fileName, uploadDateTime, to, reference, failureReason, failureMessage, templateId
         )(hc, ec)) {
           _ shouldBe false

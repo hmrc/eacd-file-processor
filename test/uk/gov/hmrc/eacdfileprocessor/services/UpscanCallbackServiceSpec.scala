@@ -55,13 +55,13 @@ class UpscanCallbackServiceSpec extends TestSupport with TestData:
       when(mockUploadProgressTracker.getUploadResult(any())).thenReturn(Future.successful(Some(uploadDetailsWithTimestamp)))
       when(mockUploadProgressTracker.registerUploadResult(any(), any())(any())).thenReturn(Future.unit)
       when(mockAuditConnector.sendExtendedEvent(any())(any(), any())).thenReturn(Future.successful(AuditResult.Success))
-      when(mockEmailConnector.sendEmail(any(), any(), any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(true))
+      when(mockEmailConnector.sendFileFailedEmail(any(), any(), any(), any(), any(), any(), any(), any())(any(), any())).thenReturn(Future.successful(true))
 
       await(callbackService.handleCallback(failedCallbackBody))
 
       verify(mockUploadProgressTracker, times(1)).registerUploadResult(any(), any())(any())
       verify(mockAuditConnector, org.mockito.Mockito.timeout(1000).times(1)).sendExtendedEvent(any())(any(), any())
-      verify(mockEmailConnector, org.mockito.Mockito.timeout(2000).times(1)).sendEmail(
+      verify(mockEmailConnector, org.mockito.Mockito.timeout(2000).times(1)).sendFileFailedEmail(
         any(),
         any(),
         any(),

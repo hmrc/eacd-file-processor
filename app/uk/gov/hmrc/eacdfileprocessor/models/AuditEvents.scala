@@ -36,23 +36,7 @@ trait AuditEvents {
         "fileReference" -> JsString(fileReference),
         "requesterId" -> JsString(requestorId),
         "requesterName" -> JsString(requestorName)
-      )
-        ++ Seq(
       ) ++ extraItems
-    )
-  }
-
-  private def getDownloadDetails(fileReference: String, requestorId: String, requestorName: String, fileName: String)
-                        (implicit request: Request[_]): JsValue = {
-
-
-    JsObject(
-      Seq(
-        "fileReference" -> JsString(fileReference),
-        "requesterId" -> JsString(requestorId),
-        "requesterName" -> JsString(requestorName),
-        "fileName" -> JsString(fileName)
-      )
     )
   }
 
@@ -81,18 +65,43 @@ trait AuditEvents {
   }
 
   object DownloadFileEvent {
-    def apply(path: String, fileReference: String, requesterId: String, requesterName: String, fileName: String, hc: HeaderCarrier)
+    def apply(fileReference: String, requesterId: String, requesterName: String, fileName: String, hc: HeaderCarrier)
              (implicit request: Request[_]): ExtendedDataEvent = {
 
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "DownloadFile",
         tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
-          detail = getDownloadDetails(
+          detail = getDetails(
           fileReference,
           requesterId,
           requesterName,
-          fileName
+          Seq("fileName" -> JsString(fileName))
+        )
+      )
+    }
+  }
+
+  object UpdateFileStatusEvent {
+    def apply(fileReference: String, requesterId: String, requesterName: String, approvalId: String, approvalName: String,
+              fileName: String, isFileApproved: Boolean, emailAlertSentTo: String, hc: HeaderCarrier)
+             (implicit request: Request[_]): ExtendedDataEvent = {
+
+      ExtendedDataEvent(
+        auditSource = auditSource,
+        auditType = "UpdateFileStatus",
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
+        detail = getDetails(
+          fileReference,
+          requesterId,
+          requesterName,
+          Seq(
+            "approvalId" -> JsString(approvalId),
+            "approvalName" -> JsString(approvalName),
+            "fileName" -> JsString(fileName),
+            "fileApproved" -> JsBoolean(isFileApproved),
+            "emailAlertSentTo" -> JsString(emailAlertSentTo)
+          )
         )
       )
     }

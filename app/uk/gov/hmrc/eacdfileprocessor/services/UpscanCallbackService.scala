@@ -28,9 +28,8 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker,
-                                      val auditConnector: AuditConnector,
-                                      emailConnector: EmailConnector) extends AuditEvents with Logging {
-
+                                      val auditService: AuditService,
+                                      emailService: EmailService) extends Logging {
 
   def handleCallback(callback: CallbackBody)(implicit ex: ExecutionContext, hc: HeaderCarrier, request: Request[_]): Future[Unit] = {
     val uploadStatus: Option[Details] = callback match {
@@ -48,32 +47,8 @@ class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker,
             case Some(details) => details
             case None => throw new RuntimeException("Upload details not found for reference: " + callback.reference)
           }
-          _ <-
-            auditConnector.sendExtendedEvent(
-              EmailEvent(
-                fileReference = uploadDetails.reference.value,
-                requestorId = uploadDetails.requestorPID,
-                requestorName = uploadDetails.requestorName,
-                failureReason = f.failureDetails.failureReason,
-                failureMessage = f.failureDetails.message,
-                emailAlertSentTo = uploadDetails.requestorEmail,
-                hc = hc
-              )
-            )
-          _ <-
-            emailConnector.sendEmail(
-              requestorName = uploadDetails.requestorName,
-              fileName = uploadDetails.details.map {
-                case Details.UploadedSuccessfully(name, _, _, _, _) => name
-                case _ => ""
-              }.getOrElse(""),
-              to = uploadDetails.requestorEmail,
-              uploadDateTime = uploadDetails.uploadedDateTime.getOrElse(throw new RuntimeException("Upload date time not found for reference: " + callback.reference)),
-              reference = uploadDetails.reference.value,
-              failureReason = f.failureDetails.failureReason,
-              failureMessage = f.failureDetails.message,
-              templateId = "emac_helpdesk_bulk_deenrolment_file_upload_failure"
-            )
+          _ <- auditService.auditFileFailEvent(uploadDetails, f)
+          _ <- emailService.sendFileFailEmail(uploadDetails, f)
         } yield ()).recover {
           case ex => logger.error(s"issue occurred when sending email and audit ${ex.getMessage}")
         }
