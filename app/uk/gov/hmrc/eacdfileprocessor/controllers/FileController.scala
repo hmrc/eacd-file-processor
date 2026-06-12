@@ -49,7 +49,7 @@ class FileController @Inject()(
     IAAction("ADMIN")
   )
 
-  def getFile(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "status")
+  def getFile(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "file")
     .async { implicit request: AuthRequest[AnyContent] =>
       fileUploadRepo.findByReference(Reference(reference)).flatMap {
         case Some(uploadDetails) =>

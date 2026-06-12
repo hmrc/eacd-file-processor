@@ -70,7 +70,10 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
       }
       "return NO_CONTENT when updating to rejected, correct information is supplied and current status is stored" in {
         val statusApproverDetails = StatusApproverDetails(
-          status = "rejected"
+          status = "rejected",
+          approverName = Some("Approver Name"),
+          approverPID = Some("87654321"),
+          approverEmail = Some("approver@hmrc.gov.uk")
         )
         when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
         val result = await(statusService.updateStatus("ref1", STORED, "12345678", statusApproverDetails))
@@ -131,7 +134,10 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
       }
       "return BAD_REQUEST when updating to rejected, correct information is supplied but current status is not stored" in {
         val statusApproverDetails = StatusApproverDetails(
-          status = "rejected"
+          status = "rejected",
+          approverName = Some("Approver Name"),
+          approverPID = Some("87654321"),
+          approverEmail = Some("approver@hmrc.gov.uk")
         )
         val result = await(statusService.updateStatus("ref1", INITIAL, "12345678", statusApproverDetails))
 
@@ -140,7 +146,10 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
       }
       "return BAD_REQUEST when updating to rejected, correct information is supplied but current status is already rejected" in {
         val statusApproverDetails = StatusApproverDetails(
-          status = "rejected"
+          status = "rejected",
+          approverName = Some("Approver Name"),
+          approverPID = Some("87654321"),
+          approverEmail = Some("approver@hmrc.gov.uk")
         )
         val result = await(statusService.updateStatus("ref1", REJECTED, "12345678", statusApproverDetails))
 
@@ -281,6 +290,99 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
           approverEmail = Some("approver_Tim@hmrc.gov.uk")
         )
         val result = await(statusService.updateApprovedStatus(STORED, requestorPID, statusApproverDetails, "ref1"))
+
+        status(result) shouldBe BAD_REQUEST
+        jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("INVALID_PID", "Request and approver PIDs cannot be the same"))
+      }
+    }
+    "updateRejectedStatus" must {
+      "return NO_CONTENT when correct information is supplied and current status is stored" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "rejected",
+          approverName = Some("Approver Name"),
+          approverPID = Some("87654321"),
+          approverEmail = Some("approver@hmrc.gov.uk")
+        )
+        when(repository.updateStatusAndApproverDetails(any(), any(), any(), any(), any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
+        val result = await(statusService.updateRejectedStatus(STORED, "12345678", statusApproverDetails, "ref1"))
+
+        status(result) shouldBe NO_CONTENT
+      }
+      "return BAD_REQUEST when approver email is missing" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "rejected",
+          approverName = Some("Approver Name"),
+          approverPID = Some("87654321")
+        )
+        val result = await(statusService.updateRejectedStatus(SCANNED, "12345678", statusApproverDetails, "ref1"))
+
+        status(result) shouldBe BAD_REQUEST
+        jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
+      }
+      "return BAD_REQUEST when approver name is missing" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "rejected",
+          approverPID = Some("87654321"),
+          approverEmail = Some("approver@hmrc.gov.uk")
+        )
+        val result = await(statusService.updateRejectedStatus(SCANNED, "12345678", statusApproverDetails, "ref1"))
+
+        status(result) shouldBe BAD_REQUEST
+        jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
+      }
+      "return BAD_REQUEST when approver pid is missing" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "rejected",
+          approverName = Some("Approver Name"),
+          approverEmail = Some("approver@hmrc.gov.uk")
+        )
+        val result = await(statusService.updateRejectedStatus(SCANNED, "12345678", statusApproverDetails, "ref1"))
+
+        status(result) shouldBe BAD_REQUEST
+        jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
+      }
+      "return BAD_REQUEST when approver name, pid and email are missing" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "rejected"
+        )
+        val result = await(statusService.updateRejectedStatus(STORED, "12345678", statusApproverDetails, "ref1"))
+
+        status(result) shouldBe BAD_REQUEST
+        jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
+      }
+      "return BAD_REQUEST when approver email is invalid" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "rejected",
+          approverName = Some("Approver Name"),
+          approverPID = Some("87654321"),
+          approverEmail = Some("approver\\Tim@hmrc.gov.uk")
+        )
+        val result = await(statusService.updateRejectedStatus(STORED, "12345678", statusApproverDetails, "ref1"))
+
+        status(result) shouldBe BAD_REQUEST
+        jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("INVALID_APPROVER_EMAIL", "Approver email address is invalid"))
+      }
+      "return BAD_REQUEST when correct information is supplied but current status is scanned" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "rejected",
+          approverName = Some("Approver Name"),
+          approverPID = Some("87654321"),
+          approverEmail = Some("approver@hmrc.gov.uk")
+        )
+        val result = await(statusService.updateRejectedStatus(SCANNED, "12345678", statusApproverDetails, "ref1"))
+
+        status(result) shouldBe BAD_REQUEST
+        jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
+      }
+      "return BAD_REQUEST when approver pid is the same as requestor pid" in {
+        val requestorPID = "12345678"
+        val statusApproverDetails = StatusApproverDetails(
+          status = "rejected",
+          approverName = Some("Approver Name"),
+          approverPID = Some(requestorPID),
+          approverEmail = Some("approver_Tim@hmrc.gov.uk")
+        )
+        val result = await(statusService.updateRejectedStatus(STORED, requestorPID, statusApproverDetails, "ref1"))
 
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("INVALID_PID", "Request and approver PIDs cannot be the same"))
