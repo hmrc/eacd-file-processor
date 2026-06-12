@@ -16,15 +16,26 @@
 
 package uk.gov.hmrc.eacdfileprocessor.models
 
-import play.api.libs.json.{Format, Json, OFormat}
-import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
+import org.scalatest.matchers.should.Matchers.shouldBe
+import play.api.libs.json.Json
+import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 
 import java.time.Instant
 
+class JobLockSpec extends TestSupport {
 
-case class JobLock(job : String, lockExpiration : Instant)
+  "JobLock" should {
 
-object JobLock {
-  private implicit val instantFormat: Format[Instant] = MongoJavatimeFormats.instantFormat
-  implicit val jobLockFormat: OFormat[JobLock] = Json.format[JobLock]
+    "serialize and deserialize using mongo instant format" in {
+      val model = JobLock("DeEnrolmentWorkItemPullJob", Instant.parse("2026-01-01T00:00:00Z"))
+      val format = summon[play.api.libs.json.Format[JobLock]]
+
+      val json = Json.toJson(model)(format)
+      val back = json.as[JobLock](format)
+
+      back shouldBe model
+    }
+  }
 }
+
+

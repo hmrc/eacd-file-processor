@@ -16,51 +16,100 @@
 
 package uk.gov.hmrc.eacdfileprocessor.scheduler
 
-import com.typesafe.config.ConfigFactory
 import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.testkit.{TestActorRef, TestKit}
-import org.mockito.Mockito.mock
-import org.scalatest.BeforeAndAfterAll
-import org.scalatest.wordspec.AnyWordSpecLike
-import org.slf4j
-import play.api.LoggerLike
-import uk.gov.hmrc.eacdfileprocessor.helper.AssertionHelpers
-import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.ProcessApprovedFileMessage
-import uk.gov.hmrc.eacdfileprocessor.services.ProcessApprovedFileService
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.{verify, when}
+import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
+import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.{DeEnrolmentWorkItemPullMessage, ProcessApprovedFileMessage}
+import uk.gov.hmrc.eacdfileprocessor.services.{LockResponse, ProcessApprovedFileService}
 
-class SchedulingActorSpec extends TestKit(
-  ActorSystem("SchedulingActorSpec", ConfigFactory.parseString(
-    """
-  akka {
-    loggers = ["akka.testkit.TestEventListener"]
-  }
-"""))) with AnyWordSpecLike with BeforeAndAfterAll with AssertionHelpers {
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
-  override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+class SchedulingActorSpec extends TestSupport {
+
+  private def withActorSystem(testCode: ActorSystem => Unit): Unit = {
+    val system = ActorSystem("SchedulingActorSpec")
+    try testCode(system)
+    finally Await.result(system.terminate(), 5.seconds)
   }
 
-  "A Scheduling actor" should {
-    val actorRef = TestActorRef(new SchedulingActor)
-    val actor = actorRef.underlyingActor
+  "SchedulingActor" should {
 
-    val loggerLike: LoggerLike = new LoggerLike {
-      override val logger: slf4j.Logger = actor.logger
-    }
+    "invoke ProcessApprovedFileService when ProcessApprovedFileMessage is received" in withActorSystem { system =>
+      val actor = system.actorOf(SchedulingActor.props)
+      val service = mock[ProcessApprovedFileService]
+      val invoked = Promise[Unit]()
 
-    "be able to receive a message" when {
-      Seq(
-        ProcessApprovedFileMessage(mock(classOf[ProcessApprovedFileService]))
-      ) foreach { message =>
-        s"there is a ${message.getClass.getSimpleName}" in {
-          withCaptureOfLoggingFrom(loggerLike) { logs =>
-            actorRef ! message
-            logs.exists(event => event.getMessage.contains(message.getClass.getSimpleName))
-          }
-        }
+      when(service.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+        invoked.success(())
+        Future.successful(Left(()): Either[Unit, LockResponse])
       }
+
+      actor ! ProcessApprovedFileMessage(service)
+
+      Await.result(invoked.future, 2.seconds)
+      verify(service).invoke(using any[ExecutionContext])
+    }
+
+    "invoke ScheduledService when DeEnrolmentWorkItemPullMessage is received" in withActorSystem { system =>
+      val actor = system.actorOf(SchedulingActor.props)
+      val service = mock[ScheduledService[Either[Unit, LockResponse]]]
+      val invoked = Promise[Unit]()
+
+      when(service.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+        invoked.success(())
+        Future.successful(Left(()): Either[Unit, LockResponse])
+      }
+
+      actor ! DeEnrolmentWorkItemPullMessage(service)
+
+      Await.result(invoked.future, 2.seconds)
+      verify(service).invoke(using any[ExecutionContext])
+    }
+
+    "continue handling later messages when a service invocation future fails" in withActorSystem { system =>
+      val actor = system.actorOf(SchedulingActor.props)
+      val failingService = mock[ScheduledService[Either[Unit, LockResponse]]]
+      val succeedingService = mock[ScheduledService[Either[Unit, LockResponse]]]
+      val failingInvoked = Promise[Unit]()
+      val succeedingInvoked = Promise[Unit]()
+
+      when(failingService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+        failingInvoked.success(())
+        Future.failed(new RuntimeException("boom"))
+      }
+      when(succeedingService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+        succeedingInvoked.success(())
+        Future.successful(Left(()): Either[Unit, LockResponse])
+      }
+
+      actor ! DeEnrolmentWorkItemPullMessage(failingService)
+      actor ! DeEnrolmentWorkItemPullMessage(succeedingService)
+
+      Await.result(failingInvoked.future, 2.seconds)
+      Await.result(succeedingInvoked.future, 2.seconds)
+      verify(failingService).invoke(using any[ExecutionContext])
+      verify(succeedingService).invoke(using any[ExecutionContext])
+    }
+
+    "ignore unsupported messages and still process supported scheduled messages" in withActorSystem { system =>
+      val actor = system.actorOf(SchedulingActor.props)
+      val service = mock[ScheduledService[Either[Unit, LockResponse]]]
+      val invoked = Promise[Unit]()
+
+      when(service.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+        invoked.success(())
+        Future.successful(Left(()): Either[Unit, LockResponse])
+      }
+
+      actor ! "unexpected-message"
+      actor ! DeEnrolmentWorkItemPullMessage(service)
+
+      Await.result(invoked.future, 2.seconds)
+      verify(service).invoke(using any[ExecutionContext])
     }
   }
-
 }
+
+

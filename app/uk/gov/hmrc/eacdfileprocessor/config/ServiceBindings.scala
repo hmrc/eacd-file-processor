@@ -20,10 +20,12 @@ import com.typesafe.config.Config
 import play.Environment as JEnvironment
 import play.inject.Module.bindClass
 import play.inject.{Binding, Module}
+import uk.gov.hmrc.eacdfileprocessor.connectors.{EmailConnector, EmailConnectorImpl}
 import uk.gov.hmrc.eacdfileprocessor.controllers.{CallbackController, FileController, InitiateFileStorageController, StatusController}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, DeEnrolmentWorkItemRepository, FileRepository, LockingRepository}
-import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.ProcessApprovedFileJob
+import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{DeEnrolmentWorkItemPullJob, ProcessApprovedFileJob}
 import uk.gov.hmrc.eacdfileprocessor.services.*
+import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 
 import java.util
 import scala.jdk.CollectionConverters.*
@@ -35,17 +37,23 @@ class ServiceBindings extends Module {
         bindServices() ++
         bindControllers() ++
         bindRepositories() ++
-        bindSchedulers()
+        bindSchedulers() ++
+        bindConnector()
       ).asJava
 
   private def bindConfigure(): Seq[Binding[?]] = Seq(
     bindClass(classOf[AppConfig]).toSelf.eagerly()
   )
+  
+  private def bindConnector(): Seq[Binding[?]] = Seq(
+      bindClass(classOf[EmailConnector]).to(classOf[EmailConnectorImpl]).eagerly()
+  )
 
   private def bindServices(): Seq[Binding[?]] = Seq(
-    bindClass(classOf[LockService]).to(classOf[DefaultLockService]).eagerly(),
-    bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly()
-  )
+      bindClass(classOf[LockService]).toSelf.eagerly(),
+      bindClass(classOf[DeEnrolmentWorkItemValidator]).toSelf.eagerly(),
+      bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly()
+    )
 
   private def bindControllers(): Seq[Binding[?]] = Seq(
     bindClass(classOf[CallbackController]).toSelf.eagerly(),
@@ -61,6 +69,7 @@ class ServiceBindings extends Module {
   )
 
   private def bindSchedulers(): Seq[Binding[?]] = Seq(
-    bindClass(classOf[ProcessApprovedFileJob]).toSelf.eagerly()
+    bindClass(classOf[ProcessApprovedFileJob]).toSelf.eagerly(),
+    bindClass(classOf[DeEnrolmentWorkItemPullJob]).toSelf.eagerly()
   )
 }

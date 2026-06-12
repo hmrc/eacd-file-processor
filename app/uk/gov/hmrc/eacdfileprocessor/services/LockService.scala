@@ -19,28 +19,30 @@ package uk.gov.hmrc.eacdfileprocessor.services
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.repository.LockingRepository
 
-import javax.inject.Inject
-import scala.concurrent.{Future, ExecutionContext}
+import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
 
 sealed trait LockResponse
 case object MongoLocked extends LockResponse
 case object UnlockingFailed extends LockResponse
 
-class DefaultLockService @Inject()(val lockingRepository: LockingRepository) extends LockService
+@Singleton
+class LockService @Inject()(lockRepository: LockingRepository) extends Logging {
 
-trait LockService extends Logging {
-
-  val lockingRepository: LockingRepository
-
-  def lockAndRelease[T](job: String)(f: => Future[T])(implicit ec: ExecutionContext): Future[Either[T, LockResponse]] = {
-    lockingRepository.lockJob(job) flatMap {
-      case false => Future(Right(MongoLocked))
-      case true  => //metricsService.setScheduleFileInstance[T](f).flatMap { x =>
-        f.flatMap { x =>
-        lockingRepository.releaseLock(job) map {
-          if(_) Left(x) else Right(UnlockingFailed)
+  def lockAndRelease[T](job: String)(f: => Future[T])(using ExecutionContext): Future[Either[T, LockResponse]] =
+    lockRepository.lockJob(job).flatMap {
+      case false =>
+        logger.info(s"[$job] Existing lock found, skipping this run")
+        Future.successful(Right(MongoLocked))
+      case true =>
+        f.flatMap { result =>
+          lockRepository.releaseLock(job).map {
+            case true => Left(result)
+            case false => Right(UnlockingFailed)
+          }
+        }.recoverWith { case e =>
+          lockRepository.releaseLock(job).map(_ => throw e)
         }
-      }
     }
-  }
 }
+

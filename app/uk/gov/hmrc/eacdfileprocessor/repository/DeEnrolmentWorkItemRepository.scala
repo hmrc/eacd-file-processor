@@ -18,6 +18,9 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 
 import com.google.inject.ImplementedBy
 import org.mongodb.scala.bson.conversions.Bson
+import org.bson.types.ObjectId
+import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
+import org.mongodb.scala.model.Filters.{and, equal, lte}
 import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
@@ -38,10 +41,10 @@ import scala.concurrent.{ExecutionContext, Future}
 @ImplementedBy(classOf[DeEnrolmentWorkItemMongoRepository])
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
-
   def incompleteWorkItemsCountForRef(reference: String): Future[Int]
-
   def deleteWorkItemsByReference(reference: String): Future[Unit]
+  def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
+  def markAsInProgress(id: ObjectId): Future[Boolean]
 }
 
 @Singleton
@@ -120,4 +123,55 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
 
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)
+
+  override def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
+    if (limit <= 0) {
+      Future.successful(Seq.empty)
+    } else {
+      val availableBefore = now()
+      val WORK_ITEM_STATUS = WorkItemFields.default.status
+      val WORK_ITEM_AVAILABLE_AT = WorkItemFields.default.availableAt
+
+      def pullToDoItems(): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
+        collection
+          .find(
+            and(
+                equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
+              lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
+            )
+          )
+          .limit(limit)
+          .toFuture()
+
+      pullToDoItems().flatMap { workItems =>
+        workItems.foldLeft(Future.successful(Vector.empty[WorkItem[DeEnrolmentWorkItem]])) {
+          (accF, workItem) =>
+            accF.flatMap { acc =>
+              markAsInProgress(workItem.id).map {
+                case true  => acc :+ workItem.copy(status = ProcessingStatus.InProgress)
+                case false => acc
+              }
+            }
+        }
+      }
+    }
+  }
+
+  override def markAsInProgress(id: ObjectId): Future[Boolean] =
+    collection
+      .findOneAndUpdate(
+        and(
+          equal(WorkItemFields.default.id, id),
+          equal(WorkItemFields.default.status, ProcessingStatus.ToDo.name),
+        ),
+        Updates.combine(
+          Updates.set(WorkItemFields.default.status, ProcessingStatus.InProgress.name),
+          Updates.set(WorkItemFields.default.updatedAt, now())
+        ),
+        FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
+      )
+      .toFutureOption()
+      .map(_.isDefined)
+
+
 }

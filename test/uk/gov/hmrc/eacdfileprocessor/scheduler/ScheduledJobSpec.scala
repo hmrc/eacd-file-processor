@@ -16,122 +16,97 @@
 
 package uk.gov.hmrc.eacdfileprocessor.scheduler
 
-import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.testkit.TestKit
-import org.mockito.Mockito.*
-import org.scalatest.BeforeAndAfterAll
-import org.scalatestplus.play.PlaySpec
-import org.slf4j
-import org.slf4j.Logger
-import play.api.{Configuration, LoggerLike}
-import uk.gov.hmrc.eacdfileprocessor.helper.AssertionHelpers
-import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.ProcessApprovedFileMessage
-import uk.gov.hmrc.eacdfileprocessor.services.ProcessApprovedFileService
+import org.apache.pekko.actor.{ActorRef, ActorSystem}
+import org.apache.pekko.extension.quartz.QuartzSchedulerExtension
+import org.mockito.ArgumentMatchers.{any, eq as eqTo}
+import org.mockito.Mockito.{never, verify}
+import org.scalatest.matchers.should.Matchers.shouldBe
+import play.api.Configuration
+import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
+import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.DeEnrolmentWorkItemPullMessage
+import uk.gov.hmrc.eacdfileprocessor.services.LockResponse
 
+import scala.concurrent.{ExecutionContext, Future}
 
-class ScheduledJobSpec extends PlaySpec
-  with BeforeAndAfterAll
-  with AssertionHelpers {
+class ScheduledJobSpec extends TestSupport {
 
-  val system: ActorSystem = ActorSystem()
-  val mockProcessApprovedFileService: ProcessApprovedFileService = mock(classOf[ProcessApprovedFileService])
-
-  override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
+  private val scheduledService = new ScheduledService[Either[Unit, LockResponse]] {
+    override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] = Future.successful(Left(()))
   }
 
-  def loggerLike(inspectedLogger: Logger): LoggerLike = {
-    new LoggerLike {
-      override val logger: slf4j.Logger = inspectedLogger
-    }
+  private class TestScheduledJob(configMap: Map[String, Any]) extends ScheduledJob {
+    override val scheduledMessage = DeEnrolmentWorkItemPullMessage(scheduledService)
+    override val config: Configuration = Configuration.from(configMap)
+    override val actorSystem: ActorSystem = mock[ActorSystem]
+    override val jobName: String = "TestScheduledJob"
+    override lazy val scheduler: QuartzSchedulerExtension = mock[QuartzSchedulerExtension]
+    override lazy val schedulingActorRef: ActorRef = null
   }
 
-  "A Scheduled Job" should {
+  "ScheduledJob" should {
 
-    "log that a job has started when enabled" in {
+    "read enabled as false when no enabled configuration is provided" in {
+      val job = TestScheduledJob(Map.empty)
 
-      val enabledJob: ScheduledJob = new ScheduledJob {
-        override val config: Configuration = mock(classOf[Configuration])
-        override val actorSystem: ActorSystem = system
-        override val jobName = "TestJob"
-        override val scheduledMessage: ProcessApprovedFileMessage = ProcessApprovedFileMessage(mockProcessApprovedFileService)
-      }
-
-      when(enabledJob.config.getOptional[Boolean](s"schedules.${enabledJob.jobName}.enabled")).thenReturn(Some(true))
-      when(enabledJob.config.getOptional[String](s"schedules.${enabledJob.jobName}.description")).thenReturn(Some("Test Job's description"))
-      when(enabledJob.config.getOptional[String](s"schedules.${enabledJob.jobName}.expression")).thenReturn(Some("0/10 0 0 ? * * *"))
-
-      withCaptureOfLoggingFrom(loggerLike(enabledJob.logger)) { events =>
-        enabledJob.schedule
-
-        events.exists(event => event.getMessage.contains(s"Scheduler for ${enabledJob.jobName}")) mustBe true
-      }
+      job.enabled shouldBe false
     }
 
-    "log that a job has been explicitly disabled" in {
+    "read optional description when configured" in {
+      val job = TestScheduledJob(Map("schedules.TestScheduledJob.description" -> "Runs test schedule"))
 
-      val disabledJob: ScheduledJob = new ScheduledJob {
-        override val config: Configuration = mock(classOf[Configuration])
-        override val actorSystem: ActorSystem = system
-        override val jobName = "TestJob"
-        override val scheduledMessage: ProcessApprovedFileMessage = ProcessApprovedFileMessage(mockProcessApprovedFileService)
-      }
-
-      when(disabledJob.config.getOptional[Boolean](s"schedules.${disabledJob.jobName}.enabled")).thenReturn(Some(false))
-      when(disabledJob.config.getOptional[String](s"schedules.${disabledJob.jobName}.description")).thenReturn(Some("Test Job's description"))
-      when(disabledJob.config.getOptional[String](s"schedules.${disabledJob.jobName}.expression")).thenReturn(Some("0/10 0 0 ? * * *"))
-
-      withCaptureOfLoggingFrom(loggerLike(disabledJob.logger)) { events =>
-        disabledJob.schedule
-
-        events.exists(event => event.getMessage.contains(s"${disabledJob.jobName} is disabled by configuration")) mustBe true
-      }
+      job.description shouldBe Some("Runs test schedule")
     }
 
-    "log that a job has been disabled due to no quartz expression" in {
+    "replace underscores with spaces in expression" in {
+      val job = TestScheduledJob(Map("schedules.TestScheduledJob.expression" -> "0/5_*_*_?_*_*_*"))
 
-      val disabledJob: ScheduledJob = new ScheduledJob {
-        override val config: Configuration = mock(classOf[Configuration])
-        override val actorSystem: ActorSystem = system
-        override val jobName = "TestJob"
-        override val scheduledMessage: ProcessApprovedFileMessage = ProcessApprovedFileMessage(mockProcessApprovedFileService)
-      }
-
-      when(disabledJob.config.getOptional[Boolean](s"schedules.${disabledJob.jobName}.enabled")).thenReturn(Some(true))
-      when(disabledJob.config.getOptional[String](s"schedules.${disabledJob.jobName}.description")).thenReturn(Some("Test Job's description"))
-      when(disabledJob.config.getOptional[String](s"schedules.${disabledJob.jobName}.expression")).thenReturn(None)
-
-      withCaptureOfLoggingFrom(loggerLike(disabledJob.logger)) { events =>
-        disabledJob.schedule
-
-        events.exists(event => event.getMessage.contains(s"${disabledJob.jobName} is disabled as there is no quartz expression")) mustBe true
-      }
+      job.expression shouldBe "0/5 * * ? * * *"
     }
 
+    "create and register schedule when enabled and expression is present" in {
+      val job = TestScheduledJob(
+        Map(
+          "schedules.TestScheduledJob.enabled" -> true,
+          "schedules.TestScheduledJob.description" -> "My job",
+          "schedules.TestScheduledJob.expression" -> "0/1_*_*_?_*_*_*"
+        )
+      )
+
+      job.schedule
+
+      verify(job.scheduler).createSchedule("TestScheduledJob", Some("My job"), "0/1 * * ? * * *")
+      verify(job.scheduler).schedule(eqTo("TestScheduledJob"), any[ActorRef], any())
+    }
+
+    "not create or register schedule when enabled but expression is missing" in {
+      val job = TestScheduledJob(
+        Map(
+          "schedules.TestScheduledJob.enabled" -> true
+        )
+      )
+
+      job.schedule
+
+      verify(job.scheduler, never()).createSchedule("TestScheduledJob", job.description, job.expression)
+      verify(job.scheduler, never()).schedule(eqTo("TestScheduledJob"), any[ActorRef], any())
+    }
+
+    "not create or register schedule when job is disabled" in {
+      val job = TestScheduledJob(
+        Map(
+          "schedules.TestScheduledJob.enabled" -> false,
+          "schedules.TestScheduledJob.expression" -> "0/1_*_*_?_*_*_*"
+        )
+      )
+
+      job.schedule
+
+      verify(job.scheduler, never()).createSchedule("TestScheduledJob", job.description, "0/1 * * ? * * *")
+      verify(job.scheduler, never()).schedule(eqTo("TestScheduledJob"), any[ActorRef], any())
+    }
   }
 }
 
-object SchedulingFunctionalTest {
-  lazy val sampleConfiguration: Config = {
-    ConfigFactory.parseString(
-      """
-    akka {
-      event-handlers = ["akka.testkit.TestEventListener"]
-      loglevel = "INFO"
-      quartz {
-        defaultTimezone = "UTC"
-      }
-    }
 
-    schedules {
-      TestJob {
-        description = "A cron job that fires off every 30 seconds"
-        expression = "*/30 * * ? * *"
-      }
-    }
 
-    """.stripMargin)
-  }
-}
+

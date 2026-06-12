@@ -28,6 +28,7 @@ import play.api.test.{DefaultAwaitTimeout, FakeRequest}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.Reference
+import org.bson.types.ObjectId
 
 import java.time.Instant.now
 import java.time.temporal.ChronoUnit.DAYS

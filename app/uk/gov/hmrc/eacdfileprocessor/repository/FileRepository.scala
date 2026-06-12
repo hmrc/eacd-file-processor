@@ -19,12 +19,13 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import com.mongodb.client.model.Indexes.descending
 import com.mongodb.client.model.ReturnDocument
 import org.bson.types.ObjectId
+import org.mongodb.scala.{MongoWriteException, model}
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Aggregates.{`match`, group}
 import org.mongodb.scala.model.Filters.equal
-import org.mongodb.scala.model.Updates.{combine, set}
+import org.mongodb.scala.model.Updates.{combine, inc, set}
 import org.mongodb.scala.{MongoWriteException, model}
 import play.api.Logging
 import play.api.libs.functional.syntax.*
@@ -97,6 +98,7 @@ object FileUploadRepoFormat {
     Format.at[String](__ \ "value")
       .inmap[Reference](Reference.apply, _.value)
 
+
   private given Format[Instant] = MongoJavatimeFormats.instantFormat
 
   private given Format[ObjectId] = MongoFormats.objectIdFormat
@@ -115,6 +117,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "lastUpdatedDateTime").formatNullable[Instant]
       ~ (__ \ "approvedAtDateTime").formatNullable[Instant]
       ~ (__ \ "creationDateTime").format[Instant]
+      ~ (__ \ "totalFailureCount").formatNullable[Int]
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 
@@ -226,6 +229,9 @@ class FileRepository @Inject()(
 
   def updateStatus(reference: Reference, status: FileStatus): Future[Option[UploadedDetails]] =
     updateByReference(reference, set("status", Codecs.toBson(status)))
+
+  def incrementFailureCount(reference: Reference): Future[Option[UploadedDetails]] =
+    updateByReference(reference, inc("totalFailureCount", 1))
 
   def getFileStatusCounts: Future[Seq[FileStatusCount]] =
     collection.aggregate[FileStatusCount](Seq(

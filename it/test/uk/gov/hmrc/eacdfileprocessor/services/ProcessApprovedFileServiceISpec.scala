@@ -27,7 +27,7 @@ import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, UnitSpec}
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
-import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, LockingRepository}
+import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
@@ -43,9 +43,7 @@ class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with
   val executionContext = ec
   val fileRepo = fileRepository
   private val objectStoreClient = mock[PlayObjectStoreClient]
-  val mockLockService = new LockService {
-    override val lockingRepository: LockingRepository = lockingRepo
-  }
+  val mockLockService = new LockService(lockingRepo)
 
   private val deEnrolmentWorkItemRepository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, appConfiguration)
 

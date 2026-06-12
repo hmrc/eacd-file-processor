@@ -14,10 +14,18 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.utils
+package uk.gov.hmrc.eacdfileprocessor.models
 
-import scala.concurrent.{ExecutionContext, Future}
+import org.bson.types.ObjectId
 
-trait ScheduledService[R] {
-  def invoke(implicit ec : ExecutionContext) : Future[R]
-}
+import java.time.Instant
+
+final case class FileRecordValidationError(
+  id: ObjectId,
+  reference: Reference,
+  fileName: String,
+  recordDetail: String,
+  errorMessage: String,
+  creationDateTime: Instant = Instant.now()
+)
+

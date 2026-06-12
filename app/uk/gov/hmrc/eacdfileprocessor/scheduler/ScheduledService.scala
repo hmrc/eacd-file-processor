@@ -14,21 +14,11 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor
+package uk.gov.hmrc.eacdfileprocessor.scheduler
 
-import play.api.inject.{Binding, Module as AppModule}
-import play.api.{Configuration, Environment}
+import scala.concurrent.{ExecutionContext, Future}
 
-import java.time.Clock
-
-class Module extends AppModule {
-
-  override def bindings(
-                         environment: Environment,
-                         configuration: Configuration
-                       ): Seq[Binding[_]] = {
-    bind[Clock].toInstance(Clock.systemDefaultZone) :: // inject if current time needs to be controlled in unit tests
-      Nil
-  }
-
+trait ScheduledService[R] {
+  def invoke(using ExecutionContext): Future[R]
 }
+
