@@ -19,8 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import com.google.inject.ImplementedBy
 import org.mongodb.scala.bson.conversions.Bson
 import org.bson.types.ObjectId
-import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
-import org.mongodb.scala.model.Filters.{and, equal, lte}
+import org.mongodb.scala.model.Filters.lte
 import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
