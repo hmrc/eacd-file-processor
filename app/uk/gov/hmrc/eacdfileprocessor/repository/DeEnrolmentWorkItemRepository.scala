@@ -26,7 +26,7 @@ import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
-import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, ToDo}
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{Failed, InProgress, Succeeded, ToDo}
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.workitem.*
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
@@ -42,6 +42,8 @@ import scala.concurrent.{ExecutionContext, Future}
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
   def incompleteWorkItemsCountForRef(reference: String): Future[Int]
+  def succeededWorkItemsCountForRef(reference: String): Future[Int]
+  def failedWorkItemsCountForRef(reference: String): Future[Int]
   def deleteWorkItemsByReference(reference: String): Future[Unit]
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
   def markAsInProgress(id: ObjectId): Future[Boolean]
@@ -111,6 +113,28 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
         s"${WorkItemFields.default.item}.reference", Codecs.toBson(reference)
       ),
       in(workItemFields.status, ToDo, InProgress)
+    )
+
+    collection.countDocuments(selector).toFuture().map(_.toInt)
+  }
+
+  override def succeededWorkItemsCountForRef(reference: String): Future[Int] = {
+    val selector = and(
+      equal(
+        s"${WorkItemFields.default.item}.reference", Codecs.toBson(reference)
+      ),
+      in(workItemFields.status, Succeeded)
+    )
+
+    collection.countDocuments(selector).toFuture().map(_.toInt)
+  }
+
+  override def failedWorkItemsCountForRef(reference: String): Future[Int] = {
+    val selector = and(
+      equal(
+        s"${WorkItemFields.default.item}.reference", Codecs.toBson(reference)
+      ),
+      in(workItemFields.status, Failed)
     )
 
     collection.countDocuments(selector).toFuture().map(_.toInt)

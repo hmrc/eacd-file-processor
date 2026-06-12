@@ -28,7 +28,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus
-import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{Failed, Succeeded, ToDo}
 import uk.gov.hmrc.mongo.workitem.{WorkItem, WorkItemFields}
 
 import scala.language.postfixOps
@@ -119,6 +119,70 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
 
       await(repository.pullOutstandingBatch(0)) shouldBe Seq.empty
       await(repository.pullOutstandingBatch(-1)) shouldBe Seq.empty
+    }
+
+    "return the count of succeeded work items" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref2"))
+
+      await(
+        repository.collection
+          .updateMany(
+            Filters.eq(s"${WorkItemFields.default.item}.reference", "ref1"),
+            Updates.set(WorkItemFields.default.status, Succeeded.name)
+          )
+          .toFuture()
+      )
+
+      val count = await(repository.succeededWorkItemsCountForRef("ref1"))
+      count shouldBe 2
+    }
+
+    "return the count of failed work items" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref2"))
+
+      await(
+        repository.collection
+          .updateMany(
+            Filters.eq(s"${WorkItemFields.default.item}.reference", "ref1"),
+            Updates.set(WorkItemFields.default.status, Failed.name)
+          )
+          .toFuture()
+      )
+
+      val count = await(repository.failedWorkItemsCountForRef("ref1"))
+      count shouldBe 2
+    }
+
+    "return correct counts for mixed succeeded and failed work items" in {
+      val workItem1 = deEnrolmentWorkItems.head.copy(recordDetail = "IR-SA-UTR-success,principal")
+      val workItem2 = deEnrolmentWorkItems.head.copy(recordDetail = "IR-SA-UTR-failure,principal")
+      await(repository.saveRecordDetails(Seq(workItem1, workItem2), "ref1"))
+
+      await(
+        repository.collection
+          .updateOne(
+            Filters.eq(s"${WorkItemFields.default.item}.recordDetail", workItem1.recordDetail),
+            Updates.set(WorkItemFields.default.status, Succeeded.name)
+          )
+          .toFuture()
+      )
+
+      await(
+        repository.collection
+          .updateOne(
+            Filters.eq(s"${WorkItemFields.default.item}.recordDetail", workItem2.recordDetail),
+            Updates.set(WorkItemFields.default.status, Failed.name)
+          )
+          .toFuture()
+      )
+
+      val succeededCount = await(repository.succeededWorkItemsCountForRef("ref1"))
+      val failedCount = await(repository.failedWorkItemsCountForRef("ref1"))
+
+      succeededCount shouldBe 1
+      failedCount shouldBe 1
     }
   }
 }
