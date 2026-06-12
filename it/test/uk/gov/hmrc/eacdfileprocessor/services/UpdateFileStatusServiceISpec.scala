@@ -33,9 +33,7 @@ import scala.concurrent.ExecutionContext
 class UpdateFileStatusServiceISpec extends IntegrationSpec with TestData with UnitSpec with Eventually:
   val executionContext = ec
   val fileRepo = fileRepository
-  val mockLockService = new LockService {
-    override val lockingRepository: LockingRepository = lockingRepo
-  }
+  val mockLockService = new LockService(lockingRepo)
 
   private val deEnrolmentWorkItemRepository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, appConfig)
 
