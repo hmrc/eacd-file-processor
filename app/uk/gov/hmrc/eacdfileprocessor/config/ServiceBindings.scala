@@ -50,7 +50,7 @@ class ServiceBindings extends Module {
   )
 
   private def bindServices(): Seq[Binding[?]] = Seq(
-      bindClass(classOf[LockService]).to(classOf[DefaultLockService]).eagerly(),
+      bindClass(classOf[LockService]).toSelf.eagerly(),
       bindClass(classOf[DeEnrolmentWorkItemValidator]).toSelf.eagerly(),
       bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly(),
       bindClass(classOf[UpdateFileStatusService]).to(classOf[DefaultUpdateFileStatusService]).eagerly()

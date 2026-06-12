@@ -20,7 +20,6 @@ import org.apache.pekko.actor.{Actor, ActorLogging, Props}
 import org.slf4j.{Logger, LoggerFactory}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.ScheduledMessage
 import uk.gov.hmrc.eacdfileprocessor.services.{LockResponse, ProcessApprovedFileService, UpdateFileStatusService}
-import uk.gov.hmrc.eacdfileprocessor.utils.ScheduledService
 
 class SchedulingActor extends Actor with ActorLogging {
   import context.dispatcher

@@ -20,7 +20,7 @@ import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{PROCESSEDSUCCESSFULLY, PROCESSEDWITHERRORS, PROCESSING}
 import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRepository}
-import uk.gov.hmrc.eacdfileprocessor.utils.ScheduledService
+import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
