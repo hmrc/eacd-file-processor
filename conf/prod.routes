@@ -1,3 +1,4 @@
 # Add all the application routes to the app.routes file
 ->         /eacd-file-processor              app.Routes
+->         /eacd-file-processor/support-tool         support.Routes
 ->         /                          health.Routes
