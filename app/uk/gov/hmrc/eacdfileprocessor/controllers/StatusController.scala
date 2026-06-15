@@ -42,13 +42,7 @@ class StatusController @Inject()(
     Resource(ResourceType("eacd-file-processor"), ResourceLocation("status")),
     IAAction("ADMIN")
   )
-  val providedGetStatusCountPermission: Predicate = Predicate.Permission(
-    Resource(ResourceType("eacd-file-processor"), ResourceLocation("getStatusCounts")),
-    IAAction("ADMIN")
-  )
-
-  val fileStatus = List(SCANNED, FAILED, STORED, UPLOADED, UPLOADREJECTED, REJECTED, APPROVED, PROCESSING, PROCESSEDWITHERRORS, PROCESSEDSUCCESSFULLY)
-
+  
   def updateStatus(reference: String): Action[JsValue] = authorisedEntity(providedPermission, "status")
     .async(parse.json) { implicit request: Request[JsValue] =>
 
@@ -86,33 +80,4 @@ class StatusController @Inject()(
           Future.successful(BadRequest(Json.toJson(ApiErrorResponse("STATUS_INVALID", "Invalid status"))))
       }
     }
-
-  def getAllStatusCounts: Action[AnyContent] = authorisedEntity(providedGetStatusCountPermission, "getStatusCounts")
-    .async { implicit request: Request[AnyContent] =>
-      fileUploadRepo.getFileStatusCounts.map {
-        case fileStatusCounts if fileStatusCounts.nonEmpty =>
-          val allStatusCounts = if (fileStatusCounts.size < 10) {
-            generateAllStatusCount(fileStatusCounts)
-          } else {
-            fileStatusCounts
-          }
-          Ok(Json.toJson(allStatusCounts))
-        case _ => NoContent
-      }
-    }
-
-  private[controllers] def generateAllStatusCount(statusCounts: Seq[FileStatusCount]): Seq[FileStatusCount] = {
-    def allStatusCountAcc(accStatusCount: Seq[FileStatusCount], remainingStatuses: List[FileStatus]): Seq[FileStatusCount] = {
-      remainingStatuses match {
-        case Nil => accStatusCount
-        case head :: tail =>
-          val countForStatus = statusCounts
-            .find(fileStatusCount => FileStatus.valueOf(fileStatusCount.status.toUpperCase) == head)
-            .getOrElse(FileStatusCount(head.value, 0))
-          allStatusCountAcc(accStatusCount :+ countForStatus, tail)
-      }
-    }
-
-    allStatusCountAcc(Seq.empty, fileStatus)
-  }
 }
