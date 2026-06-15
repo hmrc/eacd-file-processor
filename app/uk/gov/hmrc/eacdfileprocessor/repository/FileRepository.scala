@@ -118,6 +118,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "approvedAtDateTime").formatNullable[Instant]
       ~ (__ \ "creationDateTime").format[Instant]
       ~ (__ \ "totalFailureCount").formatNullable[Int]
+      ~ (__ \ "totalSuccessCount").formatNullable[Int]
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 
