@@ -17,7 +17,6 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import helper.IntegrationSpec
-import org.mongodb.scala.SingleObservableFuture
 import org.mongodb.scala.model.{Filters, Updates}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers
