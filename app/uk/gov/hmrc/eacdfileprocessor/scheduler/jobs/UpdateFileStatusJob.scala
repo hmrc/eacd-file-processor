@@ -17,6 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.scheduler.jobs
 
 import org.apache.pekko.actor.ActorSystem
+import org.quartz.SchedulerException
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledJob
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.UpdateFileStatusMessage
@@ -31,5 +32,13 @@ class UpdateFileStatusJob @Inject()(val config: Configuration,
   val actorSystem: ActorSystem  = ActorSystem(jobName)
   val scheduledMessage          = UpdateFileStatusMessage(updateFileStatusService)
 
-  schedule
+  try {
+    schedule
+  } catch {
+    case e: SchedulerException if e.getMessage.contains("already exists") =>
+      logger.warn(s"Scheduler for $jobName already exists, skipping initialization (likely in test environment)")
+    case e: SchedulerException =>
+      logger.error(s"Failed to initialize scheduler for $jobName", e)
+      throw e
+  }
 }
