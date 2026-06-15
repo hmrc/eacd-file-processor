@@ -20,8 +20,6 @@ import play.api.libs.json.{JsValue, Json}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.APPROVED
 
-import java.time.Instant
-
 class FileStatusCountSpec extends TestSupport {
   val fileStatusCount: FileStatusCount = FileStatusCount(
     status = APPROVED.value,

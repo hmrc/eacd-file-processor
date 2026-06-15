@@ -19,7 +19,6 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import com.mongodb.client.model.Indexes.descending
 import com.mongodb.client.model.ReturnDocument
 import org.bson.types.ObjectId
-import org.mongodb.scala.{MongoWriteException, model}
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
