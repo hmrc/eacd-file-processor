@@ -1,0 +1,2 @@
+# microservice specific routes
+GET        /file-status-count       uk.gov.hmrc.eacdfileprocessor.support.controllers.StatusController.getAllStatusCounts
