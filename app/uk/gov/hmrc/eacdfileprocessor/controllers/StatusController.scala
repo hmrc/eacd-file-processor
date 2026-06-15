@@ -19,8 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Request}
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
-import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, FileStatus, FileStatusCount, Reference, StatusApproverDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, FileStatus, Reference, StatusApproverDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.services.StatusService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
@@ -42,7 +41,7 @@ class StatusController @Inject()(
     Resource(ResourceType("eacd-file-processor"), ResourceLocation("status")),
     IAAction("ADMIN")
   )
-  
+
   def updateStatus(reference: String): Action[JsValue] = authorisedEntity(providedPermission, "status")
     .async(parse.json) { implicit request: Request[JsValue] =>
 

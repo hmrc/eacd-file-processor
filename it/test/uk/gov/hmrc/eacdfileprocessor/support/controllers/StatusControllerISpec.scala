@@ -18,12 +18,10 @@ package uk.gov.hmrc.eacdfileprocessor.support.controllers
 
 import helper.IntegrationSpec
 import org.bson.types.ObjectId
-import org.mongodb.scala.SingleObservableFuture
-import org.mongodb.scala.model.Filters
 import org.scalatest.matchers.should.Matchers.shouldBe
-import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, UNSUPPORTED_MEDIA_TYPE}
+import play.api.http.Status.{NO_CONTENT, OK}
 import play.api.libs.json.{JsValue, Json}
-import play.api.test.Helpers.{GET, PUT, await, contentAsJson, route, status, writeableOf_AnyContentAsJson, writeableOf_AnyContentAsText}
+import play.api.test.Helpers.{GET, await, contentAsJson, route, status, writeableOf_AnyContentAsJson}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
@@ -31,7 +29,6 @@ import uk.gov.hmrc.eacdfileprocessor.models.Reference
 
 import java.time.Instant.now
 import java.time.temporal.ChronoUnit.DAYS
-import java.util.UUID
 import scala.concurrent.Future
 
 class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec:
@@ -42,7 +39,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
     await(fileRepository.dropCollection())
     await(fileRepository.ensureIndexes())
   }
-  
+
   "GET /file-status-count" should {
     "return 204 when no file within fileExpiryDays" in {
       val request = FakeRequest(GET, routes.StatusController.getAllStatusCounts.url)
@@ -57,8 +54,8 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         .withHeaders("Authorization" -> "Bearer test-token")
       for {
         _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(lastUpdatedDateTime = Some(now().minus(20, DAYS))))
-        _ <- fileRepository.createFileRecord(failedUploadedDetails.copy(reference= Reference("ref1"), lastUpdatedDateTime = Some(now().minus(5, DAYS))))
-        _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(id= ObjectId.get(), reference= Reference("ref3"), status= PROCESSING, lastUpdatedDateTime = Some(now().minus(90, DAYS))))
+        _ <- fileRepository.createFileRecord(failedUploadedDetails.copy(reference = Reference("ref1"), lastUpdatedDateTime = Some(now().minus(5, DAYS))))
+        _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref3"), status = PROCESSING, lastUpdatedDateTime = Some(now().minus(90, DAYS))))
         result <- route(app, request).get
       } yield {
         val resultF = Future(result)

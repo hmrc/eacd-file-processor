@@ -28,9 +28,8 @@ import play.api.mvc.Results.{BadRequest, NoContent, ServiceUnavailable}
 import play.api.test.Helpers.{contentAsJson, contentAsString, status}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, FileStatusCount, StatusDetailsModel}
+import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, StatusDetailsModel}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.services.StatusService
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}

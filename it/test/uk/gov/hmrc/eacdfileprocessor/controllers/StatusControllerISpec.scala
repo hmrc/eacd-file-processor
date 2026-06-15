@@ -21,14 +21,12 @@ import org.bson.types.ObjectId
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, UNSUPPORTED_MEDIA_TYPE}
 import play.api.libs.json.{JsValue, Json}
-import play.api.test.Helpers.{GET, PUT, await, contentAsJson, route, status, writeableOf_AnyContentAsJson, writeableOf_AnyContentAsText}
+import play.api.test.Helpers.{PUT, await, contentAsJson, route, status, writeableOf_AnyContentAsJson, writeableOf_AnyContentAsText}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.Reference
 
-import java.time.Instant.now
-import java.time.temporal.ChronoUnit.DAYS
 import java.util.UUID
 import scala.concurrent.Future
 
@@ -93,6 +91,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       }
     }
     "return 204 when updating status to rejected" in {
+      val reference = UUID.randomUUID().toString
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
         .withJsonBody(Json.obj(
           "status" -> "rejected",
@@ -102,7 +101,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(reference = Reference(reference), status = STORED))
         result <- route(app, request).get
         uploadedFileDetails <- fileRepository.findByReference(Reference(reference))
       } yield (result, uploadedFileDetails)

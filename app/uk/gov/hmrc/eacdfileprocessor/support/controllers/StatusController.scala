@@ -16,20 +16,19 @@
 
 package uk.gov.hmrc.eacdfileprocessor.support.controllers
 
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Request}
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
-import uk.gov.hmrc.eacdfileprocessor.services.StatusService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.internalauth.client.*
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
 import scala.annotation.tailrec
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 @Singleton
 class StatusController @Inject()(
@@ -45,7 +44,7 @@ class StatusController @Inject()(
 
   val fileStatus: Seq[FileStatus] = Seq(SCANNED, FAILED, STORED, UPLOADED, UPLOADREJECTED, REJECTED, APPROVED,
     PROCESSING, PROCESSEDWITHERRORS, PROCESSEDSUCCESSFULLY)
-  
+
   def getAllStatusCounts: Action[AnyContent] = authorisedEntity(providedPermission, "getStatusCounts")
     .async { implicit request: Request[AnyContent] =>
       fileUploadRepo.getFileStatusCounts.map {
