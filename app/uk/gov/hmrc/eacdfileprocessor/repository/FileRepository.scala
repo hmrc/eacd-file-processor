@@ -26,7 +26,6 @@ import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Aggregates.{`match`, group}
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.{combine, inc, set}
-import org.mongodb.scala.{MongoWriteException, model}
 import play.api.Logging
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*

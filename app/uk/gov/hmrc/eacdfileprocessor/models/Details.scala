@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.models
 
 import org.bson.types.ObjectId
 import play.api.libs.functional.syntax.*
-import play.api.libs.json.{Format, JsNumber, JsObject, JsString, Json, OFormat, Reads, Writes, __}
+import play.api.libs.json.{Format, JsObject, Json, OFormat, Reads, Writes, __}
 
 import java.net.URL
 import java.time.Instant

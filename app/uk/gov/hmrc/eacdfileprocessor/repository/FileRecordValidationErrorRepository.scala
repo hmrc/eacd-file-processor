@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import org.bson.types.ObjectId
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, toInvariantFunctorOps}
+import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
 import uk.gov.hmrc.mongo.MongoComponent

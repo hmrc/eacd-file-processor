@@ -21,8 +21,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.{CallbackBody, Details, FailedCallba
 import uk.gov.hmrc.http.HeaderCarrier
 import play.api.mvc.Request
 import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
-import uk.gov.hmrc.eacdfileprocessor.models.{AuditEvents, CallbackBody, Details, FailedCallbackBody, ReadyCallbackBody}
-import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier}
+import uk.gov.hmrc.eacdfileprocessor.models.AuditEvents
 import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 
 import javax.inject.{Inject, Singleton}
