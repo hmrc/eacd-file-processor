@@ -22,6 +22,7 @@ import org.apache.pekko.util.ByteString
 import play.api.libs.streams.Accumulator
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
+import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.services.FileDetailService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
@@ -85,5 +86,20 @@ class TestController @Inject()(
           InternalServerError("Error deleting documents")
       }
   }
-  
+
+
+  def getFileDetail(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "file-detail")
+    .async { implicit request: AuthRequest[AnyContent] =>
+      fileDetailService.getFileDetail(reference)
+        .map {
+          case Some(details) => Ok(details.toString)
+          case None => NoContent
+        }
+        .recover {
+          case e: Exception =>
+            logger.error(s"Error retrieving details for reference '$reference'", e)
+            InternalServerError("Error retrieving details")
+        }
+    }
+
 }
