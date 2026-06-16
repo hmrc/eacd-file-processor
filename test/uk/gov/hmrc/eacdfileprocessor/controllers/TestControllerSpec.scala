@@ -203,11 +203,12 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
       verify(mockFileDetailService, times(1)).getFileDetail(eqTo(specificRef))
     }
 
-        "call the service exactly once per request" in {
+    "call the service exactly once per request" in {
       org.mockito.Mockito.reset(mockFileDetailService)
       when(mockFileDetailService.getFileDetail(any())).thenReturn(Future.successful(Some(successResponse)))
 
-      controller.getFileDetail("test-ref-123")(FakeRequest(GET, "/test-only/file-detail/test-ref-123"))
+      val result = controller.getFileDetail("test-ref-123")(FakeRequest(GET, "/test-only/file-detail/test-ref-123"))
+      status(result) shouldBe OK
 
       verify(mockFileDetailService, times(1)).getFileDetail(any())
     }
@@ -216,7 +217,8 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
       org.mockito.Mockito.reset(mockFileDetailService)
       when(mockFileDetailService.getFileDetail(any())).thenReturn(Future.successful(None))
 
-      controller.getFileDetail("test-ref-123")(FakeRequest(GET, "/test-only/file-detail/test-ref-123"))
+      val result = controller.getFileDetail("test-ref-123")(FakeRequest(GET, "/test-only/file-detail/test-ref-123"))
+      status(result) shouldBe NO_CONTENT
 
       verify(mockFileDetailService, times(1)).getFileDetail(any())
     }
