@@ -93,7 +93,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       }
     }
     "return 204 when updating status to rejected" in {
-      val reference = UUID.randomUUID().toString
+      lazy val reference = UUID.randomUUID().toString
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
         .withJsonBody(Json.obj(
           "status" -> "rejected",
