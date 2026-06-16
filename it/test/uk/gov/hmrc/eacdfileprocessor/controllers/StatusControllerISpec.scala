@@ -101,8 +101,12 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(reference = reference, status = STORED))
-          .recover { case _: uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException => () }
+        existing <- fileRepository.findByReference(reference)
+        _ <- if (existing.isEmpty) {
+          fileRepository.createFileRecord(initiateUploadDetails.copy(reference = reference, status = STORED))
+        } else {
+          Future.successful(())
+        }
         result <- route(app, request).get
         uploadedFileDetails <- fileRepository.findByReference(reference)
       } yield (result, uploadedFileDetails)
