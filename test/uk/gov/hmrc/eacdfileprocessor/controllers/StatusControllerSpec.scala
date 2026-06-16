@@ -18,19 +18,18 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import org.apache.pekko.stream.Materializer
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{verify, when}
+import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
 import org.scalatestplus.mockito.MockitoSugar.mock
-import play.api.http.Status.{BAD_REQUEST, INTERNAL_SERVER_ERROR, NO_CONTENT, OK, SERVICE_UNAVAILABLE}
+import play.api.http.Status.*
 import play.api.libs.json.Json
-import play.api.mvc.Results.{BadRequest, NoContent, ServiceUnavailable}
 import play.api.mvc.*
+import play.api.mvc.Results.{BadRequest, NoContent, ServiceUnavailable}
 import play.api.test.Helpers.{contentAsJson, contentAsString, status}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
-import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, FileStatusCount, StatusDetailsModel}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
+import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, StatusDetailsModel}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.services.StatusService
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}

@@ -30,7 +30,6 @@ import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.Inject
 import scala.concurrent.Future
-import java.time.Instant
 
 class InitiateFileStorageController @Inject()(
                                                val fileRepo: FileRepository,

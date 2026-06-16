@@ -17,12 +17,10 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import play.api.Logging
-import uk.gov.hmrc.eacdfileprocessor.models.{CallbackBody, Details, FailedCallbackBody, ReadyCallbackBody}
-import uk.gov.hmrc.http.HeaderCarrier
 import play.api.mvc.Request
 import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
-import uk.gov.hmrc.eacdfileprocessor.models.{AuditEvents, CallbackBody, Details, FailedCallbackBody, ReadyCallbackBody}
-import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier}
+import uk.gov.hmrc.eacdfileprocessor.models.*
+import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 
 import javax.inject.{Inject, Singleton}
@@ -52,30 +50,30 @@ class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker,
           }
           _ <-
             auditConnector.sendExtendedEvent(
-            EmailEvent(
-              fileReference = uploadDetails.reference.value,
-              requestorId = uploadDetails.requestorPID,
-              requestorName = uploadDetails.requestorName,
-              failureReason = f.failureDetails.failureReason,
-              failureMessage = f.failureDetails.message,
-              emailAlertSentTo = uploadDetails.requestorEmail,
-              hc = hc
+              EmailEvent(
+                fileReference = uploadDetails.reference.value,
+                requestorId = uploadDetails.requestorPID,
+                requestorName = uploadDetails.requestorName,
+                failureReason = f.failureDetails.failureReason,
+                failureMessage = f.failureDetails.message,
+                emailAlertSentTo = uploadDetails.requestorEmail,
+                hc = hc
+              )
             )
-          )
           _ <-
             emailConnector.sendEmail(
-            requestorName = uploadDetails.requestorName,
-            fileName = uploadDetails.details.map {
-              case Details.UploadedSuccessfully(name, _, _, _, _) => name
-              case _ => ""
-            }.getOrElse(""),
-            to = uploadDetails.requestorEmail,
-            uploadDateTime = uploadDetails.uploadedDateTime.getOrElse(throw new RuntimeException("Upload date time not found for reference: " + callback.reference)),
-            reference = uploadDetails.reference.value,
-            failureReason = f.failureDetails.failureReason,
-            failureMessage = f.failureDetails.message,
-            templateId = "emac_helpdesk_bulk_deenrolment_file_upload_failure"
-          )
+              requestorName = uploadDetails.requestorName,
+              fileName = uploadDetails.details.map {
+                case Details.UploadedSuccessfully(name, _, _, _, _) => name
+                case _ => ""
+              }.getOrElse(""),
+              to = uploadDetails.requestorEmail,
+              uploadDateTime = uploadDetails.uploadedDateTime.getOrElse(throw new RuntimeException("Upload date time not found for reference: " + callback.reference)),
+              reference = uploadDetails.reference.value,
+              failureReason = f.failureDetails.failureReason,
+              failureMessage = f.failureDetails.message,
+              templateId = "emac_helpdesk_bulk_deenrolment_file_upload_failure"
+            )
         } yield ()).recover {
           case ex => logger.error(s"issue occurred when sending email and audit ${ex.getMessage}")
         }
