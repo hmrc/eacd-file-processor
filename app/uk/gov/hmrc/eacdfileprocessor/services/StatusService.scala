@@ -24,6 +24,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.FileStatus._
 import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, ApproverDetails, FileStatus, Reference, StatusApproverDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.utils.ValidationUtil
+import uk.gov.hmrc.http.HeaderCarrier
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -35,7 +36,8 @@ class StatusService @Inject()(fileUploadRepo: FileRepository,
                               auditService: AuditService,
                               emailService: EmailService)(implicit ec: ExecutionContext) extends Logging {
 
-  def updateStatus(reference: String, currentStatus: FileStatus, requestorPID: String, statusApproverDetails: StatusApproverDetails): Future[Result] = {
+  def updateStatus(reference: String, currentStatus: FileStatus, requestorPID: String,
+                   statusApproverDetails: StatusApproverDetails)(implicit hc: HeaderCarrier): Future[Result] = {
     Try(FileStatus.valueOf(statusApproverDetails.status.toUpperCase)) match {
       case Success(newStatus) =>
         newStatus match
@@ -64,7 +66,7 @@ class StatusService @Inject()(fileUploadRepo: FileRepository,
   }
 
   private[services] def updateApprovedStatus(currentStatus: FileStatus, requestorPID: String, statusApproverDetails: StatusApproverDetails,
-                                             reference: String): Future[Result] = {
+                                             reference: String)(implicit hc: HeaderCarrier): Future[Result] = {
     approverDetailsValidation(currentStatus, requestorPID, statusApproverDetails) match
       case Some(errorResponse) =>
         Future.successful(BadRequest(Json.toJson(errorResponse)))
@@ -73,7 +75,7 @@ class StatusService @Inject()(fileUploadRepo: FileRepository,
   }
 
   private[services] def updateRejectedStatus(currentStatus: FileStatus, requestorPID: String, statusApproverDetails: StatusApproverDetails,
-                                             reference: String): Future[Result] = {
+                                             reference: String)(implicit hc: HeaderCarrier): Future[Result] = {
     approverDetailsValidation(currentStatus, requestorPID, statusApproverDetails) match
       case Some(errorResponse) =>
         Future.successful(BadRequest(Json.toJson(errorResponse)))
@@ -102,7 +104,8 @@ class StatusService @Inject()(fileUploadRepo: FileRepository,
     Option(error)
   }
 
-  private[services] def updateUploadRejectedStatus(currentStatus: FileStatus, statusApproverDetails: StatusApproverDetails, reference: String): Future[Result] = {
+  private[services] def updateUploadRejectedStatus(currentStatus: FileStatus, statusApproverDetails: StatusApproverDetails,
+                                                   reference: String)(implicit hc: HeaderCarrier): Future[Result] = {
     (statusApproverDetails.errorCode, statusApproverDetails.errorMessage) match
       case (Some(code), Some(message)) if currentStatus != INITIAL =>
         logger.warn("INVALID_STATUS_TRANSITION Invalid status transition")
@@ -115,13 +118,12 @@ class StatusService @Inject()(fileUploadRepo: FileRepository,
   }
 
   private[services] def updateStatusToRepo(reference: String, statusApproverDetails: StatusApproverDetails,
-                                           isUploadedRelatedStatus: Boolean = false, approvedAt: Option[Instant] = None): Future[Result] = {
+                                           isUploadedRelatedStatus: Boolean = false, approvedAt: Option[Instant] = None)(implicit hc: HeaderCarrier): Future[Result] = {
     val approverDetails = (Json.toJson(statusApproverDetails).as[JsObject] - "status").as[ApproverDetails]
     fileUploadRepo.updateStatusAndApproverDetails(Reference(reference), FileStatus.valueOf(statusApproverDetails.status.toUpperCase),
       approverDetails, isUploadedRelatedStatus, approvedAt) map {
       case Some(uploadedDetails) =>
-        statusApproverDetails.status match {
-          case APPROVED.value | REJECTED.value =>
+        if (statusApproverDetails.status == APPROVED.value || statusApproverDetails.status == REJECTED.value) {
             auditService.auditUpdateFileStatusEvent(uploadedDetails)
             emailService.sendUpdateFileStatusEmail(uploadedDetails)
         }

@@ -16,23 +16,23 @@
 
 package uk.gov.hmrc.eacdfileprocessor.connectors
 
-import java.util.UUID
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.*
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.matchers.should.Matchers.shouldBe
+import play.api.Configuration
 import play.api.libs.json.JsValue
 import play.api.test.Helpers
-import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, UnitSpec}
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, SessionId}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.*
+import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
-import org.scalatest.matchers.should.Matchers.shouldBe
 
 
 class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
@@ -79,7 +79,7 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
         }
       }
 
-      for(status <- List(200, 201, 400, 500, 501, 503)) {
+      for (status <- List(200, 201, 400, 500, 501, 503)) {
         s"return failed if $status response received" in {
           when(mockHttp.post(any())(any()))
             .thenReturn(mockRequestBuilder)
