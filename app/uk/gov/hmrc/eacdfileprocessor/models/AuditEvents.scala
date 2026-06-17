@@ -17,7 +17,6 @@
 package uk.gov.hmrc.eacdfileprocessor.models
 
 import play.api.libs.json.*
-import play.api.mvc.Request
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.play.audit.AuditExtensions
 import uk.gov.hmrc.play.audit.model.ExtendedDataEvent
@@ -27,9 +26,7 @@ trait AuditEvents {
   private val auditSource = "eacd-file-processor"
 
 
-  private def getDetails(fileReference: String, requestorId: String, requestorName: String, extraItems: Seq[(String, JsValue)])
-                        (implicit request: Request[_]): JsValue = {
-
+  private def getDetails(fileReference: String, requestorId: String, requestorName: String, extraItems: Seq[(String, JsValue)]): JsValue = {
 
     JsObject(
       Seq(
@@ -40,10 +37,9 @@ trait AuditEvents {
     )
   }
 
-  object EmailEvent {
+  object FileFailEvent {
     def apply(fileReference: String, requestorId: String, requestorName: String, failureReason: String, failureMessage: String,
-              emailAlertSentTo: String, hc: HeaderCarrier)
-             (implicit request: Request[_]): ExtendedDataEvent = {
+              emailAlertSentTo: String, hc: HeaderCarrier): ExtendedDataEvent = {
 
       ExtendedDataEvent(
         auditSource = auditSource,
@@ -65,14 +61,13 @@ trait AuditEvents {
   }
 
   object DownloadFileEvent {
-    def apply(fileReference: String, requesterId: String, requesterName: String, fileName: String, hc: HeaderCarrier)
-             (implicit request: Request[_]): ExtendedDataEvent = {
+    def apply(fileReference: String, requesterId: String, requesterName: String, fileName: String, hc: HeaderCarrier): ExtendedDataEvent = {
 
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "DownloadFile",
         tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
-          detail = getDetails(
+        detail = getDetails(
           fileReference,
           requesterId,
           requesterName,
@@ -84,8 +79,7 @@ trait AuditEvents {
 
   object UpdateFileStatusEvent {
     def apply(fileReference: String, requesterId: String, requesterName: String, approvalId: String, approvalName: String,
-              fileName: String, isFileApproved: Boolean, emailAlertSentTo: String, hc: HeaderCarrier)
-             (implicit request: Request[_]): ExtendedDataEvent = {
+              fileName: String, isFileApproved: Boolean, emailAlertSentTo: String, hc: HeaderCarrier): ExtendedDataEvent = {
 
       ExtendedDataEvent(
         auditSource = auditSource,

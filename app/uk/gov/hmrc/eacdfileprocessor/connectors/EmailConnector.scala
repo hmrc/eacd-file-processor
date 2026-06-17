@@ -16,11 +16,13 @@
 
 package uk.gov.hmrc.eacdfileprocessor.connectors
 
+import play.api.http.Status.ACCEPTED
 import play.api.libs.json.{Json, OWrites}
 import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
 import play.api.{Configuration, Logging}
+import uk.gov.hmrc.http.HttpReads.Implicits.*
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, StringContextOps}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import java.time.Instant
@@ -45,8 +47,10 @@ trait EmailConnector {
 }
 
 @Singleton
-class EmailConnectorImpl @Inject()(http: HttpClientV2, val runModeConfiguration: Configuration,
+class EmailConnectorImpl @Inject()(http: HttpClientV2,
+                                   val runModeConfiguration: Configuration,
                                    val servicesConfig: ServicesConfig) extends EmailConnector with Logging {
+
   lazy val serviceUrl: String = s"${servicesConfig.baseUrl("email")}/hmrc/email"
 
   def sendFileFailedEmail(requestorName: String, fileName: String, uploadedDateTime: Instant, to: String,
@@ -83,15 +87,18 @@ class EmailConnectorImpl @Inject()(http: HttpClientV2, val runModeConfiguration:
   private def sendEmail(params: Map[String, String], to: String, templateId: String)
                        (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
 
-    http.post(url"$serviceUrl").withBody(Json.toJson(SendEmailRequest(Seq(to), templateId, params))).execute.map { resp =>
-      resp.status match {
-        case 202 => true
-        case _ => false
+    http.post(url"$serviceUrl")
+      .withBody(Json.toJson(SendEmailRequest(Seq(to), templateId, params)))
+      .execute[HttpResponse]
+      .map { resp =>
+        resp.status match {
+          case ACCEPTED => true
+          case _ => false
+        }
+      }.recover {
+        case e =>
+          logger.error(s"issue encountered while sending email ${e.getMessage}")
+          false
       }
-    }.recover {
-      case e =>
-        logger.error(s"issue encountered while sending email ${e.getMessage}")
-        false
-    }
   }
 }

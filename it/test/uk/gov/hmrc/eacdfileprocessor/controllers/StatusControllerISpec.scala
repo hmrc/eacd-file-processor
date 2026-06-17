@@ -27,6 +27,7 @@ import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.Reference
 
+import java.time.Instant.now
 import java.util.UUID
 import scala.concurrent.Future
 
@@ -50,12 +51,12 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED, uploadedDateTime = Some(now())))
         result <- route(app, request).get
         uploadedFileDetails <- fileRepository.findByReference(Reference(reference))
       } yield {
         status(Future(result)) shouldBe NO_CONTENT
-        uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(false)
+        uploadedFileDetails.map(_.approvedAtDateTime.isDefined) shouldBe Some(true)
       }
     }
     "return 204 when updating status to upload rejected and correct information were supplied " in {
@@ -107,7 +108,6 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       } yield (result, uploadedFileDetails)
       status(resultF.map(_._1)) shouldBe NO_CONTENT
       val uploadedDetails = await(resultF.map(_._2))
-      uploadedDetails.map(_.uploadedDateTime.isDefined).get shouldBe false
       uploadedDetails.map(_.approvedAtDateTime.isDefined).get shouldBe false
     }
     "return 400 when approver pid is the same as requestor pid" in {

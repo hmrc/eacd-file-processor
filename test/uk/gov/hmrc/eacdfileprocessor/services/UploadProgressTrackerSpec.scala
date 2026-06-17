@@ -49,8 +49,10 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
     val objectStoreClient: PlayObjectStoreClient = mock[PlayObjectStoreClient]
     val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
     val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
+    val mockAuditService: AuditService = mock[AuditService]
+    val mockEmailService: EmailService = mock[EmailService]
 
-    val progressTracker = UploadProgressTracker(repository, mockAppConfig, objectStoreClient)()
+    val progressTracker = UploadProgressTracker(repository, mockAppConfig, objectStoreClient, mockAuditService, mockEmailService)
 
     when(mockHttpClientV2.post(any())(any())).thenReturn(mockRequestBuilder)
     when(mockRequestBuilder.withBody(any())(any(), any(), any())).thenReturn(mockRequestBuilder)
@@ -94,6 +96,8 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
 
       await(progressTracker.registerUploadResult(reference, failedFileDetails))
       verify(repository, times(0)).updateStatus(any(), any())
+      verify(mockAuditService, org.mockito.Mockito.timeout(1000).times(1)).auditFileFailEvent(any(), any())(any())
+      verify(mockEmailService, org.mockito.Mockito.timeout(2000).times(1)).sendFileFailEmail(any(), any())(any())
     }
 
     "Failed to upload file to object store and status remained scanned" in new Setup {

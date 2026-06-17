@@ -16,41 +16,33 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
-import play.api.Logging
-import play.api.libs.json.{JsObject, Json}
-import play.api.mvc.Results.{BadRequest, NoContent, ServiceUnavailable}
-import play.api.mvc.{Request, Result}
 import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
 import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
-import uk.gov.hmrc.eacdfileprocessor.utils.ValidationUtil
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 
 import java.time.Instant
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success, Try}
 
 @Singleton
-class EmailService @Inject()(emailConnector: EmailConnector)(implicit ec: ExecutionContext, hc: HeaderCarrier) {
+class EmailService @Inject()(emailConnector: EmailConnector)(implicit ec: ExecutionContext) {
 
-  def sendFileFailEmail(uploadDetails: UploadedDetails, failedCallbackBody: FailedCallbackBody): Future[Boolean] = {
+  def sendFileFailEmail(uploadDetails: UploadedDetails, failureDetails: Details.UploadedFailed)(implicit hc: HeaderCarrier): Future[Boolean] = {
     emailConnector.sendFileFailedEmail(
       requestorName = uploadDetails.requestorName,
       fileName = uploadDetails.details.map(Details.getFileName).getOrElse(""),
       to = uploadDetails.requestorEmail,
       uploadedDateTime = uploadDetails.uploadedDateTime.getOrElse(
-        throw new RuntimeException(s"Upload date time not found for reference: ${uploadDetails.reference.value}")),
+        throw new RuntimeException(s"Uploaded date time not found for reference: ${uploadDetails.reference.value}")),
       reference = uploadDetails.reference.value,
-      failureReason = failedCallbackBody.failureDetails.failureReason,
-      failureMessage = failedCallbackBody.failureDetails.message,
+      failureReason = failureDetails.failureReason,
+      failureMessage = failureDetails.message,
       templateId = "emac_helpdesk_bulk_deenrolment_file_upload_failure"
     )
   }
 
-  def sendUpdateFileStatusEmail(uploadedDetails: UploadedDetails): Future[Boolean] = {
+  def sendUpdateFileStatusEmail(uploadedDetails: UploadedDetails)(implicit hc: HeaderCarrier): Future[Boolean] = {
     val approverDetails = uploadedDetails.approverDetails.getOrElse(
       throw new RuntimeException(s"Approver details not found for file reference: ${uploadedDetails.reference.value}"))
     emailConnector.sendUpdateFileStatusEmail(
@@ -58,11 +50,14 @@ class EmailService @Inject()(emailConnector: EmailConnector)(implicit ec: Execut
       fileName = uploadedDetails.details.map(Details.getFileName).getOrElse(""),
       to = uploadedDetails.requestorEmail,
       uploadedDateTime = uploadedDetails.uploadedDateTime.getOrElse(
-        throw new RuntimeException(s"Upload date time not found for reference: ${uploadedDetails.reference.value}")),
+        throw new RuntimeException(s"Uploaded date time not found for reference: ${uploadedDetails.reference.value}")),
       reference = uploadedDetails.reference.value,
       approverName = approverDetails.approverName.getOrElse(""),
       approverEmail = approverDetails.approverEmail.getOrElse(""),
-      templateId = if uploadedDetails.status == APPROVED then "emac_helpdesk_bulk_deenrolment_file_approved" else "emac_helpdesk_bulk_deenrolment_file_rejected_by_approver"
+      templateId = if uploadedDetails.status == APPROVED then
+        "emac_helpdesk_bulk_deenrolment_file_approved"
+      else
+        "emac_helpdesk_bulk_deenrolment_file_rejected_by_approver"
     )
   }
 }

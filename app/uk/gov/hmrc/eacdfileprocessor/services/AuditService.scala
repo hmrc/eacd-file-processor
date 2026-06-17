@@ -16,8 +16,6 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
-import play.api.mvc.Request
-import uk.gov.hmrc.eacdfileprocessor.controllers.routes
 import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.APPROVED
 import uk.gov.hmrc.http.HeaderCarrier
@@ -27,24 +25,24 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class AuditService @Inject()(auditConnector: AuditConnector)(implicit ec: ExecutionContext, hc: HeaderCarrier, request: Request[_])
+class AuditService @Inject()(val auditConnector: AuditConnector)(implicit ec: ExecutionContext)
   extends AuditEvents {
 
-  def auditFileFailEvent(uploadDetails: UploadedDetails, failedCallbackBody: FailedCallbackBody): Future[AuditResult] = {
+  def auditFileFailEvent(uploadDetails: UploadedDetails, failureDetails: Details.UploadedFailed)(implicit hc: HeaderCarrier): Future[AuditResult] = {
     auditConnector.sendExtendedEvent(
-      EmailEvent(
+      FileFailEvent(
         fileReference = uploadDetails.reference.value,
         requestorId = uploadDetails.requestorPID,
         requestorName = uploadDetails.requestorName,
-        failureReason = failedCallbackBody.failureDetails.failureReason,
-        failureMessage = failedCallbackBody.failureDetails.message,
+        failureReason = failureDetails.failureReason,
+        failureMessage = failureDetails.message,
         emailAlertSentTo = uploadDetails.requestorEmail,
         hc = hc
       )
     )
   }
 
-  def auditDownloadFileEvent(uploadDetails: UploadedDetails, fileName: String): Future[AuditResult] = {
+  def auditDownloadFileEvent(uploadDetails: UploadedDetails, fileName: String)(implicit hc: HeaderCarrier): Future[AuditResult] = {
     auditConnector.sendExtendedEvent(
       DownloadFileEvent(
         fileReference = uploadDetails.reference.value,
@@ -56,16 +54,16 @@ class AuditService @Inject()(auditConnector: AuditConnector)(implicit ec: Execut
     )
   }
 
-  def auditUpdateFileStatusEvent(uploadDetails: UploadedDetails): Future[AuditResult] = {
+  def auditUpdateFileStatusEvent(uploadDetails: UploadedDetails)(implicit hc: HeaderCarrier): Future[AuditResult] = {
     val approverDetails = uploadDetails.approverDetails.getOrElse(
       throw new RuntimeException(s"Approver details not found for file reference: ${uploadDetails.reference.value}"))
     auditConnector.sendExtendedEvent(
       UpdateFileStatusEvent(
         fileReference = uploadDetails.reference.value,
         requesterId = uploadDetails.requestorPID,
-        requesterName = uploadDetails.requestorName,
+        requesterName = uploadDetails.requestorName.trim,
         approvalId = approverDetails.approverPID.getOrElse(""),
-        approvalName = approverDetails.approverName.getOrElse(""),
+        approvalName = approverDetails.approverName.getOrElse("").trim,
         fileName = uploadDetails.details.map(Details.getFileName).getOrElse(""),
         isFileApproved = if uploadDetails.status == APPROVED then true else false,
         emailAlertSentTo = uploadDetails.requestorEmail,

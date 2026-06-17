@@ -18,18 +18,14 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import play.api.Logging
 import play.api.mvc.Request
-import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
 import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker,
-                                      val auditService: AuditService,
-                                      emailService: EmailService) extends Logging {
+class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker) extends Logging {
 
   def handleCallback(callback: CallbackBody)(implicit ex: ExecutionContext, hc: HeaderCarrier, request: Request[_]): Future[Unit] = {
     val uploadStatus: Option[Details] = callback match {
@@ -42,17 +38,6 @@ class UpscanCallbackService @Inject()(callbackStorage: UploadProgressTracker,
           checksum = s.uploadDetails.checksum
         ))
       case f: FailedCallbackBody =>
-        (for {
-          uploadDetails <- callbackStorage.getUploadResult(callback.reference).map {
-            case Some(details) => details
-            case None => throw new RuntimeException("Upload details not found for reference: " + callback.reference)
-          }
-          _ <- auditService.auditFileFailEvent(uploadDetails, f)
-          _ <- emailService.sendFileFailEmail(uploadDetails, f)
-        } yield ()).recover {
-          case ex => logger.error(s"issue occurred when sending email and audit ${ex.getMessage}")
-        }
-
         Some(Details.UploadedFailed(
           failureReason = f.failureDetails.failureReason,
           message = f.failureDetails.message

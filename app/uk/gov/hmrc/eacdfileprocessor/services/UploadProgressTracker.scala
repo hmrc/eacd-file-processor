@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
+import uk.gov.hmrc.eacdfileprocessor.models.Details.{UploadedFailed, UploadedSuccessfully}
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{FAILED, SCANNED, STORED}
 import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
@@ -34,12 +34,14 @@ import scala.util.{Failure, Success}
 @Singleton
 class UploadProgressTracker @Inject()(repository: FileRepository,
                                       appConfig: AppConfig,
-                                      osClient: PlayObjectStoreClient)(implicit ec: ExecutionContext) extends Logging {
+                                      osClient: PlayObjectStoreClient,
+                                      val auditService: AuditService,
+                                      emailService: EmailService)(implicit ec: ExecutionContext) extends Logging {
 
 
   def getUploadResult(reference: Reference): Future[Option[UploadedDetails]] =
     repository.findByReference(reference)
-    
+
   def registerUploadResult(fileReference: Reference, details: Details)(implicit hc: HeaderCarrier): Future[Unit] =
     for {
       status <- details match {
@@ -54,6 +56,9 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
             checksum = uploadedDetails.checksum,
             fileName = uploadedDetails.name,
             fileReference = fileReference)
+        case Some(uploadedDetails) if status == FAILED =>
+          auditService.auditFileFailEvent(uploadedDetails, details.asInstanceOf[UploadedFailed])
+          emailService.sendFileFailEmail(uploadedDetails, details.asInstanceOf[UploadedFailed])
         case _ =>
           Future.unit
       }

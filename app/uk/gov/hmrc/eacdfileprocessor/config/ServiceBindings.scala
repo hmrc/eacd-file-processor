@@ -46,11 +46,11 @@ class ServiceBindings extends Module {
   )
 
   private def bindConnector(): Seq[Binding[?]] = Seq(
-      bindClass(classOf[EmailConnector]).to(classOf[EmailConnectorImpl]).eagerly()
+    bindClass(classOf[EmailConnector]).to(classOf[EmailConnectorImpl]).eagerly()
   )
 
   private def bindServices(): Seq[Binding[?]] = Seq(
-    bindClass(classOf[LockService]).to(classOf[DefaultLockService]).eagerly(),
+    bindClass(classOf[LockService]).toSelf.eagerly(),
     bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly(),
     bindClass(classOf[DeEnrolmentWorkItemValidator]).toSelf.eagerly(),
     bindClass(classOf[AuditService]).toSelf.eagerly(),
@@ -61,7 +61,8 @@ class ServiceBindings extends Module {
     bindClass(classOf[CallbackController]).toSelf.eagerly(),
     bindClass(classOf[FileController]).toSelf.eagerly(),
     bindClass(classOf[InitiateFileStorageController]).toSelf.eagerly(),
-    bindClass(classOf[StatusController]).toSelf.eagerly()
+    bindClass(classOf[StatusController]).toSelf.eagerly(),
+    bindClass(classOf[uk.gov.hmrc.eacdfileprocessor.support.controllers.StatusController]).toSelf.eagerly()
   )
 
   private def bindRepositories(): Seq[Binding[?]] = Seq(
