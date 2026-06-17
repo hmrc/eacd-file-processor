@@ -82,7 +82,7 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
       val file = await(fileRepository.findByReference(reference)).get
       file.status mustBe INITIAL
 
-      await(progressTracker.registerUploadResult(reference, sucessfulDetails))
+      await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
       eventually {
         val uploadedResult = await(fileRepository.findByReference(reference))
         uploadedResult.get.status mustBe STORED
