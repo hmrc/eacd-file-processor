@@ -102,7 +102,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(id = ObjectId.get(), reference = reference, status = STORED))
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(id = ObjectId.get(), reference = reference, status = STORED, uploadedDateTime = Some(now())))
         result <- route(app, request).get
         uploadedFileDetails <- fileRepository.findByReference(reference)
       } yield (result, uploadedFileDetails)
