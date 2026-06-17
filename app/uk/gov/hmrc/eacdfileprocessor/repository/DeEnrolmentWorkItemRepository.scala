@@ -46,6 +46,7 @@ trait DeEnrolmentWorkItemRepository {
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
   def markAsInProgress(id: ObjectId): Future[Boolean]
+  def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 }
 
 @Singleton
@@ -174,5 +175,8 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       .toFutureOption()
       .map(_.isDefined)
 
-
+  override def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
+    val filter: Bson = Filters.equal("item.reference", reference)
+    collection.find(filter).toFuture()
+  }
 }

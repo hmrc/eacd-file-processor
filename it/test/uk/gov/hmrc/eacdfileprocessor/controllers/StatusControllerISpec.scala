@@ -91,8 +91,8 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       }
     }
     "return 204 when updating status to rejected" in {
-      val reference = UUID.randomUUID().toString
-      val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
+      val reference = Reference(UUID.randomUUID().toString)
+      val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference.value).url)
         .withJsonBody(Json.obj(
           "status" -> "rejected",
           "approverName" -> "Approver Name",
@@ -101,9 +101,14 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(reference = Reference(reference), status = STORED))
+        existing <- fileRepository.findByReference(reference)
+        _ <- if (existing.isEmpty) {
+          fileRepository.createFileRecord(initiateUploadDetails.copy(reference = reference, status = STORED))
+        } else {
+          Future.successful(())
+        }
         result <- route(app, request).get
-        uploadedFileDetails <- fileRepository.findByReference(Reference(reference))
+        uploadedFileDetails <- fileRepository.findByReference(reference)
       } yield (result, uploadedFileDetails)
       status(resultF.map(_._1)) shouldBe NO_CONTENT
       val uploadedDetails = await(resultF.map(_._2))
