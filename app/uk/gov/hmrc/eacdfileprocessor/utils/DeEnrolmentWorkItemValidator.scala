@@ -37,7 +37,7 @@ class DeEnrolmentWorkItemValidator {
         (validActions.contains(actionType), agentServices.contains(serviceKey), actionType) match {
           case (false, _, _) => Left("Invalid action type")
           case (_, _, "agent") if !agentServices.contains(serviceKey) => Left("Invalid action type")
-          case (_, true, actionType) if actionType != "agent" => Left("Agent principal deallocation must specify 'agent'")
+          case (_, true, actionType) if actionType == "agent" => Left("Agent principal deallocation must specify 'agent'")
           case _ => Right(enrolmentKey, actionType)
         }
 
