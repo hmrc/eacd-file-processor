@@ -94,12 +94,11 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                      )(using ExecutionContext): Future[Unit] = {
     actionType.toLowerCase match {
       case "principal" | "delegated" | "agent" =>
+        logger.info(s"[handleValidatedWorkItem] Calling ES1 for work item ${workItemId.toHexString} with enrolmentKey $enrolmentKey and actionType $actionType")
         callES1AndProcessResult(enrolmentKey, actionType, reference, recordDetail, workItemId)
-
       case "both" =>
         logger.error(s"[handleValidatedWorkItem] 'both' actionType not yet implemented for work item ${workItemId.toHexString}. Manual review required.")
         recordError(reference, recordDetail, "Action type 'both' not yet implemented - manual review required")
-
       case unknown =>
         logger.error(s"[handleValidatedWorkItem] Unexpected actionType '$unknown' for work item ${workItemId.toHexString}")
         recordError(reference, recordDetail, s"Unexpected action type: $unknown")
@@ -115,16 +114,16 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                      )(using ExecutionContext): Future[Unit] = {
     espConnector.callES1(enrolmentKey, actionType).flatMap { es1Response =>
       logger.debug(s"[callES1AndProcessResult] ES1 response for work item $workItemId: status=${es1Response.status}")
-
       es1Response.status match {
         case NO_CONTENT =>
           logger.info(s"[callES1AndProcessResult] ES1 completed for reference ${reference.value}. Incrementing success count.")
-          fileRepository.incrementSuccessCount(reference).map(_ => ())
-
+          for {
+            _ <- fileRepository.incrementSuccessCount(reference)
+            _ <- deEnrolmentWorkItemRepository.markAsComplete(workItemId)
+          } yield ()
         case OK =>
           logger.debug(s"[callES1AndProcessResult] ES1 returned groups for reference ${reference.value}. Processing de-enrolments.")
           handleES1Success(enrolmentKey, es1Response.json, reference, recordDetail, workItemId)
-
         case _ =>
           val errorMessage = extractErrorMessage(es1Response.json)
           logger.warn(s"[callES1AndProcessResult] ES1 failed with status ${es1Response.status} for reference ${reference.value}: $errorMessage")
@@ -176,7 +175,6 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                 logger.error(s"[processGroupDeEnrolments] Failed to mark work item as complete for reference ${reference.value}: ${e.getMessage}", e)
                 throw e
               }
-
           case _ =>
             val errorMessage = if (groupIds.size > 1) then
               "Partial processing due to unknown error, review manually"
