@@ -58,7 +58,6 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
       count shouldBe 1
     }
 
-
     "return the count of incomplete work items" in {
       await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
       await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref2"))
@@ -70,7 +69,6 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
     "return only incomplete statuses when one work" in {
       val allStatuses = ProcessingStatus.values.toSeq
       val incompleteStatuses = Set(ToDo, ProcessingStatus.InProgress)
-
 
       await(repository.saveRecordDetails(Seq(deEnrolmentWorkItems.last), "ref2"))
       allStatuses.foreach { status =>
@@ -118,6 +116,44 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
 
       await(repository.pullOutstandingBatch(0)) shouldBe Seq.empty
       await(repository.pullOutstandingBatch(-1)) shouldBe Seq.empty
+    }
+
+    "return WorkItems for a given file reference" in {
+      // Create items with the same reference
+      val itemsWithSameRef = Seq(
+        DeEnrolmentWorkItem("test-ref-123", "IR-SA-UTR-1234567890,principal", java.time.Instant.now()),
+        DeEnrolmentWorkItem("test-ref-123", "IR-SA-UTR-1234567892,principal", java.time.Instant.now())
+      )
+      await(repository.saveRecordDetails(itemsWithSameRef, "test-ref-123"))
+
+      // Create items with a different reference
+      val itemsWithDifferentRef = Seq(
+        DeEnrolmentWorkItem("other-ref-456", "IR-SA-UTR-9999999999,principal", java.time.Instant.now())
+      )
+      await(repository.saveRecordDetails(itemsWithDifferentRef, "other-ref-456"))
+
+      // Query for items with reference "test-ref-123"
+      val result: Seq[WorkItem[DeEnrolmentWorkItem]] = await(repository.findByReference("test-ref-123"))
+
+      // Verify results
+      result.size shouldBe 2
+      result.foreach { workItem =>
+        workItem.item.reference shouldBe "test-ref-123"
+        workItem.item.recordDetail.nonEmpty shouldBe true
+      }
+
+      // Verify the specific record details
+      val recordDetails = result.map(_.item.recordDetail).toSet
+      recordDetails.contains("IR-SA-UTR-1234567890,principal") shouldBe true
+      recordDetails.contains("IR-SA-UTR-1234567892,principal") shouldBe true
+    }
+
+    "return empty sequence when no WorkItems match the reference" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+
+      val result: Seq[WorkItem[DeEnrolmentWorkItem]] = await(repository.findByReference("nonexistent-ref"))
+
+      result shouldBe empty
     }
   }
 }

@@ -20,6 +20,7 @@ import helper.IntegrationSpec
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito.when
+import org.scalatest.concurrent.Eventually
 import play.api.http.Status.CREATED
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
@@ -35,7 +36,7 @@ import java.net.URL
 import java.time.Instant
 import scala.concurrent.{Future, TimeoutException}
 
-class UploadProgressTrackerISpec extends IntegrationSpec with TestData:
+class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Eventually:
   val objectStoreClient = mock[PlayObjectStoreClient]
   lazy val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
   val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
@@ -82,15 +83,15 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData:
           )
         )
       )
-      when(progressTracker.transferToObjectStore(sucessfulDetails.downloadUrl, sucessfulDetails.mimeType, sucessfulDetails.checksum, sucessfulDetails.name, reference)).thenReturn(Future.unit)
 
       val file = await(fileRepository.findByReference(reference)).get
       file.status mustBe INITIAL
 
-      for {
-        _ <- progressTracker.registerUploadResult(reference, sucessfulDetails)
-        uploadedResult <- fileRepository.findByReference(reference)
-      } yield uploadedResult.get.status mustBe STORED
+      await(progressTracker.registerUploadResult(reference, sucessfulDetails))
+      eventually {
+        val uploadedResult = await(fileRepository.findByReference(reference))
+        uploadedResult.get.status mustBe STORED
+      }
     }
 
     "Failed to upload file to object store and status remained scanned" in {
