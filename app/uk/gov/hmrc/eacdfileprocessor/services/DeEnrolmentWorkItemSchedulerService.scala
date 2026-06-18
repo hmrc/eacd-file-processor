@@ -112,6 +112,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                        recordDetail: String,
                                        workItemId: ObjectId
                                      )(using ExecutionContext): Future[Unit] = {
+    logger.debug(s"[callES1AndProcessResult] Calling ES1 for work item ${workItemId.toHexString} with enrolmentKey $enrolmentKey and actionType $actionType")
     espConnector.callES1(enrolmentKey, actionType).flatMap { es1Response =>
       logger.debug(s"[callES1AndProcessResult] ES1 response for work item $workItemId: status=${es1Response.status}")
       es1Response.status match {
