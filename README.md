@@ -39,16 +39,16 @@ Base paths:
 
 ## API Table
 
-| Method              | Path                                                           | Controller                                                           | Purpose                                                            |
-|---------------------|----------------------------------------------------------------|----------------------------------------------------------------------|--------------------------------------------------------------------|
-| POST                | `/eacd-file-processor/callback`                                | `CallbackController.callback`                                        | Receive Upscan callback (`READY` / `FAILED`) and update file state |
-| POST                | `/eacd-file-processor/initiate`                                | `InitiateFileStorageController.initiateFileRecordStore()`            | Create initial file record for helpdesk request                    |
-| PUT                 | `/eacd-file-processor/status/:reference`                       | `StatusController.updateStatus(reference: String)`                   | Update file status and optional approver/error details             |
-| GET                 | `/eacd-file-processor/files/:status`                           | `StatusController.getFilesStatus(status: String)`                    | List file records by status                                        |
-| GET                 | `/eacd-file-processor/file/:reference`                         | `FileController.getFile(reference: String)`                          | Download file content by reference                                 |
-| GET *(support)*     | `/eacd-file-processor/support-tool/file-status-count`          | `support.controllers.StatusController.getAllStatusCounts`            | Return aggregate counts across statuses                            |
-| PUT *(testOnly)*    | `/test-only/eacd-file-processor/document/:reference/:fileName` | `testOnly.controllers.TestController.putObject(reference, fileName)` | Seed object store content for tests                                |
-| DELETE *(testOnly)* | `/test-only/eacd-file-processor/drop`                          | `testOnly.controllers.TestController.deleteAllObjects()`             | Clear test object store content                                    |
+| Method              | Path                                                           | Purpose                                                            |
+|---------------------|----------------------------------------------------------------|--------------------------------------------------------------------|
+| POST                | `/eacd-file-processor/callback`                                | Receive Upscan callback (`READY` / `FAILED`) and update file state |
+| POST                | `/eacd-file-processor/initiate`                                | Create initial file record for helpdesk request                    |
+| PUT                 | `/eacd-file-processor/status/:reference`                       | Update file status and optional approver/error details             |
+| GET                 | `/eacd-file-processor/files/:status`                           | List file records by status                                        |
+| GET                 | `/eacd-file-processor/file/:reference`                         | Download file content by reference                                 |
+| GET *(support)*     | `/eacd-file-processor/support-tool/file-status-count`          | Return aggregate counts across statuses                            |
+| PUT *(testOnly)*    | `/test-only/eacd-file-processor/document/:reference/:fileName` | Seed object store content for tests                                |
+| DELETE *(testOnly)* | `/test-only/eacd-file-processor/drop`                          | Clear test object store content                                    |
 
 ## API reference
 
