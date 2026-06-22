@@ -20,8 +20,11 @@ import org.apache.pekko.actor.ActorSystem
 import org.mockito.ArgumentMatchers.{any, eq as eqTo}
 import org.mockito.Mockito.{times, verify, when}
 import org.scalatest.matchers.should.Matchers.shouldBe
+import play.api.http.Status.CREATED
 import play.api.mvc.*
-import play.api.test.Helpers.{GET, INTERNAL_SERVER_ERROR, NO_CONTENT, OK, contentAsString, status}
+import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
+import uk.gov.hmrc.objectstore.client.Md5Hash
+import play.api.test.Helpers.{GET, INTERNAL_SERVER_ERROR, NO_CONTENT, OK, POST, contentAsString, status, DELETE}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
@@ -127,6 +130,35 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
     totalFailureCount = 5
   )
 
+
+  "testController#putObject" should {
+
+    "return 201 Created when the object is successfully stored" in {
+      when(mockObjectStoreClient.putObject(any(), any(), any(), any(), any(), any())(any(), any()))
+        .thenReturn(Future.successful(ObjectSummaryWithMd5(
+          location = Path.File("test-ref-123/test-file.csv/test-file.csv"),
+          contentLength = 0,
+          contentMd5 = Md5Hash("md5hash"),
+          lastModified = java.time.Instant.now()
+        )))
+
+      val result = controller.putObject("test-ref-123", "test-file.csv")(FakeRequest(POST, "/test-only/put-object/test-ref-123/test-file.csv"))
+
+      status(result) shouldBe CREATED
+      contentAsString(result) shouldBe "Document stored."
+    }
+
+    "return 500 InternalServerError when the object store client throws an exception" in {
+      when(mockObjectStoreClient.putObject(any(), any(), any(), any(), any(), any())(any(), any()))
+        .thenReturn(Future.failed(new RuntimeException("Unexpected error")))
+
+      val result = controller.putObject("test-ref-123", "test-file.csv")(FakeRequest(POST, "/test-only/put-object/test-ref-123/test-file.csv"))
+
+      status(result) shouldBe INTERNAL_SERVER_ERROR
+      contentAsString(result) shouldBe "Error saving the document"
+    }
+  }
+
   "TestController#getFileDetail" should {
 
     "return 200 OK with file detail string for a successfully uploaded file" in {
@@ -221,6 +253,27 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
       status(result) shouldBe NO_CONTENT
 
       verify(mockFileDetailService, times(1)).getFileDetail(any())
+    }
+  }
+
+  "TestController#deleteAllObjects" should {
+
+    "return 200 OK when all objects are successfully deleted" in {
+      when(mockRepository.dropCollection()).thenReturn(Future.successful(()))
+
+      val result = controller.deleteAllObjects()(FakeRequest(DELETE, "/test-only/delete-all"))
+
+      status(result) shouldBe OK
+      contentAsString(result) shouldBe "All test records deleted."
+    }
+
+    "return 500 InternalServerError when the repository throws an exception" in {
+      when(mockRepository.dropCollection()).thenReturn(Future.failed(new RuntimeException("DB error")))
+
+      val result = controller.deleteAllObjects()(FakeRequest(DELETE, "/test-only/delete-all"))
+
+      status(result) shouldBe INTERNAL_SERVER_ERROR
+      contentAsString(result) shouldBe "Error deleting documents"
     }
   }
 }
