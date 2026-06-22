@@ -30,7 +30,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, INITIA
 
 import java.time.Instant
 import java.time.Instant.now
-import java.time.temporal.ChronoUnit.DAYS
+import java.time.temporal.ChronoUnit.{DAYS, HOURS, MILLIS}
 
 class FileRepositoryISpec extends TestData with IntegrationSpec:
   lazy val repository: FileRepository = app.injector.instanceOf[FileRepository]
@@ -466,10 +466,90 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
         remaining shouldBe None
       }
 
-      "no matching record exists" in {
-        val deleted = await(repository.deleteByReference(Reference("does-not-exist")))
+       "no matching record exists" in {
+         val deleted = await(repository.deleteByReference(Reference("does-not-exist")))
 
-        deleted shouldBe false
-      }
-    }
-  }
+         deleted shouldBe false
+       }
+     }
+
+     "find files with stale status" when {
+       "returns records whose lastUpdatedDateTime is older than the stale threshold and status matches" in {
+         val staleUploadedAt = now().minus(5, HOURS).truncatedTo(MILLIS)
+         val staleUploaded = initiateUploadDetails.copy(
+           status = FileStatus.UPLOADED,
+           lastUpdatedDateTime = Some(staleUploadedAt)
+         )
+         await(repository.createFileRecord(staleUploaded))
+
+         val result = await(repository.findFilesWithStaleStatus(Seq(FileStatus.UPLOADED, FileStatus.APPROVED)))
+         result.map(_.reference) shouldBe Seq(staleUploaded.reference)
+         result.map(_.status) shouldBe Seq(FileStatus.UPLOADED)
+         result.flatMap(_.lastUpdatedDateTime) shouldBe Seq(staleUploadedAt)
+       }
+
+       "does not return records whose lastUpdatedDateTime is within the stale threshold" in {
+         val recentUploaded = initiateUploadDetails.copy(
+           status = FileStatus.UPLOADED,
+           lastUpdatedDateTime = Some(now().minus(1, HOURS))
+         )
+         await(repository.createFileRecord(recentUploaded))
+
+         val result = await(repository.findFilesWithStaleStatus(Seq(FileStatus.UPLOADED, FileStatus.APPROVED)))
+         result shouldBe Seq.empty
+       }
+
+       "does not return records with a non-matching status even if stale" in {
+         val staleScanned = initiateUploadDetails.copy(
+           status = FileStatus.SCANNED,
+           lastUpdatedDateTime = Some(now().minus(5, HOURS))
+         )
+         await(repository.createFileRecord(staleScanned))
+
+         val result = await(repository.findFilesWithStaleStatus(Seq(FileStatus.UPLOADED, FileStatus.APPROVED)))
+         result shouldBe Seq.empty
+       }
+
+       "returns only records matching the given statuses when multiple stale records exist" in {
+         import org.bson.types.ObjectId
+         val staleUploaded = initiateUploadDetails.copy(
+           status = FileStatus.UPLOADED,
+           lastUpdatedDateTime = Some(now().minus(5, HOURS))
+         )
+         val staleApproved = initiateUploadDetails.copy(
+           id = ObjectId("aaaaaa38d540b44c4403aee3"),
+           reference = Reference("stale-approved-ref-001"),
+           status = FileStatus.APPROVED,
+           lastUpdatedDateTime = Some(now().minus(6, HOURS))
+         )
+         val staleScanned = initiateUploadDetails.copy(
+           id = ObjectId("bbbbbb38d540b44c4403aee3"),
+           reference = Reference("stale-scanned-ref-001"),
+           status = FileStatus.SCANNED,
+           lastUpdatedDateTime = Some(now().minus(5, HOURS))
+         )
+         await(repository.createFileRecord(staleUploaded))
+         await(repository.createFileRecord(staleApproved))
+         await(repository.createFileRecord(staleScanned))
+
+         val result = await(repository.findFilesWithStaleStatus(Seq(FileStatus.UPLOADED, FileStatus.APPROVED)))
+         result.map(_.reference) should contain theSameElementsAs Seq(staleUploaded.reference, staleApproved.reference)
+       }
+
+       "returns empty when no records exist" in {
+         val result = await(repository.findFilesWithStaleStatus(Seq(FileStatus.UPLOADED, FileStatus.APPROVED)))
+         result shouldBe Seq.empty
+       }
+
+       "returns empty when statuses list is empty" in {
+         val staleUploaded = initiateUploadDetails.copy(
+           status = FileStatus.UPLOADED,
+           lastUpdatedDateTime = Some(now().minus(5, HOURS))
+         )
+         await(repository.createFileRecord(staleUploaded))
+
+         val result = await(repository.findFilesWithStaleStatus(Seq.empty))
+         result shouldBe Seq.empty
+       }
+     }
+   }

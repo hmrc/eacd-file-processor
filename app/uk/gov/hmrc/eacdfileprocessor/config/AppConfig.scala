@@ -37,6 +37,7 @@ class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig)
   val serviceEnrolmentConfigBaseUrl: String = servicesConfig.baseUrl("service-enrolment-config")
   val enrolmentStoreProxyBaseUrl: String = servicesConfig.baseUrl("enrolment-store-proxy")
   val initialExpiryDays: Int = getInt("initialExpiryDays")
+  val staleFileStatusHours: Int = config.getOptional[Int]("staleFileStatusHours").getOrElse(4)
 
   private[config] def getString(key: String): String =
     config.getOptional[String](key).filter(!_.isBlank)
