@@ -45,16 +45,22 @@ class StatusController @Inject()(
   def updateStatus(reference: String): Action[JsValue] = authorisedEntity(providedPermission, "status")
     .async(parse.json) { implicit request: Request[JsValue] =>
 
-      logger.info(s"Received update status notification [${Json.stringify(request.body)}]")
+      logger.info(s"[STATUS_UPDATE] Received update status request for reference: $reference, body: [${Json.stringify(request.body)}]")
 
       withJsonBody[StatusApproverDetails] { statusApproverDetails =>
+        logger.info(s"[STATUS_UPDATE] Parsed status details for reference: $reference, status: ${statusApproverDetails.status}")
         fileUploadRepo.findByReference(Reference(reference)).flatMap {
           case Some(uploadDetails) =>
+            logger.info(s"[STATUS_UPDATE] Found file record for reference: $reference, current status: ${uploadDetails.status}, requestor: ${uploadDetails.requestorPID}")
             statusService.updateStatus(reference, uploadDetails.status, uploadDetails.requestorPID, statusApproverDetails)
 
           case None =>
-            logger.warn("INVALID_FILE_REF File reference doesn't exist")
+            logger.warn(s"[STATUS_UPDATE] INVALID_FILE_REF - File reference doesn't exist: $reference")
             Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_FILE_REF", "File reference doesn't exist"))))
+        }.recover {
+          case ex: Exception =>
+            logger.error(s"[STATUS_UPDATE] Exception during status update for reference: $reference, exception: ${ex.getMessage}", ex)
+            throw ex
         }
       }
     }
