@@ -57,22 +57,21 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
 
   override def invoke(implicit ec: ExecutionContext): Future[Either[Unit, LockResponse]] =
     lockService.lockAndRelease(this.getClass.getSimpleName) {
-      checkRecordsWithStaleFileStatus
-      createWorkItemsFromOldestFile
+      for {
+        _ <- checkRecordsWithStaleFileStatus
+        _ <- createWorkItemsFromOldestFile
+      } yield ()
     }
 
   private[services] def checkRecordsWithStaleFileStatus: Future[Unit] = {
-    fileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)).map (
-      recordsWithStaleStatus =>
-        recordsWithStaleStatus.map(
-          recordWithStateStatus => {
-            recordWithStateStatus.status match {
-              case UPLOADED => logger.warn(s"NO_UPSCAN_CALLBACK for file reference ${recordWithStateStatus.reference}")
-              case _ => logger.warn(s"FILE_NOT_COLLECTED for file reference ${recordWithStateStatus.reference}")
-            }
-          }
-        )
-    )
+    fileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)).map { recordsWithStaleStatus =>
+      recordsWithStaleStatus.foreach { recordWithStateStatus =>
+        recordWithStateStatus.status match {
+          case UPLOADED => logger.warn(s"NO_UPSCAN_CALLBACK for file reference ${recordWithStateStatus.reference}")
+          case _ => logger.warn(s"FILE_NOT_COLLECTED for file reference ${recordWithStateStatus.reference}")
+        }
+      }
+    }
   }
 
   private def getFileStringFromObjectStore(reference: Reference, fileName: String): Future[Option[String]] = {
