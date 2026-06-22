@@ -18,12 +18,12 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.bson.types.ObjectId
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{never, verify, when}
+import org.mockito.Mockito.{never, times, verify, when}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
-import play.api.http.Status.NO_CONTENT
+import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
 import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, FileStatus, Reference, UploadedDetails}
@@ -184,6 +184,286 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       Await.result(service.invoke, 5.seconds)
 
       verify(deEnrolmentWorkItemRepository, never()).pullOutstandingBatch(any[Int])
+    }
+    "Action is principal" when {
+      "The action is principal" in new Setup {
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+
+      "The action is principal and calls ES9" in new Setup {
+        val ResponseBody =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
+            |    ]
+            |}""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBody)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+
+      "The action is principal and calls ES9 for multiple enrolments" in new Setup {
+        val ResponseBody =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
+            |        "c0506dd9-1feb-400a-bf70-6351e1ff7511"
+            |    ]
+            |}""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBody)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+
+      "The action is principal and returns a 400 " in new Setup {
+        val ResponseBody =
+          """
+            |{
+            |    "code": "TYPE_PARAMETER_INVALID",
+            |    "message": "The type parameter was invalid. Expected all, principal or delegated"
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, ResponseBody)))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+
+      }
+
+      "The action is principal and return multiple enrolments with a 400" in new Setup {
+        val ResponseBody =
+          """
+            |{
+            |	"code":"MULTIPLE_ERRORS",
+            |	"message":"Multiple errors have occurred",
+            |    "errors": [
+            |        {
+            |        	"code": "ERROR_CODE_HERE_1",
+            |            "message": "ERROR_MESSAGE_HERE_1"
+            |		},
+            |		{
+            |        	"code": "ERROR_CODE_HERE_2",
+            |            "message": "ERROR_MESSAGE_HERE_2"
+            |		}
+            |    ]
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, ResponseBody)))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+      }
+      "The action is principal and miltiple calls are made to ES9 and one returns a 400" in new Setup {
+        val ResponseBodyES1 =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7511"
+            |    ]
+            |}""".stripMargin
+        val ResponseBodyES9Error =
+          """
+            |{
+            |    "code": "INTERNAL_SERVER_ERROR",
+            |    "message": "An unexpected error occurred"
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBodyES1)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, ResponseBodyES9Error)))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+    }
+    "Action is agent" when {
+
+      "The action is agent" in new Setup {
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+      "The action is agent and calls ES9" in new Setup {
+        val ResponseBody =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
+            |    ]
+            |}""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBody)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+      "The action is agent and calls ES9 for multiple enrolments" in new Setup {
+        val ResponseBody =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7511"
+            |    ]
+            |}""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBody)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+      "The action is agent and returns a 400 " in new Setup {
+        val ResponseBody =
+          """
+            |{
+            |    "code": "TYPE_PARAMETER_INVALID",
+            |    "message": "The type parameter was invalid. Expected all, principal or delegated"
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, ResponseBody)))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+
+      }
+      "The action is agent and return multiple enrolments with a 400" in new Setup {
+        val ResponseBody =
+          """
+            |{
+            |	"code":"MULTIPLE_ERRORS",
+            |	"message":"Multiple errors have occurred",
+            |    "errors": [
+            |        {
+            |        	"code": "ERROR_CODE_HERE_1",
+            |            "message": "ERROR_MESSAGE_HERE_1"
+            |		},
+            |		{
+            |        	"code": "ERROR_CODE_HERE_2",
+            |            "message": "ERROR_MESSAGE_HERE_2"
+            |		}
+            |    ]
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, ResponseBody)))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+      }
+      "The action is agent and miltiple calls are made to ES9 and one returns a 400" in new Setup {
+        val ResponseBodyES1 =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7511"
+            |    ]
+            |}""".stripMargin
+        val ResponseBodyES9Error =
+          """
+            |{
+            |    "code": "INTERNAL_SERVER_ERROR",
+            |    "message": "An unexpected error occurred"
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBodyES1)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, ResponseBodyES9Error)))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+    }
+    "Action is delegated" when {
+      "The action is delegated" in new Setup {
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+      "The action is delegated and calls ES9" in new Setup {
+        val ResponseBody =
+          """{
+            |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7512"
+            |    ]
+            |}""".stripMargin
+        when(validator.validate("IR-SA~UTR~1234567890,delegated", Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBody)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+    }
     }
   }
 }
