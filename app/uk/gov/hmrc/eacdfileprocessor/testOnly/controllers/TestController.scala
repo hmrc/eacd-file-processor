@@ -19,11 +19,12 @@ package uk.gov.hmrc.eacdfileprocessor.testOnly.controllers
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
+import play.api.libs.json.Json
 import play.api.libs.streams.Accumulator
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, FileUploadRepoFormat}
 import uk.gov.hmrc.eacdfileprocessor.services.FileDetailService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.http.UpstreamErrorResponse
@@ -45,6 +46,9 @@ class TestController @Inject()(
                                 repository: FileRepository,
                                 fileDetailService: FileDetailService
                               )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
+
+  import FileUploadRepoFormat.mongoFormat
+
   val providedPermission = Predicate.or(
     Predicate.Permission(
       Resource(ResourceType("eacd-file-processor"), ResourceLocation("services-enrolments-helpdesk-frontend")),
@@ -92,7 +96,7 @@ class TestController @Inject()(
     .async { implicit request: AuthRequest[AnyContent] =>
       fileDetailService.getFileDetail(reference)
         .map {
-          case Some(details) => Ok(details.toString)
+          case Some(details) => Ok(Json.toJson(details)(mongoFormat))
           case None => NoContent
         }
         .recover {
