@@ -34,6 +34,7 @@ import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.time.Instant
+import java.time.temporal.ChronoUnit.HOURS
 import scala.concurrent.{ExecutionContext, Future}
 
 class ProcessApprovedFileServiceSpec extends TestSupport with TestData with UnitSpec:
@@ -126,5 +127,58 @@ class ProcessApprovedFileServiceSpec extends TestSupport with TestData with Unit
         exception.getMessage contains s"No record found for the requested reference: ${scannedUploadedDetails.reference.value} in Object Store" shouldBe true
       }
     }
-  }
 
+    "checkRecordsWithStaleFileStatus" must {
+      "return Future.unit and call findFilesWithStaleStatus with UPLOADED and APPROVED statuses when no stale records exist" in new Setup {
+        when(mockFileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)))
+          .thenReturn(Future.successful(Seq.empty))
+
+        await(processApprovedFileService.checkRecordsWithStaleFileStatus)
+
+        verify(mockFileRepository, times(1)).findFilesWithStaleStatus(Seq(UPLOADED, APPROVED))
+      }
+
+      "return Future.unit when stale UPLOADED records are found" in new Setup {
+        val staleUploadedRecord = initiateUploadDetails.copy(
+          status = UPLOADED,
+          lastUpdatedDateTime = Some(Instant.now().minus(5, HOURS))
+        )
+        when(mockFileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)))
+          .thenReturn(Future.successful(Seq(staleUploadedRecord)))
+
+        await(processApprovedFileService.checkRecordsWithStaleFileStatus)
+
+        verify(mockFileRepository, times(1)).findFilesWithStaleStatus(Seq(UPLOADED, APPROVED))
+      }
+
+      "return Future.unit when stale APPROVED records are found" in new Setup {
+        val staleApprovedRecord = initiateUploadDetails.copy(
+          status = APPROVED,
+          lastUpdatedDateTime = Some(Instant.now().minus(5, HOURS))
+        )
+        when(mockFileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)))
+          .thenReturn(Future.successful(Seq(staleApprovedRecord)))
+
+        await(processApprovedFileService.checkRecordsWithStaleFileStatus)
+
+        verify(mockFileRepository, times(1)).findFilesWithStaleStatus(Seq(UPLOADED, APPROVED))
+      }
+
+      "return Future.unit when a mix of stale UPLOADED and APPROVED records are found" in new Setup {
+        val staleUploadedRecord = initiateUploadDetails.copy(
+          status = UPLOADED,
+          lastUpdatedDateTime = Some(Instant.now().minus(6, HOURS))
+        )
+        val staleApprovedRecord = scannedUploadedDetails.copy(
+          status = APPROVED,
+          lastUpdatedDateTime = Some(Instant.now().minus(5, HOURS))
+        )
+        when(mockFileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)))
+          .thenReturn(Future.successful(Seq(staleUploadedRecord, staleApprovedRecord)))
+
+        await(processApprovedFileService.checkRecordsWithStaleFileStatus)
+
+        verify(mockFileRepository, times(1)).findFilesWithStaleStatus(Seq(UPLOADED, APPROVED))
+      }
+    }
+  }

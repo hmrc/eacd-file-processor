@@ -20,6 +20,7 @@ import org.apache.pekko.stream.Materializer
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.exceptions.ObjectStoreFileNotFoundException
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, UPLOADED}
 import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
@@ -56,8 +57,23 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
 
   override def invoke(implicit ec: ExecutionContext): Future[Either[Unit, LockResponse]] =
     lockService.lockAndRelease(this.getClass.getSimpleName) {
+      checkRecordsWithStaleFileStatus
       createWorkItemsFromOldestFile
     }
+
+  private[services] def checkRecordsWithStaleFileStatus: Future[Unit] = {
+    fileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)).map (
+      recordsWithStaleStatus =>
+        recordsWithStaleStatus.map(
+          recordWithStateStatus => {
+            recordWithStateStatus.status match {
+              case UPLOADED => logger.warn(s"NO_UPSCAN_CALLBACK for file reference ${recordWithStateStatus.reference}")
+              case _ => logger.warn(s"	FILE_NOT_COLLECTED for file reference ${recordWithStateStatus.reference}")
+            }
+          }
+        )
+    )
+  }
 
   private def getFileStringFromObjectStore(reference: Reference, fileName: String): Future[Option[String]] = {
     osClient.getObject[String](

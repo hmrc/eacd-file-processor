@@ -41,7 +41,7 @@ import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 
 import java.net.{URI, URL}
 import java.time.Instant
-import java.time.temporal.ChronoUnit.DAYS
+import java.time.temporal.ChronoUnit.{DAYS, HOURS}
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent
@@ -178,6 +178,15 @@ class FileRepository @Inject()(
     collection.find(
       equal("reference.value", reference.value)
     ).headOption()
+  }
+
+  def findFilesWithStaleStatus(statuses: Seq[FileStatus]): Future[Seq[UploadedDetails]] = {
+    collection.find(
+      Filters.and(
+        Filters.in("status", statuses.map(_.value): _*),
+        Filters.lte("lastUpdatedDateTime", Instant.now().minus(config.staleFileStatusHours, HOURS))
+      )
+    ).toFuture()
   }
 
   def getNameOfFile(reference: Reference): Future[Option[String]] =

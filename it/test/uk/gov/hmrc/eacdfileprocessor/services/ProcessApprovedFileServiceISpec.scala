@@ -35,6 +35,7 @@ import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.time.Instant
+import java.time.temporal.ChronoUnit.HOURS
 import scala.concurrent.{ExecutionContext, Future}
 
 class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with UnitSpec with Eventually:
@@ -99,6 +100,54 @@ class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with
       "not save record details into DeEnrolmentWorkItem when there is no approved file" in {
         await(fileRepository.createFileRecord(scannedUploadedDetails))
         await(processApprovedFileService.invoke)
+        collectionSize shouldBe 0
+      }
+    }
+
+    "checkRecordsWithStaleFileStatus" must {
+      "complete successfully and leave stale UPLOADED records unmodified" in {
+        val staleUploaded = initiateUploadDetails.copy(
+          status = UPLOADED,
+          lastUpdatedDateTime = Some(Instant.now().minus(5, HOURS))
+        )
+        await(fileRepository.createFileRecord(staleUploaded))
+
+        await(processApprovedFileService.invoke)
+
+        val record = await(fileRepository.findByReference(staleUploaded.reference))
+        record.isDefined shouldBe true
+        record.get.status shouldBe UPLOADED
+        collectionSize shouldBe 0
+      }
+
+      "complete successfully and leave stale APPROVED records unmodified when object store returns file" in {
+        when(objectStoreClient.getObject[String](any(), any())(any(), any())).thenReturn(Future.successful(Some(o)))
+        val staleApproved = scannedUploadedDetails.copy(
+          status = APPROVED,
+          lastUpdatedDateTime = Some(Instant.now().minus(5, HOURS))
+        )
+        await(fileRepository.createFileRecord(staleApproved))
+
+        await(processApprovedFileService.invoke)
+
+        eventually {
+          val record = await(fileRepository.findByReference(staleApproved.reference))
+          record.isDefined shouldBe true
+        }
+      }
+
+      "complete successfully when no stale records exist" in {
+        val recentUploaded = initiateUploadDetails.copy(
+          status = UPLOADED,
+          lastUpdatedDateTime = Some(Instant.now().minus(1, HOURS))
+        )
+        await(fileRepository.createFileRecord(recentUploaded))
+
+        await(processApprovedFileService.invoke)
+
+        val record = await(fileRepository.findByReference(recentUploaded.reference))
+        record.isDefined shouldBe true
+        record.get.status shouldBe UPLOADED
         collectionSize shouldBe 0
       }
     }
