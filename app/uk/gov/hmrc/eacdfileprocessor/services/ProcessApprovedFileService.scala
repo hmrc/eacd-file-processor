@@ -68,7 +68,7 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
           recordWithStateStatus => {
             recordWithStateStatus.status match {
               case UPLOADED => logger.warn(s"NO_UPSCAN_CALLBACK for file reference ${recordWithStateStatus.reference}")
-              case _ => logger.warn(s"	FILE_NOT_COLLECTED for file reference ${recordWithStateStatus.reference}")
+              case _ => logger.warn(s"FILE_NOT_COLLECTED for file reference ${recordWithStateStatus.reference}")
             }
           }
         )

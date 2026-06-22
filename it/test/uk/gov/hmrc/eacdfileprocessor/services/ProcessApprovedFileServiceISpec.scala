@@ -81,7 +81,7 @@ class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with
     await(lockingRepo.collection.deleteMany(filter = Document()).toFuture())
   }
 
-  private def collectionSize: Long = {
+  private def deEnrolmentWorkItemCollectionSize: Long = {
     await(deEnrolmentWorkItemRepository.collection.estimatedDocumentCount().toFuture())
   }
 
@@ -92,7 +92,7 @@ class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with
         await(fileRepository.createFileRecord(scannedUploadedDetails.copy(status = APPROVED)))
         await(processApprovedFileService.invoke)
         eventually {
-          collectionSize shouldBe 100
+          deEnrolmentWorkItemCollectionSize shouldBe 100
           val uploadedDetails = await(fileRepository.findByReference(scannedUploadedDetails.reference))
           uploadedDetails.get.totalEntryCount shouldBe Some(100)
         }
@@ -100,7 +100,7 @@ class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with
       "not save record details into DeEnrolmentWorkItem when there is no approved file" in {
         await(fileRepository.createFileRecord(scannedUploadedDetails))
         await(processApprovedFileService.invoke)
-        collectionSize shouldBe 0
+        deEnrolmentWorkItemCollectionSize shouldBe 0
       }
     }
 
@@ -117,7 +117,7 @@ class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with
         val record = await(fileRepository.findByReference(staleUploaded.reference))
         record.isDefined shouldBe true
         record.get.status shouldBe UPLOADED
-        collectionSize shouldBe 0
+        deEnrolmentWorkItemCollectionSize shouldBe 0
       }
 
       "complete successfully and leave stale APPROVED records unmodified when object store returns file" in {
@@ -148,7 +148,7 @@ class ProcessApprovedFileServiceISpec extends IntegrationSpec with TestData with
         val record = await(fileRepository.findByReference(recentUploaded.reference))
         record.isDefined shouldBe true
         record.get.status shouldBe UPLOADED
-        collectionSize shouldBe 0
+        deEnrolmentWorkItemCollectionSize shouldBe 0
       }
     }
   }
