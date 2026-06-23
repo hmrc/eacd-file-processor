@@ -465,6 +465,98 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
     }
+      "The action is delegated and calls ES9 for multiple enrolments" in new Setup {
+        val ResponseBody =
+          """{
+            |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
+            |        "c0506dd9-1feb-400a-bf70-6351e1ff7511"
+            |    ]
+            |}""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBody)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+      "The action is delegated and returns a 400 " in new Setup {
+        val ResponseBody =
+          """
+            |{
+            |    "code": "TYPE_PARAMETER_INVALID",
+            |    "message": "The type parameter was invalid. Expected all, principal or delegated"
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, ResponseBody)))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+
+      }
+      "The action is delegated and return multiple enrolments with a 400" in new Setup {
+        val ResponseBody =
+          """
+            |{
+            |	"code":"MULTIPLE_ERRORS",
+            |	"message":"Multiple errors have occurred",
+            |    "errors": [
+            |        {
+            |        	"code": "ERROR_CODE_HERE_1",
+            |            "message": "ERROR_MESSAGE_HERE_1"
+            |		},
+            |		{
+            |        	"code": "ERROR_CODE_HERE_2",
+            |            "message": "ERROR_MESSAGE_HERE_2"
+            |		}
+            |    ]
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, ResponseBody)))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+      }
+      "The action is delegated and miltiple calls are made to ES9 and one returns a 400" in new Setup {
+        val ResponseBodyES1 =
+          """{
+            |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7511"
+            |    ]
+            |}""".stripMargin
+        val ResponseBodyES9Error =
+          """
+            |{
+            |    "code": "INTERNAL_SERVER_ERROR",
+            |    "message": "An unexpected error occurred"
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBodyES1)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, ResponseBodyES9Error)))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+      }
+
     }
   }
 }
