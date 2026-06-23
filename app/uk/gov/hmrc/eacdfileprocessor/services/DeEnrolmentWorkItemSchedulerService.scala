@@ -210,7 +210,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
 
   private def extractGroupIds(json: play.api.libs.json.JsValue): Seq[String] =
     (json \ "principalGroupIds").asOpt[Seq[String]].getOrElse(Seq.empty) ++
-      (json \ "delegatedAgentGroupIds").asOpt[Seq[String]].getOrElse(Seq.empty)
+      (json \ "delegatedGroupIds").asOpt[Seq[String]].getOrElse(Seq.empty)
 
   private def extractErrorMessage(json: play.api.libs.json.JsValue): String =
     (json \ "message").asOpt[String].getOrElse("Unknown error")
