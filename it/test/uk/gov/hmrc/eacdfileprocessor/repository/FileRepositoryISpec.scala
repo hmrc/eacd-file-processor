@@ -24,7 +24,7 @@ import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.exceptions.DuplicateReferenceException
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.*
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, INITIAL, PROCESSING, SCANNED, STORED}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, FAILED, INITIAL, PROCESSEDSUCCESSFULLY, PROCESSEDWITHERRORS, PROCESSING, REJECTED, SCANNED, STORED}
 
 import java.time.Instant
 import java.time.Instant.now
@@ -38,7 +38,7 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
     await(repository.ensureIndexes())
   }
 
-  "repository" can {
+  "FileRepository" can {
     "save a uploaded details" when {
       "correct details has been supplied" in {
         await(repository.createFileRecord(initiateUploadDetails))
@@ -193,9 +193,9 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
       "get status counts correctly should not include initial status" in {
         await(repository.createFileRecord(initiateUploadDetails))
         await(repository.createFileRecord(scannedUploadedDetails.copy(lastUpdatedDateTime = Some(now().minus(20, DAYS)))))
-        await(repository.createFileRecord(failedUploadedDetails.copy(reference= Reference("ref1"), lastUpdatedDateTime = Some(now().minus(5, DAYS)))))
-        await(repository.createFileRecord(scannedUploadedDetails.copy(id= ObjectId.get(), reference= Reference("ref2"), lastUpdatedDateTime = Some(now()))))
-        await(repository.createFileRecord(scannedUploadedDetails.copy(id= ObjectId.get(), reference= Reference("ref3"), status= PROCESSING, lastUpdatedDateTime = Some(now()))))
+        await(repository.createFileRecord(failedUploadedDetails.copy(reference = Reference("ref1"), lastUpdatedDateTime = Some(now().minus(5, DAYS)))))
+        await(repository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref2"), lastUpdatedDateTime = Some(now()))))
+        await(repository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref3"), status = PROCESSING, lastUpdatedDateTime = Some(now()))))
         val actual = await(repository.getFileStatusCounts)
         actual.size shouldBe 3
         actual should contain(FileStatusCount(SCANNED.value, 2))
@@ -219,6 +219,172 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
         await(repository.createFileRecord(scannedUploadedDetails.copy(lastUpdatedDateTime = Some(now().minus(65, DAYS)))))
         val actual = await(repository.getFileStatusCounts)
         actual.size shouldBe 0
+      }
+    }
+
+    "find expired initial files" when {
+      "there is an initial record older than initialExpiryDays" in {
+        val expiredInitial = initiateUploadDetails.copy(
+          reference = Reference("expired-initial"),
+          id = ObjectId.get(),
+          status = INITIAL,
+          creationDateTime = now().minus(8, DAYS),
+          details = None
+        )
+        val recentInitial = initiateUploadDetails.copy(
+          reference = Reference("recent-initial"),
+          id = ObjectId.get(),
+          status = INITIAL,
+          creationDateTime = now().minus(2, DAYS),
+          details = None
+        )
+        val oldNonInitial = initiateUploadDetails.copy(
+          reference = Reference("old-non-initial"),
+          id = ObjectId.get(),
+          status = STORED,
+          creationDateTime = now().minus(10, DAYS)
+        )
+
+        await(repository.createFileRecord(expiredInitial))
+        await(repository.createFileRecord(recentInitial))
+        await(repository.createFileRecord(oldNonInitial))
+
+        val actual = await(repository.findExpiredInitialFiles)
+
+        actual.map(_.reference.value) shouldBe Seq("expired-initial")
+      }
+
+      "return empty when there are no expired initial records" in {
+        val recentInitial = initiateUploadDetails.copy(
+          reference = Reference("recent-initial"),
+          id = ObjectId.get(),
+          status = INITIAL,
+          creationDateTime = now().minus(2, DAYS),
+          details = None
+        )
+        val oldStored = initiateUploadDetails.copy(
+          reference = Reference("old-stored"),
+          id = ObjectId.get(),
+          status = STORED,
+          creationDateTime = now().minus(20, DAYS)
+        )
+
+        await(repository.createFileRecord(recentInitial))
+        await(repository.createFileRecord(oldStored))
+
+        val actual = await(repository.findExpiredInitialFiles)
+
+        actual shouldBe Seq.empty
+      }
+    }
+
+    "find expired active files" when {
+      "there are active records older than fileExpiryDays in supported statuses" in {
+        val expiredFailed = failedUploadedDetails.copy(
+          reference = Reference("expired-failed"),
+          id = ObjectId.get(),
+          status = FAILED,
+          lastUpdatedDateTime = Some(now().minus(61, DAYS))
+        )
+        val expiredStored = scannedUploadedDetails.copy(
+          reference = Reference("expired-stored"),
+          id = ObjectId.get(),
+          status = STORED,
+          lastUpdatedDateTime = Some(now().minus(61, DAYS))
+        )
+        val expiredRejected = scannedUploadedDetails.copy(
+          reference = Reference("expired-rejected"),
+          id = ObjectId.get(),
+          status = REJECTED,
+          lastUpdatedDateTime = Some(now().minus(61, DAYS))
+        )
+        val expiredProcessedWithErrors = scannedUploadedDetails.copy(
+          reference = Reference("expired-processed-errors"),
+          id = ObjectId.get(),
+          status = PROCESSEDWITHERRORS,
+          lastUpdatedDateTime = Some(now().minus(61, DAYS))
+        )
+        val expiredProcessedSuccessfully = scannedUploadedDetails.copy(
+          reference = Reference("expired-processed-success"),
+          id = ObjectId.get(),
+          status = PROCESSEDSUCCESSFULLY,
+          lastUpdatedDateTime = Some(now().minus(61, DAYS))
+        )
+        val recentFailed = failedUploadedDetails.copy(
+          reference = Reference("recent-failed"),
+          id = ObjectId.get(),
+          status = FAILED,
+          lastUpdatedDateTime = Some(now().minus(5, DAYS))
+        )
+        val expiredUnsupportedStatus = scannedUploadedDetails.copy(
+          reference = Reference("expired-scanned"),
+          id = ObjectId.get(),
+          status = SCANNED,
+          lastUpdatedDateTime = Some(now().minus(61, DAYS))
+        )
+
+        await(repository.createFileRecord(expiredFailed))
+        await(repository.createFileRecord(expiredStored))
+        await(repository.createFileRecord(expiredRejected))
+        await(repository.createFileRecord(expiredProcessedWithErrors))
+        await(repository.createFileRecord(expiredProcessedSuccessfully))
+        await(repository.createFileRecord(recentFailed))
+        await(repository.createFileRecord(expiredUnsupportedStatus))
+
+        val actual = await(repository.findExpiredActiveFiles)
+
+        actual.map(_.reference.value).toSet shouldBe Set(
+          "expired-failed",
+          "expired-stored",
+          "expired-rejected",
+          "expired-processed-errors",
+          "expired-processed-success"
+        )
+      }
+
+      "return empty when there are no expired active records" in {
+        val recentFailed = failedUploadedDetails.copy(
+          reference = Reference("recent-failed"),
+          id = ObjectId.get(),
+          status = FAILED,
+          lastUpdatedDateTime = Some(now().minus(1, DAYS))
+        )
+        val recentStored = scannedUploadedDetails.copy(
+          reference = Reference("recent-stored"),
+          id = ObjectId.get(),
+          status = STORED,
+          lastUpdatedDateTime = Some(now().minus(2, DAYS))
+        )
+
+        await(repository.createFileRecord(recentFailed))
+        await(repository.createFileRecord(recentStored))
+
+        val actual = await(repository.findExpiredActiveFiles)
+
+        actual shouldBe Seq.empty
+      }
+    }
+
+    "delete by reference" when {
+      "a matching record exists" in {
+        val record = initiateUploadDetails.copy(
+          reference = Reference("delete-me"),
+          id = ObjectId.get()
+        )
+
+        await(repository.createFileRecord(record))
+
+        val deleted = await(repository.deleteByReference(record.reference))
+        val remaining = await(repository.findByReference(record.reference))
+
+        deleted shouldBe true
+        remaining shouldBe None
+      }
+
+      "no matching record exists" in {
+        val deleted = await(repository.deleteByReference(Reference("does-not-exist")))
+
+        deleted shouldBe false
       }
     }
   }

@@ -75,16 +75,16 @@ object FileUploadRepoFormat {
 
   given Format[FileStatus] =
     val read: Reads[FileStatus] = {
-      case JsString(INITIAL.value)               => JsSuccess(INITIAL)
-      case JsString(SCANNED.value)               => JsSuccess(SCANNED)
-      case JsString(FAILED.value)                => JsSuccess(FAILED)
-      case JsString(STORED.value)                => JsSuccess(STORED)
-      case JsString(UPLOADREJECTED.value)        => JsSuccess(UPLOADREJECTED)
-      case JsString(UPLOADED.value)              => JsSuccess(UPLOADED)
-      case JsString(REJECTED.value)              => JsSuccess(REJECTED)
-      case JsString(APPROVED.value)              => JsSuccess(APPROVED)
-      case JsString(PROCESSING.value)            => JsSuccess(PROCESSING)
-      case JsString(PROCESSEDWITHERRORS.value)   => JsSuccess(PROCESSEDWITHERRORS)
+      case JsString(INITIAL.value) => JsSuccess(INITIAL)
+      case JsString(SCANNED.value) => JsSuccess(SCANNED)
+      case JsString(FAILED.value) => JsSuccess(FAILED)
+      case JsString(STORED.value) => JsSuccess(STORED)
+      case JsString(UPLOADREJECTED.value) => JsSuccess(UPLOADREJECTED)
+      case JsString(UPLOADED.value) => JsSuccess(UPLOADED)
+      case JsString(REJECTED.value) => JsSuccess(REJECTED)
+      case JsString(APPROVED.value) => JsSuccess(APPROVED)
+      case JsString(PROCESSING.value) => JsSuccess(PROCESSING)
+      case JsString(PROCESSEDWITHERRORS.value) => JsSuccess(PROCESSEDWITHERRORS)
       case JsString(PROCESSEDSUCCESSFULLY.value) => JsSuccess(PROCESSEDSUCCESSFULLY)
       case _ => JsError("Unknown file status")
     }
@@ -237,6 +237,34 @@ class FileRepository @Inject()(
       `match`(Filters.gte("lastUpdatedDateTime", Instant.now().minus(config.fileExpiryDays, DAYS))),
       group("$status", Accumulators.sum("count", 1))
     )).toFuture()
+  
+  def findExpiredInitialFiles: Future[Seq[UploadedDetails]] =
+    collection.find(
+      Filters.and(
+        equal("status", INITIAL.value),
+        Filters.lte("creationDateTime", Instant.now().minus(config.initialExpiryDays, DAYS)),
+        Filters.or(
+          Filters.exists("details", false),
+          Filters.eq("details", null)
+        )
+      )
+    ).toFuture()
+
+  def findExpiredActiveFiles: Future[Seq[UploadedDetails]] = {
+    val expiredStatuses = Seq(FAILED.value, STORED.value, REJECTED.value, PROCESSEDWITHERRORS.value, PROCESSEDSUCCESSFULLY.value)
+    collection.find(
+      Filters.and(
+        Filters.in("status", expiredStatuses: _*),
+        Filters.lte("lastUpdatedDateTime", Instant.now().minus(config.fileExpiryDays, DAYS))
+      )
+    ).toFuture()
+  }
+
+  def deleteByReference(reference: Reference): Future[Boolean] = {
+    collection.deleteOne(
+      equal("reference.value", reference.value)
+    ).toFuture().map(_.getDeletedCount > 0)
+  }
 
   private def updateByReference(reference: Reference, updates: Bson*): Future[Option[UploadedDetails]] =
     collection
