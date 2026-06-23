@@ -52,7 +52,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
     details = Some(Details.UploadedSuccessfully("abc.csv", "text/csv", URI("http://localhost/file").toURL, Some(10), "aa"))
   )
 
-  trait Setup {
+
+  val payload = DeEnrolmentWorkItem(
+    reference = uploadedDetails.reference.value,
+    recordDetail = "IR-SA~UTR~1234567890,principal",
+    creationDateTime = Instant.now()
+  )
+
+  class Setup(workItemPayload: DeEnrolmentWorkItem = payload) {
     val appConfig: AppConfig = mock[AppConfig]
     val deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository = mock[DeEnrolmentWorkItemRepository]
     val fileRecordValidationErrorRepository: FileRecordValidationErrorRepository = mock[FileRecordValidationErrorRepository]
@@ -87,12 +94,6 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       validator
     )
 
-    val payload = DeEnrolmentWorkItem(
-      reference = uploadedDetails.reference.value,
-      recordDetail = "IR-SA~UTR~1234567890,principal",
-      creationDateTime = Instant.now()
-    )
-
     val workItem: WorkItem[DeEnrolmentWorkItem] = WorkItem(
       id = ObjectId.get(),
       receivedAt = Instant.now(),
@@ -100,7 +101,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       availableAt = Instant.now(),
       status = ProcessingStatus.InProgress,
       failureCount = 0,
-      item = payload
+      item = workItemPayload
     )
 
     when(deEnrolmentWorkItemRepository.pullOutstandingBatch(5)).thenReturn(Future.successful(Seq(workItem)))
@@ -435,8 +436,8 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       }
     }
     "Action is delegated" when {
-      "The action is delegated" in new Setup {
-        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+      "The action is delegated" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,delegated")) {
+        when(validator.validate("IR-SA~UTR~1234567890,delegated", Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
@@ -446,16 +447,16 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
       }
-      "The action is delegated and calls ES9" in new Setup {
-        val ResponseBody =
+      "The action is delegated and calls ES9" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567892,delegated")) {
+        val responseBody =
           """{
             |    "delegatedGroupIds": [
-            |       "c0506dd9-1feb-400a-bf70-6351e1ff7512"
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7519"
             |    ]
             |}""".stripMargin
-        when(validator.validate("IR-SA~UTR~1234567890,delegated", Set("HMRC-MTD-IT")))
-          .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
-        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, ResponseBody)))
+        when(validator.validate("IR-SA~UTR~1234567892,delegated", Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567892", "delegated"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBody)))
         when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
 
