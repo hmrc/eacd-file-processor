@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.eacdfileprocessor.controllers
+package uk.gov.hmrc.eacdfileprocessor.support.controllers
 
 import helper.IntegrationSpec
 import org.scalatest.matchers.should.Matchers.shouldBe
@@ -26,7 +26,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.{ApproverDetails, Reference}
 
 import java.time.Instant
 
-class TestControllerISpec extends IntegrationSpec with TestData with DefaultAwaitTimeout {
+class FileDetailsControllerISpec extends IntegrationSpec with TestData with DefaultAwaitTimeout {
 
   val reference = "08aad019-7f66-4456-8d52-93f12109876f"
 

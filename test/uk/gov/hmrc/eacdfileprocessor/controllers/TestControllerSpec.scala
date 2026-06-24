@@ -28,7 +28,6 @@ import play.api.test.Helpers.{GET, INTERNAL_SERVER_ERROR, NO_CONTENT, OK, POST, 
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.models.FileDetailResponse
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.services.FileDetailService
 import uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController
@@ -80,57 +79,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
   }
 
   val controller = new TestTestController
-
-  private val successResponse = FileDetailResponse(
-    fileName = "bulk-de-enrol.csv",
-    reference = "test-ref-123",
-    creationDateTime = createdAt,
-    errorCode = None,
-    errorMessage = None,
-    fileStatus = "scanned",
-    lastUpdatedDateTime = createdAt,
-    requestorEmail = "test@hmrc.gov.uk",
-    requestorPID = "12345678",
-    requestorName = "Test User",
-    downloadUrl = "http://localhost:9570/upscan/download/some-file",
-    fileMimeType = "text/csv",
-    uploadTimestamp = createdAt,
-    checksum = "abc123",
-    size = 32270L,
-    failureReason = None,
-    failureMessage = None,
-    approverEmail = None,
-    approverPID = None,
-    approverName = None,
-    approvalDateTime = None,
-    totalEntryCount = 0,
-    totalSuccessCount = 0,
-    totalFailureCount = 0
-  )
-
-  private val failedResponse = successResponse.copy(
-    fileStatus = "failed",
-    errorCode = Some("REJECTED"),
-    errorMessage = Some("MIME type application/pdf is not allowed for service"),
-    failureReason = Some("REJECTED"),
-    failureMessage = Some("MIME type application/pdf is not allowed for service"),
-    downloadUrl = "",
-    fileMimeType = "",
-    checksum = ""
-  )
-
-  private val approvedResponse = successResponse.copy(
-    fileStatus = "approved",
-    approverEmail = Some("approverTest@hmrc.gov.uk"),
-    approverPID = Some("87654321"),
-    approverName = Some("Approver1"),
-    approvalDateTime = Some(createdAt),
-    totalEntryCount = 100,
-    totalSuccessCount = 95,
-    totalFailureCount = 5
-  )
-
-
+  
   "testController#putObject" should {
 
     "return 201 Created when the object is successfully stored" in {
@@ -158,104 +107,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
       contentAsString(result) shouldBe "Error saving the document"
     }
   }
-
-  "TestController#getFileDetail" should {
-
-    "return 200 OK with file detail string for a successfully uploaded file" in {
-      when(mockFileDetailService.getFileDetail(any())).thenReturn(Future.successful(Some(successResponse)))
-
-      val result = controller.getFileDetail("test-ref-123")(FakeRequest(GET, "/test-only/file-detail/test-ref-123"))
-
-      status(result) shouldBe OK
-      contentAsString(result) shouldBe successResponse.toString
-    }
-
-    "return 200 OK with file detail string for a failed file" in {
-      when(mockFileDetailService.getFileDetail(any())).thenReturn(Future.successful(Some(failedResponse)))
-
-      val result = controller.getFileDetail("test-ref-456")(FakeRequest(GET, "/test-only/file-detail/test-ref-456"))
-
-      status(result) shouldBe OK
-      contentAsString(result) shouldBe failedResponse.toString
-    }
-
-    "return 200 OK with file detail string for an approved file with approver details" in {
-      when(mockFileDetailService.getFileDetail(any())).thenReturn(Future.successful(Some(approvedResponse)))
-
-      val result = controller.getFileDetail("test-ref-789")(FakeRequest(GET, "/test-only/file-detail/test-ref-789"))
-
-      status(result) shouldBe OK
-      contentAsString(result) shouldBe approvedResponse.toString
-    }
-
-    "return 204 NoContent when the service returns None for an unknown reference" in {
-      when(mockFileDetailService.getFileDetail(any())).thenReturn(Future.successful(None))
-
-      val result = controller.getFileDetail("unknown-ref")(FakeRequest(GET, "/test-only/file-detail/unknown-ref"))
-
-      status(result) shouldBe NO_CONTENT
-    }
-
-    "return 204 NoContent and an empty body when no file detail exists" in {
-      when(mockFileDetailService.getFileDetail(any())).thenReturn(Future.successful(None))
-
-      val result = controller.getFileDetail("missing-ref")(FakeRequest(GET, "/test-only/file-detail/missing-ref"))
-
-      status(result) shouldBe NO_CONTENT
-      contentAsString(result) shouldBe ""
-    }
-
-    "return 500 InternalServerError with error body when the service throws a RuntimeException" in {
-      when(mockFileDetailService.getFileDetail(any()))
-        .thenReturn(Future.failed(new RuntimeException("Unexpected DB failure")))
-
-      val result = controller.getFileDetail("test-ref-123")(FakeRequest(GET, "/test-only/file-detail/test-ref-123"))
-
-      status(result) shouldBe INTERNAL_SERVER_ERROR
-      contentAsString(result) shouldBe "Error retrieving details"
-    }
-
-    "return 500 InternalServerError with error body when the service throws an IllegalStateException" in {
-      when(mockFileDetailService.getFileDetail(any()))
-        .thenReturn(Future.failed(new IllegalStateException("Repository unavailable")))
-
-      val result = controller.getFileDetail("test-ref-123")(FakeRequest(GET, "/test-only/file-detail/test-ref-123"))
-
-      status(result) shouldBe INTERNAL_SERVER_ERROR
-      contentAsString(result) shouldBe "Error retrieving details"
-    }
-
-    "pass the exact reference string to the service" in {
-      val specificRef = "08aad019-7f66-4456-8d52-93f12109876f"
-      when(mockFileDetailService.getFileDetail(eqTo(specificRef))).thenReturn(Future.successful(Some(successResponse)))
-
-      val result = controller.getFileDetail(specificRef)(FakeRequest(GET, s"/test-only/file-detail/$specificRef"))
-
-      status(result) shouldBe OK
-      verify(mockFileDetailService, times(1)).getFileDetail(eqTo(specificRef))
-    }
-
-    "call the service exactly once per request" in {
-      org.mockito.Mockito.reset(mockFileDetailService)
-      when(mockFileDetailService.getFileDetail(any())).thenReturn(Future.successful(Some(successResponse)))
-
-      val result = controller.getFileDetail("test-ref-123")(FakeRequest(GET, "/test-only/file-detail/test-ref-123"))
-      status(result) shouldBe OK
-
-      verify(mockFileDetailService, times(1)).getFileDetail(any())
-    }
-
-    "not call the service more than once even when result is None" in {
-      org.mockito.Mockito.reset(mockFileDetailService)
-      when(mockFileDetailService.getFileDetail(any())).thenReturn(Future.successful(None))
-
-      val result = controller.getFileDetail("test-ref-123")(FakeRequest(GET, "/test-only/file-detail/test-ref-123"))
-      status(result) shouldBe NO_CONTENT
-
-      verify(mockFileDetailService, times(1)).getFileDetail(any())
-    }
-  }
-
+  
   "TestController#deleteAllObjects" should {
 
     "return 200 OK when all objects are successfully deleted" in {

@@ -103,7 +103,7 @@ object FileUploadRepoFormat {
 
   private given Format[ObjectId] = MongoFormats.objectIdFormat
 
-  private[repository] val mongoFormat: Format[UploadedDetails] =
+  val mongoFormat: Format[UploadedDetails] =
     ((__ \ "_id").format[ObjectId]
       ~ (__ \ "reference").format[Reference]
       ~ (__ \ "status").format[FileStatus]

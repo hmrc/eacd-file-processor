@@ -58,33 +58,6 @@ case class UploadedDetails(
                             totalSuccessCount: Option[Int] = None
                           )
 
-case class fileDetails(
-                        fileName: String,
-                        reference: String,
-                        creationDateTime: Instant,
-                        errorCode: Option[String],
-                        errorMessage: Option[String],
-                        fileStatus: String,
-                        lastUpdatedDateTime: Instant,
-                        requestorEmail: String,
-                        requestorPID: String,
-                        requestorName: String,
-                        downloadUrl: URL,
-                        fileMimeType: String,
-                        uploadTimestamp: Instant,
-                        checksum: String,
-                        size: Long,
-                        failureReason: Option[String],
-                        failureMessage: Option[String],
-                        approverEmail: Option[String],
-                        approverPID: Option[String],
-                        approverName: Option[String],
-                        approvalDateTime: Option[Instant],
-                        totalEntryCount: Int,
-                        totalSuccessCount: Int,
-                        totalFailureCount: Int
-                      )
-
 case class FileStatusCount(status: String, count: Int)
 
 object FileStatusCount {
