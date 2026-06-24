@@ -92,6 +92,22 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
 
         status(result) shouldBe NO_CONTENT
       }
+      "return NO_CONTENT when updating to uploaded but current status is stored" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "uploaded"
+        )
+        val result = await(statusService.updateStatus("ref1", STORED, "12345678", statusApproverDetails))
+
+        status(result) shouldBe NO_CONTENT
+      }
+      "return NO_CONTENT when updating to uploaded but current status is scanned" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "uploaded"
+        )
+        val result = await(statusService.updateStatus("ref1", SCANNED, "12345678", statusApproverDetails))
+
+        status(result) shouldBe NO_CONTENT
+      }
       "return BAD_REQUEST when updating to uploadRejected, correct information is supplied but current status is not initial" in {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected",
@@ -114,15 +130,6 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe alreadyAtStatusErrorResponse
       }
-      "return BAD_REQUEST when updating to uploaded, correct information is supplied but current status is not initial" in {
-        val statusApproverDetails = StatusApproverDetails(
-          status = "uploaded"
-        )
-        val result = await(statusService.updateStatus("ref1", STORED, "12345678", statusApproverDetails))
-
-        status(result) shouldBe BAD_REQUEST
-        jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
-      }
       "return BAD_REQUEST when updating to uploaded, correct information is supplied but current status is already uploaded" in {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploaded"
@@ -131,6 +138,15 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
 
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe alreadyAtStatusErrorResponse
+      }
+      "return BAD_REQUEST when updating to uploaded, correct information is supplied but current status is not initial, scanned or stored" in {
+        val statusApproverDetails = StatusApproverDetails(
+          status = "uploaded"
+        )
+        val result = await(statusService.updateStatus("ref1", APPROVED, "12345678", statusApproverDetails))
+
+        status(result) shouldBe BAD_REQUEST
+        jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
       }
       "return BAD_REQUEST when updating to rejected, correct information is supplied but current status is not stored" in {
         val statusApproverDetails = StatusApproverDetails(
