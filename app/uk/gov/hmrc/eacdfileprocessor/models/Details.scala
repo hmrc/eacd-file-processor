@@ -54,7 +54,8 @@ case class UploadedDetails(
                             lastUpdatedDateTime: Option[Instant] = None,
                             approvedAtDateTime: Option[Instant] = None,
                             creationDateTime: Instant = Instant.now(),
-                            totalFailureCount: Option[Int] = None
+                            totalFailureCount: Option[Int] = None,
+                            totalSuccessCount: Option[Int] = None
                           )
 
 case class FileStatusCount(status: String, count: Int)
