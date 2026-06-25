@@ -26,29 +26,32 @@ class DeEnrolmentWorkItemValidatorSpec extends TestSupport {
 
   "DeEnrolmentWorkItemValidator" should {
     "return row structure invalid when there are not exactly 2 columns" in {
-      validator.validate("IR-SA~UTR~1234567890,principal,extra", Set.empty) shouldBe Some("Row structure invalid")
-      validator.validate("IR-SA~UTR~1234567890", Set.empty) shouldBe Some("Row structure invalid")
+      validator.validate("IR-SA~UTR~1234567890,principal,extra", Set.empty) shouldBe Left("Row structure invalid")
+      validator.validate("IR-SA~UTR~1234567890", Set.empty) shouldBe Left("Row structure invalid")
     }
 
     "return agent principal validation error for agent services when action type is not agent" in {
-      validator.validate("HMRC-MTD-IT~MTDBSA~1234567890,principal", Set("HMRC-MTD-IT")) shouldBe Some("Agent principal deallocation must specify 'agent'")
+      validator.validate("HMRC-MTD-IT~MTDBSA~1234567890,principal", Set("HMRC-MTD-IT")) shouldBe Left("Agent principal deallocation must specify 'agent'")
     }
 
     "return invalid action type when non-agent service specifies agent action" in {
-      validator.validate("IR-SA~UTR~1234567890,agent", Set("HMRC-MTD-IT")) shouldBe Some("Invalid action type")
+      validator.validate("IR-SA~UTR~1234567890,agent", Set("HMRC-MTD-IT")) shouldBe Left("Invalid action type")
     }
 
     "return invalid action type when action is not in supported values" in {
-      validator.validate("IR-SA~UTR~1234567890,principla", Set.empty) shouldBe Some("Invalid action type")
+      validator.validate("IR-SA~UTR~1234567890,principla", Set.empty) shouldBe Left("Invalid action type")
     }
 
     "return no error when record is valid" in {
-      validator.validate("IR-SA~UTR~1234567890,principal", Set.empty) shouldBe None
-      validator.validate("HMRC-MTD-IT~MTDBSA~1234567890,agent", Set("HMRC-MTD-IT")) shouldBe None
+      validator.validate("IR-SA~UTR~1234567890,principal", Set.empty) shouldBe Right("IR-SA~UTR~1234567890", "principal")
+    }
+
+    "return no error when record is valid and is an agent so it makes it a principle" in {
+      validator.validate("HMRC-MTD-IT~MTDBSA~1234567890,agent", Set("HMRC-MTD-IT")) shouldBe Right("HMRC-MTD-IT~MTDBSA~1234567890", "principal")
     }
 
     "derive the service key from the enrolment key prefix before the first tilde" in {
-      validator.validate("IR-SA~UTR~1234567890,principal", Set("IR-SA")) shouldBe Some("Agent principal deallocation must specify 'agent'")
+      validator.validate("IR-SA~UTR~1234567890,principal", Set("IR-SA")) shouldBe Left("Agent principal deallocation must specify 'agent'")
     }
   }
 }
