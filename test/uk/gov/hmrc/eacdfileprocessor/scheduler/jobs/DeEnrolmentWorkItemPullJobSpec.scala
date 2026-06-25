@@ -49,7 +49,7 @@ class DeEnrolmentWorkItemPullJobSpec extends TestSupport {
 
       job.jobName shouldBe "DeEnrolmentWorkItemPullJob"
       job.deEnrolmentWorkItemSchedulerService shouldBe schedulerService
-      job.expression shouldBe ""
+      job.interval shouldBe None
       lifecycle.stopHookCalls shouldBe 1
 
       await(job.actorSystem.terminate())

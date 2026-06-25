@@ -17,9 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.scheduler
 
 import org.apache.pekko.actor.{ActorRef, ActorSystem}
-import org.apache.pekko.extension.quartz.QuartzSchedulerExtension
-import org.mockito.ArgumentMatchers.{any, eq as eqTo}
-import org.mockito.Mockito.{never, verify}
+import org.apache.pekko.actor.Cancellable
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
@@ -27,6 +25,7 @@ import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.DeEnrolmentWorkIt
 import uk.gov.hmrc.eacdfileprocessor.services.LockResponse
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.{FiniteDuration, DurationInt}
 
 class ScheduledJobSpec extends TestSupport {
 
@@ -39,7 +38,12 @@ class ScheduledJobSpec extends TestSupport {
     override val config: Configuration = Configuration.from(configMap)
     override val actorSystem: ActorSystem = mock[ActorSystem]
     override val jobName: String = "TestScheduledJob"
-    override lazy val scheduler: QuartzSchedulerExtension = mock[QuartzSchedulerExtension]
+    val cancellable: Cancellable = mock[Cancellable]
+    var scheduledAt: Option[FiniteDuration] = None
+    override def scheduleAtFixedRate(every: FiniteDuration): Cancellable = {
+      scheduledAt = Some(every)
+      cancellable
+    }
     override lazy val schedulingActorRef: ActorRef = null
   }
 
@@ -57,28 +61,27 @@ class ScheduledJobSpec extends TestSupport {
       job.description shouldBe Some("Runs test schedule")
     }
 
-    "replace underscores with spaces in expression" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.expression" -> "0/5_*_*_?_*_*_*"))
+    "read configured interval" in {
+      val job = TestScheduledJob(Map("schedules.TestScheduledJob.interval" -> "5 seconds"))
 
-      job.expression shouldBe "0/5 * * ? * * *"
+      job.interval shouldBe Some(5.seconds)
     }
 
-    "create and register schedule when enabled and expression is present" in {
+    "create and register schedule when enabled and interval is present" in {
       val job = TestScheduledJob(
         Map(
           "schedules.TestScheduledJob.enabled" -> true,
           "schedules.TestScheduledJob.description" -> "My job",
-          "schedules.TestScheduledJob.expression" -> "0/1_*_*_?_*_*_*"
+          "schedules.TestScheduledJob.interval" -> "1 second"
         )
       )
 
       job.schedule
 
-      verify(job.scheduler).createSchedule("TestScheduledJob", Some("My job"), "0/1 * * ? * * *")
-      verify(job.scheduler).schedule(eqTo("TestScheduledJob"), any[ActorRef], any())
+      job.scheduledAt shouldBe Some(1.seconds)
     }
 
-    "not create or register schedule when enabled but expression is missing" in {
+    "not create or register schedule when enabled but interval is missing" in {
       val job = TestScheduledJob(
         Map(
           "schedules.TestScheduledJob.enabled" -> true
@@ -87,22 +90,20 @@ class ScheduledJobSpec extends TestSupport {
 
       job.schedule
 
-      verify(job.scheduler, never()).createSchedule("TestScheduledJob", job.description, job.expression)
-      verify(job.scheduler, never()).schedule(eqTo("TestScheduledJob"), any[ActorRef], any())
+      job.scheduledAt shouldBe None
     }
 
     "not create or register schedule when job is disabled" in {
       val job = TestScheduledJob(
         Map(
           "schedules.TestScheduledJob.enabled" -> false,
-          "schedules.TestScheduledJob.expression" -> "0/1_*_*_?_*_*_*"
+          "schedules.TestScheduledJob.interval" -> "1 second"
         )
       )
 
       job.schedule
 
-      verify(job.scheduler, never()).createSchedule("TestScheduledJob", job.description, "0/1 * * ? * * *")
-      verify(job.scheduler, never()).schedule(eqTo("TestScheduledJob"), any[ActorRef], any())
+      job.scheduledAt shouldBe None
     }
   }
 }

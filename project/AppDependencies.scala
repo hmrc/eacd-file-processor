@@ -7,7 +7,6 @@ object AppDependencies {
   private val testcontainersVersion = "1.20.6"
 
   val compile = Seq(
-    "io.github.samueleresca" %% "pekko-quartz-scheduler"              % "1.2.2-pekko-1.0.x",
     "uk.gov.hmrc"             %% "bootstrap-backend-play-30"          % bootstrapVersion,
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-work-item-repo-play-30"  % hmrcMongoVersion,
     "uk.gov.hmrc.objectstore" %% "object-store-client-play-30"        % "2.6.0",
