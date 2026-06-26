@@ -34,7 +34,11 @@ class DeEnrolmentWorkItemPullJob @Inject()(
 
   val jobName: String = "DeEnrolmentWorkItemPullJob"
   val actorSystem: ActorSystem = ActorSystem(jobName)
-  val scheduledMessage = DeEnrolmentWorkItemPullMessage(deEnrolmentWorkItemSchedulerService)
+  val scheduledMessage = DeEnrolmentWorkItemPullMessage(
+    deEnrolmentWorkItemSchedulerService,
+    () => isWithinAllowedUtcWindow(),
+    utcWindowSkipReason
+  )
 
   // Delay schedule initialization until app is fully started to avoid Quartz conflicts in test
   lifecycle.addStopHook(() => Future.successful(()))

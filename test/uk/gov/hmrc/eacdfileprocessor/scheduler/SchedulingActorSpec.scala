@@ -109,6 +109,16 @@ class SchedulingActorSpec extends TestSupport {
       Await.result(invoked.future, 2.seconds)
       verify(service).invoke(using any[ExecutionContext])
     }
+
+    "skip service invocation when message run-condition blocks execution" in withActorSystem { system =>
+      val actor = system.actorOf(SchedulingActor.props)
+      val service = mock[ScheduledService[Either[Unit, LockResponse]]]
+
+      actor ! DeEnrolmentWorkItemPullMessage(service, canRun = () => false)
+
+      Thread.sleep(300)
+      verify(service, org.mockito.Mockito.never()).invoke(using any[ExecutionContext])
+    }
   }
 }
 

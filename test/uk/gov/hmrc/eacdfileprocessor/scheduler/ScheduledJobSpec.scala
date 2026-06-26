@@ -24,6 +24,7 @@ import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.DeEnrolmentWorkItemPullMessage
 import uk.gov.hmrc.eacdfileprocessor.services.LockResponse
 
+import java.time.LocalTime
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.{FiniteDuration, DurationInt}
 
@@ -65,6 +66,61 @@ class ScheduledJobSpec extends TestSupport {
       val job = TestScheduledJob(Map("schedules.TestScheduledJob.interval" -> "5 seconds"))
 
       job.interval shouldBe Some(5.seconds)
+    }
+
+    "read configured UTC start and end times when both are present" in {
+      val job = TestScheduledJob(
+        Map(
+          "schedules.TestScheduledJob.start-time-utc" -> "09:00",
+          "schedules.TestScheduledJob.end-time-utc" -> "17:00"
+        )
+      )
+
+      job.startTimeUtc shouldBe Some(LocalTime.of(9, 0))
+      job.endTimeUtc shouldBe Some(LocalTime.of(17, 0))
+    }
+
+    "allow runs at any time when no UTC window is configured" in {
+      val job = TestScheduledJob(Map.empty)
+
+      job.isWithinAllowedUtcWindow(LocalTime.of(3, 0)) shouldBe true
+      job.isWithinAllowedUtcWindow(LocalTime.of(13, 0)) shouldBe true
+      job.isWithinAllowedUtcWindow(LocalTime.of(23, 0)) shouldBe true
+    }
+
+    "allow runs only between start and end for a same-day UTC window" in {
+      val job = TestScheduledJob(
+        Map(
+          "schedules.TestScheduledJob.start-time-utc" -> "09:00",
+          "schedules.TestScheduledJob.end-time-utc" -> "17:00"
+        )
+      )
+
+      job.isWithinAllowedUtcWindow(LocalTime.of(8, 59)) shouldBe false
+      job.isWithinAllowedUtcWindow(LocalTime.of(9, 0)) shouldBe true
+      job.isWithinAllowedUtcWindow(LocalTime.of(16, 59)) shouldBe true
+      job.isWithinAllowedUtcWindow(LocalTime.of(17, 0)) shouldBe false
+    }
+
+    "allow runs correctly for an overnight UTC window" in {
+      val job = TestScheduledJob(
+        Map(
+          "schedules.TestScheduledJob.start-time-utc" -> "22:00",
+          "schedules.TestScheduledJob.end-time-utc" -> "05:00"
+        )
+      )
+
+      job.isWithinAllowedUtcWindow(LocalTime.of(23, 0)) shouldBe true
+      job.isWithinAllowedUtcWindow(LocalTime.of(4, 30)) shouldBe true
+      job.isWithinAllowedUtcWindow(LocalTime.of(12, 0)) shouldBe false
+    }
+
+    "treat partial UTC window configuration as unrestricted" in {
+      val job = TestScheduledJob(Map("schedules.TestScheduledJob.start-time-utc" -> "09:00"))
+
+      job.hasPartialUtcWindowConfig shouldBe true
+      job.isWithinAllowedUtcWindow(LocalTime.of(2, 0)) shouldBe true
+      job.isWithinAllowedUtcWindow(LocalTime.of(18, 0)) shouldBe true
     }
 
     "create and register schedule when enabled and interval is present" in {
