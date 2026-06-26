@@ -62,7 +62,6 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       _ <- Future.traverse(pulled)(processItem(_, agentServices))
       _ = logger.info(s"[processBatch] Completed processing batch of ${pulled.size} item(s)")
     } yield ()).recoverWith { case e =>
-      println(Console.MAGENTA_B + s"Hello $e " + Console.RESET)
       logger.error(s"[processBatch] Batch failed: ${e.getMessage}", e)
       Future.unit
     }
