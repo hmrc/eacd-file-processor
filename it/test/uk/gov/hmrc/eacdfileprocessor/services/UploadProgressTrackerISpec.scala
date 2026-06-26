@@ -80,8 +80,6 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
           )
         )
       )
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl, successfulUploadedDetails.mimeType,
-        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
 
       val file = await(fileRepository.findByReference(reference)).get
       file.status mustBe INITIAL
