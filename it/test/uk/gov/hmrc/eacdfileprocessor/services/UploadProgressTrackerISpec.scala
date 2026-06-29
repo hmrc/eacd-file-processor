@@ -24,6 +24,9 @@ import org.scalatest.concurrent.Eventually
 import play.api.http.Status.CREATED
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
+import play.api.mvc.AnyContentAsEmpty
+import play.api.test.FakeRequest
+import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.Details
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{INITIAL, SCANNED, STORED}
@@ -31,6 +34,7 @@ import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
 import uk.gov.hmrc.objectstore.client.*
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 
 import java.net.URL
 import java.time.Instant
@@ -40,8 +44,12 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
   val objectStoreClient = mock[PlayObjectStoreClient]
   lazy val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
   val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
+  val mockAuditConnector: AuditConnector = Mockito.mock(classOf[AuditConnector])
+  val mockEmailConnector: EmailConnector =Mockito.mock(classOf[EmailConnector])
+  implicit val request: FakeRequest[AnyContentAsEmpty.type] = FakeRequest()
 
-  val progressTracker = UploadProgressTracker(fileRepository, appConfig, objectStoreClient)()
+
+  val progressTracker = UploadProgressTracker(fileRepository, appConfig, mockEmailConnector, mockAuditConnector, objectStoreClient)()
   val reference = initiateUploadDetails.reference
   val sucessfulDetails = Details.UploadedSuccessfully(
     name = "bulk-de-enrol.csv",
