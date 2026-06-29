@@ -17,6 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import uk.gov.hmrc.eacdfileprocessor.models.*
+import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.APPROVED
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.play.audit.http.connector.{AuditConnector, AuditResult}
@@ -28,15 +29,29 @@ import scala.concurrent.{ExecutionContext, Future}
 class AuditService @Inject()(val auditConnector: AuditConnector)(implicit ec: ExecutionContext)
   extends AuditEvents {
 
-  def auditFileFailEvent(uploadDetails: UploadedDetails, failureDetails: Details.UploadedFailed)(implicit hc: HeaderCarrier): Future[AuditResult] = {
+  def auditFileFailEvent(uploadedDetails: UploadedDetails, failureDetails: Details.UploadedFailed)(implicit hc: HeaderCarrier): Future[AuditResult] = {
     auditConnector.sendExtendedEvent(
       FileFailEvent(
-        fileReference = uploadDetails.reference.value,
-        requestorId = uploadDetails.requestorPID,
-        requestorName = uploadDetails.requestorName,
+        fileReference = uploadedDetails.reference.value,
+        requestorId = uploadedDetails.requestorPID,
+        requestorName = uploadedDetails.requestorName,
         failureReason = failureDetails.failureReason,
         failureMessage = failureDetails.message,
-        emailAlertSentTo = uploadDetails.requestorEmail,
+        emailAlertSentTo = uploadedDetails.requestorEmail,
+        hc = hc
+      )
+    )
+  }
+  
+  def auditFileScannedEvent(uploadedDetails: UploadedDetails, successfulDetails: UploadedSuccessfully)(implicit hc: HeaderCarrier): Future[AuditResult] = {
+    auditConnector.sendExtendedEvent(
+      FileScannedEvent(
+        fileReference = uploadedDetails.reference.value,
+        requestorId = uploadedDetails.requestorPID,
+        requestorName = uploadedDetails.requestorName,
+        fileName = successfulDetails.name,
+        fileSize = successfulDetails.size.fold("Unknown")(_.toString),
+        emailAlertSentTo = uploadedDetails.requestorEmail,
         hc = hc
       )
     )

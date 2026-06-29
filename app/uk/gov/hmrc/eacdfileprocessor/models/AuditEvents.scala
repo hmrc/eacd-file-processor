@@ -60,10 +60,9 @@ trait AuditEvents {
 
   }
 
-  object EmailEventScanned {
+  object FileScannedEvent {
     def apply(fileReference: String, requestorId: String, requestorName: String, fileName: String, fileSize: String,
-              emailAlertSentTo: String, hc: HeaderCarrier)
-             (implicit request: Request[_]): ExtendedDataEvent = {
+              emailAlertSentTo: String, hc: HeaderCarrier): ExtendedDataEvent = {
 
       ExtendedDataEvent(
         auditSource = auditSource,

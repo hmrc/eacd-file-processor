@@ -89,6 +89,8 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
 
       await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
       verify(repository, org.mockito.Mockito.timeout(1000).times(1)).updateStatus(any(), any())
+      verify(mockAuditService, org.mockito.Mockito.timeout(1000).times(1)).auditFileScannedEvent(any(), any())(any())
+      verify(mockEmailService, org.mockito.Mockito.timeout(2000).times(1)).sendFileScannedEmail(any(), any(), any())(any())
     }
 
     "update failed upload file details" in new Setup {
@@ -117,5 +119,7 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
       await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
 
       verify(repository, times(0)).updateStatus(any(), any())
+      verify(mockAuditService, org.mockito.Mockito.timeout(1000).times(1)).auditFileScannedEvent(any(), any())(any())
+      verify(mockEmailService, org.mockito.Mockito.timeout(2000).times(1)).sendFileScannedEmail(any(), any(), any())(any())
     }
   }

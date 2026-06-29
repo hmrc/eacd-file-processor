@@ -28,6 +28,7 @@ import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, SessionId}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
+import java.time.Instant.now
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.*
@@ -52,12 +53,14 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
       val connector = new EmailConnectorImpl(mockHttp, runModeConfiguration, mockServicesConfig) {
         override lazy val serviceUrl: String = "http://test.com"
       }
-      val requestorName = "Test User"
-      val fileName = "test-file.csv"
-      val uploadDateTime = java.time.Instant.now()
-      val reference = "test-reference"
-      val failureReason = "test-failure-reason"
-      val failureMessage = "test-failure-message"
+      val params = Map(
+        "requestorName" -> "Test User",
+        "fileName" -> "test-file.csv",
+        "uploadDateTime" -> now().toString,
+        "reference" -> "test-reference",
+        "failureReason" -> "test-failure-reason",
+        "failureMessage" -> "test-failure-message"
+      )
       val to = "joe.bloggs@gmail.com"
       val templateId = "dummyTemplateID"
 
@@ -72,9 +75,7 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
           .thenReturn(Future.successful(HttpResponse(202)))
 
         whenReady(
-          connector.sendFailedEmail(
-            requestorName, fileName, uploadDateTime, to, reference, failureReason, failureMessage, templateId
-          )(hc, ec)) { details =>
+          connector.sendEmail(params, to, templateId)(hc, ec)) { details =>
           details shouldBe true
         }
       }
@@ -90,9 +91,7 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
           when(mockRequestBuilder.execute[HttpResponse](any(), any()))
             .thenReturn(Future.successful(HttpResponse(status)))
 
-          whenReady(connector.sendFailedEmail(
-            requestorName, fileName, uploadDateTime, to, reference, failureReason, failureMessage, templateId
-          )(hc, ec)) { details =>
+          whenReady(connector.sendEmail(params, to, templateId)(hc, ec)) { details =>
             details shouldBe false
           }
         }
@@ -108,9 +107,7 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
         when(mockRequestBuilder.execute)
           .thenReturn(Future.failed(new Exception))
 
-        whenReady(connector.sendFailedEmail(
-          requestorName, fileName, uploadDateTime, to, reference, failureReason, failureMessage, templateId
-        )(hc, ec)) {
+        whenReady(connector.sendEmail(params, to, templateId)(hc, ec)) {
           _ shouldBe false
         }
       }

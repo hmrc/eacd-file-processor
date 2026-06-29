@@ -34,7 +34,7 @@ class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
   "EmailConnector" must {
     "sendFileFailEmail" must {
       "return true for sending file fail email successfully" in {
-        when(mockEmailConnector.sendFileFailedEmail(any(), any(), any(), any(), any(), any(), any(), any())(any(), any()))
+        when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
           .thenReturn(Future.successful(true))
 
         val result = await(emailService.sendFileFailEmail(initiateUploadDetails.copy(uploadedDateTime = Some(now())), failedFileDetails))
@@ -49,9 +49,26 @@ class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
         exception.getMessage contains "Uploaded date time not found for reference" shouldBe true
       }
     }
+    "sendFileScannedEmail" must {
+      "return true for sending file fail email successfully" in {
+        when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
+          .thenReturn(Future.successful(true))
+
+        val result = await(emailService.sendFileScannedEmail(initiateUploadDetails.copy(uploadedDateTime = Some(now())), successfulUploadedDetails, "60"))
+
+        result shouldBe true
+      }
+      "throw exception when uploadedDateTime is missing" in {
+        val exception = intercept[RuntimeException] {
+          await(emailService.sendFileFailEmail(initiateUploadDetails, failedFileDetails))
+        }
+
+        exception.getMessage contains "Uploaded date time not found for reference" shouldBe true
+      }
+    }
     "sendUpdateFileStatusEmail" must {
       "return true for sending update status email successfully" in {
-        when(mockEmailConnector.sendUpdateFileStatusEmail(any(), any(), any(), any(), any(), any(), any(), any())(any(), any()))
+        when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
           .thenReturn(Future.successful(true))
 
         val result = await(emailService.sendUpdateFileStatusEmail(initiateUploadDetails.copy(uploadedDateTime = Some(now()), approverDetails = Some(approverDetails))))
