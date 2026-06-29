@@ -19,7 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.scheduler
 import org.apache.pekko.actor.{Actor, ActorLogging, Props}
 import org.slf4j.{Logger, LoggerFactory}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.ScheduledMessage
-import uk.gov.hmrc.eacdfileprocessor.services.{LockResponse, ProcessApprovedFileService}
+import uk.gov.hmrc.eacdfileprocessor.services.{ExpiredFileDeletionService, LockResponse, ProcessApprovedFileService}
 
 class SchedulingActor extends Actor with ActorLogging {
   import context.dispatcher
@@ -41,6 +41,8 @@ object SchedulingActor {
   case class ProcessApprovedFileMessage(service: ProcessApprovedFileService) extends ScheduledMessage[Either[Unit, LockResponse]]
 
   case class DeEnrolmentWorkItemPullMessage(service: ScheduledService[Either[Unit, LockResponse]]) extends ScheduledMessage[Either[Unit, LockResponse]]
+  
+  case class ExpiredFileDeletionMessage(service: ExpiredFileDeletionService) extends ScheduledMessage[Either[Unit, LockResponse]]
 
   def props: Props = Props(classOf[SchedulingActor])
 }

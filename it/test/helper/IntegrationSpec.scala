@@ -66,6 +66,7 @@ trait IntegrationSpec extends PlaySpec
     "internalAuth.enabled" -> false,
     "schedules.ProcessApprovedFileJob.enabled" -> false,
     "schedules.DeEnrolmentWorkItemPullJob.enabled" -> false,
+    "schedules.ExpiredFileDeletionJob.enabled" -> false,
     "work-item.retry-in-progress-after.seconds" -> 30,
     "work-item.ttlInHours" -> 720,
     "locking.timeoutMinutes" -> lockingTestTimeout,
