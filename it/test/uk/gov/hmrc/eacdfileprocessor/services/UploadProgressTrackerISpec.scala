@@ -112,14 +112,12 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
           owner = any[String]
         )(using any[HeaderCarrier])
       ).thenReturn(Future.failed(new TimeoutException("Unable to upload, time out.")))
-      when(progressTracker.transferToObjectStore(sucessfulDetails.downloadUrl, sucessfulDetails.mimeType, sucessfulDetails.checksum, sucessfulDetails.name, reference)).thenReturn(Future.unit)
 
-      val file = await(fileRepository.findByReference(reference)).get
-      file.status mustBe INITIAL
-
-      for {
-        _ <- progressTracker.registerUploadResult(reference, sucessfulDetails)
+      val result = await(for {
+        _              <- progressTracker.registerUploadResult(reference, sucessfulDetails)
         uploadedResult <- fileRepository.findByReference(reference)
-      } yield uploadedResult.get.status mustBe SCANNED
+      } yield uploadedResult)
+
+      result.get.status mustBe SCANNED
     }
   }
