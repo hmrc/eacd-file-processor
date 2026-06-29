@@ -102,7 +102,7 @@ object FileUploadRepoFormat {
 
   private given Format[ObjectId] = MongoFormats.objectIdFormat
 
-  private[repository] val mongoFormat: Format[UploadedDetails] =
+  val mongoFormat: Format[UploadedDetails] =
     ((__ \ "_id").format[ObjectId]
       ~ (__ \ "reference").format[Reference]
       ~ (__ \ "status").format[FileStatus]
@@ -117,6 +117,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "approvedAtDateTime").formatNullable[Instant]
       ~ (__ \ "creationDateTime").format[Instant]
       ~ (__ \ "totalFailureCount").formatNullable[Int]
+      ~ (__ \ "totalSuccessCount").formatNullable[Int]
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 

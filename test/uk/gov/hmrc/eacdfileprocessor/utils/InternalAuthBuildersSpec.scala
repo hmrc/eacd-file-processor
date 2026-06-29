@@ -16,12 +16,23 @@
 
 package uk.gov.hmrc.eacdfileprocessor.utils
 
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
-import play.api.mvc.ControllerComponents
-import uk.gov.hmrc.internalauth.client.BackendAuthComponents
+import play.api.mvc.{ActionBuilder, AnyContent, ControllerComponents}
+import uk.gov.hmrc.internalauth.client.Retrieval.Username
+import uk.gov.hmrc.internalauth.client.{AuthenticatedRequest, BackendAuthComponents}
+import uk.gov.hmrc.internalauth.client.{Predicate, Retrieval}
+import play.api.mvc.Result
+import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
+
+import scala.compiletime.ops.double.*
+import scala.concurrent.{ExecutionContext, Future}
+import scala.reflect.ClassTag
+
 
 class InternalAuthBuildersSpec extends AnyWordSpec with Matchers with MockitoSugar {
   "InternalAuthBuilders" should {
@@ -31,9 +42,46 @@ class InternalAuthBuildersSpec extends AnyWordSpec with Matchers with MockitoSug
       val ccMock: ControllerComponents = mock[ControllerComponents]
       val builder: InternalAuthBuilders = new InternalAuthBuilders {
         override def auth: BackendAuthComponents = authStub
+
+        override def configuration: Configuration = config
+
+        override def cc: ControllerComponents = ccMock
+      }
+      val actionBuilder = builder.authorisedEntity()
+      actionBuilder should not be null
+    }
+
+    "provide an authorised ActionBuilder when both internalAuth and api-specific auth are enabled" in {
+      val config: Configuration = Configuration(
+        "internalAuth.enabled" -> true,
+        "internalAuth.myApi.enabled" -> true
+      )
+      val authStub: BackendAuthComponents = mock[BackendAuthComponents](org.mockito.Mockito.RETURNS_DEEP_STUBS)
+      val ccMock: ControllerComponents = mock[ControllerComponents]
+      when(ccMock.executionContext).thenReturn(scala.concurrent.ExecutionContext.global)
+
+      val builder: InternalAuthBuilders = new InternalAuthBuilders {
+        override def auth: BackendAuthComponents = authStub
         override def configuration: Configuration = config
         override def cc: ControllerComponents = ccMock
       }
+
+      val actionBuilder = builder.authorisedEntity(apiName = "myApi")
+      actionBuilder should not be null
+    }
+
+    "provide an authorised ActionBuilder when internalAuth is enabled and api-specific key is absent (defaults to true)" in {
+      val config: Configuration = Configuration("internalAuth.enabled" -> true)
+      val authStub: BackendAuthComponents = mock[BackendAuthComponents](org.mockito.Mockito.RETURNS_DEEP_STUBS)
+      val ccMock: ControllerComponents = mock[ControllerComponents]
+      when(ccMock.executionContext).thenReturn(scala.concurrent.ExecutionContext.global)
+
+      val builder: InternalAuthBuilders = new InternalAuthBuilders {
+        override def auth: BackendAuthComponents = authStub
+        override def configuration: Configuration = config
+        override def cc: ControllerComponents = ccMock
+      }
+
       val actionBuilder = builder.authorisedEntity()
       actionBuilder should not be null
     }

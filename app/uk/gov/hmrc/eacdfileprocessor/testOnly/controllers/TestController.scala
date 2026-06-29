@@ -23,6 +23,7 @@ import play.api.libs.streams.Accumulator
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
+import uk.gov.hmrc.eacdfileprocessor.services.FileDetailService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.http.UpstreamErrorResponse
 import uk.gov.hmrc.internalauth.client.*
@@ -40,7 +41,8 @@ class TestController @Inject()(
                                 val configuration: Configuration,
                                 val auth: BackendAuthComponents,
                                 val objectStoreClient: PlayObjectStoreClient,
-                                repository: FileRepository
+                                repository: FileRepository,
+                                fileDetailService: FileDetailService
                               )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
   val providedPermission = Predicate.or(
     Predicate.Permission(
@@ -83,5 +85,5 @@ class TestController @Inject()(
           InternalServerError("Error deleting documents")
       }
   }
-
+  
 }
