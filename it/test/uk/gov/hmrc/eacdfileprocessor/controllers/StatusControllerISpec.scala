@@ -18,22 +18,17 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import helper.IntegrationSpec
 import org.bson.types.ObjectId
-import org.mongodb.scala.SingleObservableFuture
-import org.mongodb.scala.model.Filters
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, UNSUPPORTED_MEDIA_TYPE}
 import play.api.libs.json.{JsValue, Json}
-import play.api.test.Helpers.{GET, PUT, await, contentAsJson, route, status, writeableOf_AnyContentAsJson, writeableOf_AnyContentAsText}
+import play.api.test.Helpers.{PUT, await, contentAsJson, route, status, writeableOf_AnyContentAsJson, writeableOf_AnyContentAsText}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.Reference
-import org.bson.types.ObjectId
 
-import java.time.Instant.now
-import java.time.temporal.ChronoUnit.DAYS
-import scala.concurrent.Future
 import java.util.UUID
+import scala.concurrent.Future
 
 class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec:
 
@@ -96,19 +91,24 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       }
     }
     "return 204 when updating status to rejected" in {
-      val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
+      val reference = Reference(UUID.randomUUID().toString)
+      val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference.value).url)
         .withJsonBody(Json.obj(
-          "status" -> "rejected"
+          "status" -> "rejected",
+          "approverName" -> "Approver Name",
+          "approverEmail" -> "approver1@hmrc.gov.uk",
+          "approverPID" -> "23456789"
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
-      for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+      val resultF = for {
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(id = ObjectId.get(), reference = reference, status = STORED))
         result <- route(app, request).get
-        uploadedFileDetails <- fileRepository.findByReference(Reference(reference))
-      } yield {
-        status(Future(result)) shouldBe NO_CONTENT
-        uploadedFileDetails.map(_.uploadedDateTime.isDefined) shouldBe Some(false)
-      }
+        uploadedFileDetails <- fileRepository.findByReference(reference)
+      } yield (result, uploadedFileDetails)
+      status(resultF.map(_._1)) shouldBe NO_CONTENT
+      val uploadedDetails = await(resultF.map(_._2))
+      uploadedDetails.map(_.uploadedDateTime.isDefined).get shouldBe false
+      uploadedDetails.map(_.approvedAtDateTime.isDefined).get shouldBe false
     }
     "return 400 when approver pid is the same as requestor pid" in {
       val reference: Reference = Reference(UUID.randomUUID().toString)
@@ -216,7 +216,10 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
     "return 400 when updating status to rejected but current status is not stored" in {
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
         .withJsonBody(Json.obj(
-          "status" -> "rejected"
+          "status" -> "rejected",
+          "approverName" -> "Approver Name",
+          "approverEmail" -> "approver1@hmrc.gov.uk",
+          "approverPID" -> "23456789"
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
       val resultF = for {
@@ -225,6 +228,21 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       } yield result
 
       status(resultF) shouldBe BAD_REQUEST
+      (contentAsJson(resultF) \ "errorCode").as[String] shouldBe "INVALID_STATUS_TRANSITION"
+    }
+    "return 400 when updating status to rejected but missing approver details" in {
+      val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)
+        .withJsonBody(Json.obj(
+          "status" -> "rejected"
+        ))
+        .withHeaders("Authorization" -> "Bearer test-token")
+      val resultF = for {
+        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(status = STORED))
+        result <- route(app, request).get
+      } yield result
+
+      status(resultF) shouldBe BAD_REQUEST
+      (contentAsJson(resultF) \ "errorCode").as[String] shouldBe "APPROVER_FIELDS_MISSING"
     }
     "return 400 when updating status is the same as current status" in {
       val request = FakeRequest(PUT, routes.StatusController.updateStatus(reference).url)

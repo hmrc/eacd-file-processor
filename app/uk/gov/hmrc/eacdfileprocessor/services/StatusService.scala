@@ -20,7 +20,7 @@ import play.api.Logging
 import play.api.libs.json.{JsObject, Json}
 import play.api.mvc.Result
 import play.api.mvc.Results.{BadRequest, NoContent, ServiceUnavailable}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, INITIAL, REJECTED, STORED, UPLOADED, UPLOADREJECTED}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus._
 import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, ApproverDetails, FileStatus, Reference, StatusApproverDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.utils.ValidationUtil
@@ -40,12 +40,14 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
           case _ if newStatus == currentStatus =>
             logger.warn("ALREADY_AT_STATUS Already at the requested status")
             Future.successful(BadRequest(Json.toJson(ApiErrorResponse("ALREADY_AT_STATUS", "Already at the requested status"))))
+          case UPLOADED if currentStatus == SCANNED || currentStatus == STORED =>
+            logger.warn(s"File status is already $currentStatus, not setting to UPLOADED")
+            Future.successful(NoContent)
           case UPLOADED if currentStatus != INITIAL =>
             logger.warn("INVALID_STATUS_TRANSITION Invalid status transition")
             Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_STATUS_TRANSITION", "Invalid status transition"))))
-          case REJECTED if currentStatus != STORED =>
-            logger.warn("INVALID_STATUS_TRANSITION Invalid status transition")
-            Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_STATUS_TRANSITION", "Invalid status transition"))))
+          case REJECTED =>
+            updateRejectedStatus(currentStatus, requestorPID, statusApproverDetails, reference)
           case UPLOADREJECTED =>
             updateUploadRejectedStatus(currentStatus, statusApproverDetails, reference)
           case APPROVED =>
@@ -61,21 +63,41 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
 
   private[services] def updateApprovedStatus(currentStatus: FileStatus, requestorPID: String, statusApproverDetails: StatusApproverDetails,
                                              reference: String): Future[Result] = {
-    (statusApproverDetails.approverName, statusApproverDetails.approverPID, statusApproverDetails.approverEmail) match
+    approverDetailsValidation(currentStatus, requestorPID, statusApproverDetails) match
+      case Some(errorResponse) =>
+        Future.successful(BadRequest(Json.toJson(errorResponse)))
+      case None =>
+        updateStatusToRepo(reference, statusApproverDetails, approvedAt = Some(Instant.now()))
+  }
+
+  private[services] def updateRejectedStatus(currentStatus: FileStatus, requestorPID: String, statusApproverDetails: StatusApproverDetails,
+                                             reference: String): Future[Result] = {
+    approverDetailsValidation(currentStatus, requestorPID, statusApproverDetails) match
+      case Some(errorResponse) =>
+        Future.successful(BadRequest(Json.toJson(errorResponse)))
+      case None =>
+        updateStatusToRepo(reference, statusApproverDetails)
+  }
+
+  private def approverDetailsValidation(currentStatus: FileStatus, requestorPID: String,
+                                        statusApproverDetails: StatusApproverDetails): Option[ApiErrorResponse] = {
+    val error = (statusApproverDetails.approverName, statusApproverDetails.approverPID, statusApproverDetails.approverEmail) match
       case (Some(name), Some(pid), Some(email)) if currentStatus != STORED =>
         logger.warn("INVALID_STATUS_TRANSITION Invalid status transition")
-        Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_STATUS_TRANSITION", "Invalid status transition"))))
+        ApiErrorResponse("INVALID_STATUS_TRANSITION", "Invalid status transition")
       case (Some(name), Some(pid), Some(email)) if !ValidationUtil.isEmailValid(email) =>
         logger.warn("INVALID_APPROVER_EMAIL Approver email address is invalid")
-        Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_APPROVER_EMAIL", "Approver email address is invalid"))))
+        ApiErrorResponse("INVALID_APPROVER_EMAIL", "Approver email address is invalid")
       case (Some(name), Some(pid), Some(email)) if pid == requestorPID =>
         logger.warn("INVALID_PID Request and approver PIDs cannot be the same")
-        Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_PID", "Request and approver PIDs cannot be the same"))))
+        ApiErrorResponse("INVALID_PID", "Request and approver PIDs cannot be the same")
       case (Some(name), Some(pid), Some(email)) =>
-        updateStatusToRepo(reference, statusApproverDetails, approvedAt = Some(Instant.now()))
+        null
       case (_, _, _) =>
         logger.warn("APPROVER_FIELDS_MISSING Approver fields are missing for status approved")
-        Future.successful(BadRequest(Json.toJson(ApiErrorResponse("APPROVER_FIELDS_MISSING", "Approver fields are missing for status approved"))))
+        ApiErrorResponse("APPROVER_FIELDS_MISSING", "Approver fields are missing for status approved")
+
+    Option(error)
   }
 
   private[services] def updateUploadRejectedStatus(currentStatus: FileStatus, statusApproverDetails: StatusApproverDetails, reference: String): Future[Result] = {
@@ -90,9 +112,11 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
         Future.successful(BadRequest(Json.toJson(ApiErrorResponse("ERROR_FIELDS_MISSING", "Error fields are missing for status failed"))))
   }
 
-  private[services] def updateStatusToRepo(reference: String, statusApproverDetails: StatusApproverDetails, isUploadedRelatedStatus: Boolean = false, approvedAt: Option[Instant] = None): Future[Result] = {
+  private[services] def updateStatusToRepo(reference: String, statusApproverDetails: StatusApproverDetails,
+                                           isUploadedRelatedStatus: Boolean = false, approvedAt: Option[Instant] = None): Future[Result] = {
     val approverDetails = (Json.toJson(statusApproverDetails).as[JsObject] - "status").as[ApproverDetails]
-    fileUploadRepo.updateStatusAndApproverDetails(Reference(reference), FileStatus.valueOf(statusApproverDetails.status.toUpperCase), approverDetails, isUploadedRelatedStatus, approvedAt) map {
+    fileUploadRepo.updateStatusAndApproverDetails(Reference(reference), FileStatus.valueOf(statusApproverDetails.status.toUpperCase),
+      approverDetails, isUploadedRelatedStatus, approvedAt) map {
       case Some(_) =>
         NoContent
       case None =>

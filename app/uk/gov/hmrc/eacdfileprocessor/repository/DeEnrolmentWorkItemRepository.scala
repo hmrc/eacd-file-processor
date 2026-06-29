@@ -17,21 +17,18 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import com.google.inject.ImplementedBy
-import org.mongodb.scala.bson.conversions.Bson
 import org.bson.types.ObjectId
-import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
-import org.mongodb.scala.model.Filters.{and, equal, lte}
+import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
+import org.mongodb.scala.model.Filters.{and, equal, in, lte}
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
+import uk.gov.hmrc.mongo.play.json.Codecs
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, ToDo}
-import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.workitem.*
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
-import org.mongodb.scala.model.Filters.{and, equal, in}
-import uk.gov.hmrc.mongo.play.json.Codecs
 
 import java.time.{Duration, Instant}
 import java.util.concurrent.TimeUnit
@@ -41,10 +38,15 @@ import scala.concurrent.{ExecutionContext, Future}
 @ImplementedBy(classOf[DeEnrolmentWorkItemMongoRepository])
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
+
   def incompleteWorkItemsCountForRef(reference: String): Future[Int]
+
   def deleteWorkItemsByReference(reference: String): Future[Unit]
+
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
+
   def markAsInProgress(id: ObjectId): Future[Boolean]
+  def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 }
 
 @Singleton
@@ -136,7 +138,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
         collection
           .find(
             and(
-                equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
+              equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
               lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
             )
           )
@@ -148,7 +150,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
           (accF, workItem) =>
             accF.flatMap { acc =>
               markAsInProgress(workItem.id).map {
-                case true  => acc :+ workItem.copy(status = ProcessingStatus.InProgress)
+                case true => acc :+ workItem.copy(status = ProcessingStatus.InProgress)
                 case false => acc
               }
             }
@@ -173,5 +175,8 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       .toFutureOption()
       .map(_.isDefined)
 
-
+  override def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
+    val filter: Bson = Filters.equal("item.reference", reference)
+    collection.find(filter).toFuture()
+  }
 }

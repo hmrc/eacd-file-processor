@@ -20,8 +20,8 @@ import org.apache.pekko.actor.ActorSystem
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{verify, when}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
-import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.{DeEnrolmentWorkItemPullMessage, ProcessApprovedFileMessage}
-import uk.gov.hmrc.eacdfileprocessor.services.{LockResponse, ProcessApprovedFileService}
+import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.{DeEnrolmentWorkItemPullMessage, ExpiredFileDeletionMessage, ProcessApprovedFileMessage}
+import uk.gov.hmrc.eacdfileprocessor.services.{ExpiredFileDeletionService, LockResponse, ProcessApprovedFileService}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
@@ -109,7 +109,46 @@ class SchedulingActorSpec extends TestSupport {
       Await.result(invoked.future, 2.seconds)
       verify(service).invoke(using any[ExecutionContext])
     }
+
+    "invoke ExpiredFileDeletionService when ExpiredFileDeleteMessage is received" in withActorSystem { system =>
+      val actor = system.actorOf(SchedulingActor.props)
+      val service = mock[ExpiredFileDeletionService]
+      val invoked = Promise[Unit]()
+
+      when(service.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+        invoked.success(())
+        Future.successful(Left(()): Either[Unit, LockResponse])
+      }
+
+      actor ! ExpiredFileDeletionMessage(service)
+
+      Await.result(invoked.future, 2.seconds)
+      verify(service).invoke(using any[ExecutionContext])
+    }
+
+    "continue handling later expired-file-delete messages when one invocation future fails" in withActorSystem { system =>
+      val actor = system.actorOf(SchedulingActor.props)
+      val failingService = mock[ExpiredFileDeletionService]
+      val succeedingService = mock[ExpiredFileDeletionService]
+      val failingInvoked = Promise[Unit]()
+      val succeedingInvoked = Promise[Unit]()
+
+      when(failingService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+        failingInvoked.success(())
+        Future.failed(new RuntimeException("boom"))
+      }
+      when(succeedingService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+        succeedingInvoked.success(())
+        Future.successful(Left(()): Either[Unit, LockResponse])
+      }
+
+      actor ! ExpiredFileDeletionMessage(failingService)
+      actor ! ExpiredFileDeletionMessage(succeedingService)
+
+      Await.result(failingInvoked.future, 2.seconds)
+      Await.result(succeedingInvoked.future, 2.seconds)
+      verify(failingService).invoke(using any[ExecutionContext])
+      verify(succeedingService).invoke(using any[ExecutionContext])
+    }
   }
 }
-
-
