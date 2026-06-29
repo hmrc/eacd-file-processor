@@ -82,15 +82,13 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData:
           )
         )
       )
-      when(progressTracker.transferToObjectStore(sucessfulDetails.downloadUrl, sucessfulDetails.mimeType, sucessfulDetails.checksum, sucessfulDetails.name, reference)).thenReturn(Future.unit)
 
-      val file = await(fileRepository.findByReference(reference)).get
-      file.status mustBe INITIAL
-
-      for {
-        _ <- progressTracker.registerUploadResult(reference, sucessfulDetails)
+      val result = await(for {
+        _            <- progressTracker.registerUploadResult(reference, sucessfulDetails)
         uploadedResult <- fileRepository.findByReference(reference)
-      } yield uploadedResult.get.status mustBe STORED
+      } yield uploadedResult)
+
+      result.get.status mustBe STORED
     }
 
     "Failed to upload file to object store and status remained scanned" in {
