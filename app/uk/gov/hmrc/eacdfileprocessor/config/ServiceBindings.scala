@@ -75,7 +75,7 @@ class ServiceBindings extends Module {
   private def bindSchedulers(): Seq[Binding[?]] = Seq(
     bindClass(classOf[ProcessApprovedFileJob]).toSelf.eagerly(),
     bindClass(classOf[DeEnrolmentWorkItemPullJob]).toSelf.eagerly(),
-    bindClass(classOf[FileStatusUpdateJob]).toSelf.eagerly()
+    bindClass(classOf[FileStatusUpdateJob]).toSelf.eagerly(),
     bindClass(classOf[DeEnrolmentWorkItemPullJob]).toSelf.eagerly(),
     bindClass(classOf[ExpiredFileDeletionJob]).toSelf.eagerly()
   )
