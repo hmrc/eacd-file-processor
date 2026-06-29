@@ -154,5 +154,44 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
 
       result shouldBe empty
     }
+
+    "countRemainingNonCompleteByReference should return the count of incomplete work items" in {
+      val refCountItems = deEnrolmentWorkItems.map(_.copy(reference = "ref-count"))
+      val refOtherItems = deEnrolmentWorkItems.map(_.copy(reference = "ref-other"))
+
+      await(repository.saveRecordDetails(refCountItems, "ref-count"))
+      await(repository.saveRecordDetails(refOtherItems, "ref-other"))
+
+      val count = await(repository.countRemainingNonCompleteByReference("ref-count"))
+      count shouldBe 2
+    }
+
+    "countRemainingNonCompleteByReference should return 0 for non-existent reference" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+
+      val count = await(repository.countRemainingNonCompleteByReference("nonexistent-ref-count"))
+      count shouldBe 0
+    }
+
+    "deleteByReference should delete all work items with given reference" in {
+      val deleteRefItems = deEnrolmentWorkItems.map(_.copy(reference = "ref-delete"))
+      val otherRefItems = deEnrolmentWorkItems.map(_.copy(reference = "ref-other"))
+
+      await(repository.saveRecordDetails(deleteRefItems, "ref-delete"))
+      await(repository.saveRecordDetails(otherRefItems, "ref-other"))
+
+      await(repository.deleteByReference("ref-delete"))
+      val countOther = await(repository.collection.countDocuments(Filters.eq("item.reference", "ref-other")).toFuture())
+
+      countOther shouldBe 2
+    }
+
+    "deleteByReference should not fail when reference does not exist" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+
+      await(repository.deleteByReference("nonexistent-ref-delete")) shouldBe()
+      val count = await(repository.collection.countDocuments().toFuture())
+      count shouldBe 2
+    }
   }
 }

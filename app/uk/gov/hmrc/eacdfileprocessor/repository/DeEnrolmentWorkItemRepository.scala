@@ -41,7 +41,11 @@ trait DeEnrolmentWorkItemRepository {
 
   def incompleteWorkItemsCountForRef(reference: String): Future[Int]
 
+  def countRemainingNonCompleteByReference(reference: String): Future[Int]
+
   def deleteWorkItemsByReference(reference: String): Future[Unit]
+
+  def deleteByReference(reference: String): Future[Unit]
 
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
@@ -118,9 +122,15 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     collection.countDocuments(selector).toFuture().map(_.toInt)
   }
 
+  override def countRemainingNonCompleteByReference(reference: String): Future[Int] =
+    incompleteWorkItemsCountForRef(reference)
+
   override def deleteWorkItemsByReference(reference: String): Future[Unit] = {
     collection.deleteMany(Filters.eq(s"${WorkItemFields.default.item}.reference", reference)).toFuture().map(_ => ())
   }
+
+  override def deleteByReference(reference: String): Future[Unit] =
+    deleteWorkItemsByReference(reference)
 
 
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =

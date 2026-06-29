@@ -17,11 +17,12 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import org.bson.types.ObjectId
+import org.mongodb.scala.model.Filters
 import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
 import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
+import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 import uk.gov.hmrc.mongo.play.json.formats.{MongoFormats, MongoJavatimeFormats}
 
 import java.time.Instant
@@ -56,7 +57,7 @@ class FileRecordValidationErrorRepository @Inject()(mongoComponent: MongoCompone
 
   def create(error: FileRecordValidationError): Future[Unit] =
     collection.insertOne(error).toFuture().map(_ => ())
+
+  def countByReference(reference: Reference): Future[Int] =
+    collection.countDocuments(Filters.equal("reference", Codecs.toBson(reference))).toFuture().map(_.toInt)
 }
-
-
-

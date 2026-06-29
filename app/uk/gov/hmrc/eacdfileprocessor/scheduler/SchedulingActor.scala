@@ -41,8 +41,10 @@ object SchedulingActor {
   case class ProcessApprovedFileMessage(service: ProcessApprovedFileService) extends ScheduledMessage[Either[Unit, LockResponse]]
 
   case class DeEnrolmentWorkItemPullMessage(service: ScheduledService[Either[Unit, LockResponse]]) extends ScheduledMessage[Either[Unit, LockResponse]]
-  
+
   case class ExpiredFileDeletionMessage(service: ExpiredFileDeletionService) extends ScheduledMessage[Either[Unit, LockResponse]]
+
+  case class FileStatusUpdateMessage(service: ScheduledService[Either[Unit, LockResponse]]) extends ScheduledMessage[Either[Unit, LockResponse]]
 
   def props: Props = Props(classOf[SchedulingActor])
 }
