@@ -56,7 +56,7 @@ trait AuditEvents {
     )
   }
 
-  object EmailEvent {
+  object EmailEventFailed {
     def apply(fileReference: String, requestorId: String, requestorName: String, failureReason: String, failureMessage: String,
               emailAlertSentTo: String, hc: HeaderCarrier)
              (implicit request: Request[_]): ExtendedDataEvent = {
@@ -78,6 +78,29 @@ trait AuditEvents {
       )
     }
 
+  }
+
+  object EmailEventScanned {
+    def apply(fileReference: String, requestorId: String, requestorName: String, fileName: String, fileSize: String,
+              emailAlertSentTo: String, hc: HeaderCarrier)
+             (implicit request: Request[_]): ExtendedDataEvent = {
+
+      ExtendedDataEvent(
+        auditSource = auditSource,
+        auditType = "FileScanned",
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
+        detail = getDetails(
+          fileReference,
+          requestorId,
+          requestorName,
+          Seq(
+            "fileName" -> JsString(fileName),
+            "fileSize" -> JsString(fileSize),
+            "emailAlertSentTo" -> JsString(emailAlertSentTo)
+          )
+        )
+      )
+    }
   }
 
   object DownloadFileEvent {

@@ -20,7 +20,7 @@ import play.api.Logging
 import play.api.libs.json.{JsObject, Json}
 import play.api.mvc.Result
 import play.api.mvc.Results.{BadRequest, NoContent, ServiceUnavailable}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, INITIAL, REJECTED, STORED, UPLOADED, UPLOADREJECTED}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus._
 import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, ApproverDetails, FileStatus, Reference, StatusApproverDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.utils.ValidationUtil
@@ -40,6 +40,9 @@ class StatusService @Inject()(fileUploadRepo: FileRepository)(implicit ec: Execu
           case _ if newStatus == currentStatus =>
             logger.warn("ALREADY_AT_STATUS Already at the requested status")
             Future.successful(BadRequest(Json.toJson(ApiErrorResponse("ALREADY_AT_STATUS", "Already at the requested status"))))
+          case UPLOADED if currentStatus == SCANNED || currentStatus == STORED =>
+            logger.warn(s"File status is already $currentStatus, not setting to UPLOADED")
+            Future.successful(NoContent)
           case UPLOADED if currentStatus != INITIAL =>
             logger.warn("INVALID_STATUS_TRANSITION Invalid status transition")
             Future.successful(BadRequest(Json.toJson(ApiErrorResponse("INVALID_STATUS_TRANSITION", "Invalid status transition"))))

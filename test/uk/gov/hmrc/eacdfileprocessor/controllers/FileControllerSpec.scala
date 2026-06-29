@@ -16,7 +16,12 @@
 
 package uk.gov.hmrc.eacdfileprocessor.controllers
 
-import org.mockito.ArgumentMatchers.any
+import org.apache.pekko.NotUsed
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.stream.Materializer
+import org.apache.pekko.stream.scaladsl.Source
+import org.apache.pekko.util.ByteString
+import org.mockito.ArgumentMatchers.*
 import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
 import org.scalatestplus.mockito.MockitoSugar.mock
@@ -56,7 +61,6 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
   implicit lazy val actorSystem: ActorSystem = ActorSystem()
   implicit lazy val materializer: Materializer = Materializer(actorSystem)
 
-  when(mockConfig.getOptional[Boolean](any())(any())).thenReturn(Some(true))
 
 
 

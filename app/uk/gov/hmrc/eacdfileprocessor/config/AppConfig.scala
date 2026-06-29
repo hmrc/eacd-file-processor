@@ -37,6 +37,8 @@ class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig)
   val serviceEnrolmentConfigBaseUrl: String = servicesConfig.baseUrl("service-enrolment-config")
   val enrolmentStoreProxyBaseUrl: String = servicesConfig.baseUrl("enrolment-store-proxy")
   
+  val initialExpiryDays: Int = getInt("initialExpiryDays")
+
   private[config] def getString(key: String): String =
     config.getOptional[String](key).filter(!_.isBlank)
       .getOrElse(throw new RuntimeException(s"Could not find config key '$key'"))
