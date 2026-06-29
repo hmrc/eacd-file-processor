@@ -25,6 +25,7 @@ import play.api.http.Status.CREATED
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
+import uk.gov.hmrc.eacdfileprocessor.models.Details
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{INITIAL, SCANNED, STORED}
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
@@ -43,6 +44,13 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
 
   val progressTracker = UploadProgressTracker(fileRepository, appConfig, objectStoreClient, auditService, emailService)
   val reference = initiateUploadDetails.reference
+  val sucessfulDetails = Details.UploadedSuccessfully(
+    name = "bulk-de-enrol.csv",
+    mimeType = "text/csv",
+    downloadUrl = URL("http://localhost:9570/upscan/download/c5da3bd6-f118-4cde-afff-93f763bf6448"),
+    size = Some(32270),
+    checksum = "a0acaa6039c1a94c6f5c43f144c5add07de9381f98701cb14c7c6ce2be18020b"
+  )
   when(mockHttpClientV2.post(any())(any())).thenReturn(mockRequestBuilder)
   when(mockRequestBuilder.withBody(any())(any(), any(), any())).thenReturn(mockRequestBuilder)
   when(mockRequestBuilder.execute(any[HttpReads[HttpResponse]], any()))
@@ -76,11 +84,14 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
           )
         )
       )
+      when(progressTracker.transferToObjectStore(sucessfulDetails.downloadUrl, sucessfulDetails.mimeType, sucessfulDetails.checksum, sucessfulDetails.name, reference)).thenReturn(Future.unit)
 
-      val result = await(for {
-        _            <- progressTracker.registerUploadResult(reference, sucessfulDetails)
-        uploadedResult <- fileRepository.findByReference(reference)
-      } yield uploadedResult)
+      val file = await(fileRepository.findByReference(reference)).get
+      file.status mustBe INITIAL
+
+      await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
+      eventually {
+        val uploadedResult = await(fileRepository.findByReference(reference))
         uploadedResult.get.status mustBe STORED
       }
     }
@@ -97,12 +108,16 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
           owner = any[String]
         )(using any[HeaderCarrier])
       ).thenReturn(Future.failed(new TimeoutException("Unable to upload, time out.")))
+      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl, successfulUploadedDetails.mimeType,
+        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
 
-      val result = await(for {
-        _              <- progressTracker.registerUploadResult(reference, sucessfulDetails)
+      val file = await(fileRepository.findByReference(reference)).get
+      file.status mustBe INITIAL
+
+      val uploadedResultF = for {
+        _ <- progressTracker.registerUploadResult(reference, successfulUploadedDetails)
         uploadedResult <- fileRepository.findByReference(reference)
-      } yield uploadedResult)
-
-      result.get.status mustBe SCANNED
+      } yield uploadedResult
+      await(uploadedResultF).get.status mustBe SCANNED
     }
   }
