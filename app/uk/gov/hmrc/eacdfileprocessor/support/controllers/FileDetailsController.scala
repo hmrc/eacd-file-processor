@@ -17,10 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.support.controllers
 
 import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.stream.scaladsl.Source
-import org.apache.pekko.util.ByteString
 import play.api.libs.json.Json
-import play.api.libs.streams.Accumulator
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
@@ -29,10 +26,7 @@ import uk.gov.hmrc.eacdfileprocessor.repository.FileUploadRepoFormat.mongoFormat
 import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, FileUploadRepoFormat}
 import uk.gov.hmrc.eacdfileprocessor.services.FileDetailService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
-import uk.gov.hmrc.http.UpstreamErrorResponse
 import uk.gov.hmrc.internalauth.client.*
-import uk.gov.hmrc.objectstore.client.Path
-import uk.gov.hmrc.objectstore.client.play.Implicits.*
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
@@ -49,16 +43,10 @@ class FileDetailsController @Inject()(
                                        fileDetailService: FileDetailService
                                      )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
 
-  val providedPermission = Predicate.or(
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("services-enrolments-helpdesk-frontend")),
-      IAAction("ADMIN")
-    ),
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("emac-support-frontend")),
+  val providedPermission = Predicate.Permission(
+      Resource(ResourceType("eacd-file-processor"), ResourceLocation("file-detail")),
       IAAction("ADMIN")
     )
-  )
 
   def getFileDetail(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "file-detail")
     .async { implicit request: AuthRequest[AnyContent] =>

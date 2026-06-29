@@ -18,6 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.support.controllers
 
 import helper.IntegrationSpec
 import org.scalatest.matchers.should.Matchers.shouldBe
+import play.api.libs.json.Json
 import play.api.test.Helpers.{GET, await, contentAsString, route, status, writeableOf_AnyContentAsEmpty}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
@@ -110,6 +111,36 @@ class FileDetailsControllerISpec extends IntegrationSpec with TestData with Defa
 
       val result = route(app, request).get
       status(result) shouldBe 204
+    }
+    "return a response body with clean JSON format" in {
+      val request = FakeRequest(GET, s"/eacd-file-processor/support-tool/file-detail/$reference")
+        .withHeaders("Authorization" -> "Bearer test-token")
+
+      val withApprover = scannedUploadedDetails.copy(
+        reference = Reference(reference),
+        status = APPROVED,
+        approverDetails = Some(approverDetails),
+        approvedAtDateTime = Some(createdAt),
+        totalEntryCount = Some(100),
+        totalSuccessCount = Some(95),
+        totalFailureCount = Some(5)
+      )
+
+      val resultF = for {
+        _ <- fileRepository.createFileRecord(withApprover)
+        result <- route(app, request).get
+      } yield result
+
+      status(resultF) shouldBe 200
+
+      val json = Json.parse(contentAsString(resultF))
+      
+      (json \ "_id" \ "$oid").asOpt[String] shouldBe Some("6994a038d540b44c4403aee4")
+
+      (json \ "reference" \ "value").asOpt[String] shouldBe Some(reference)
+
+      (json \ "creationDateTime" \ "$date" \ "$numberLong").asOpt[String] shouldBe Some("1771418638342")
+      (json \ "approvedAtDateTime" \ "$date" \ "$numberLong").asOpt[String] shouldBe Some("1771418638342")
     }
   }
 }
