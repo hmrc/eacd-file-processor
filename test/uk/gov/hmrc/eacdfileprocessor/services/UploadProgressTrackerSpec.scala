@@ -93,8 +93,6 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
           )
         )
       )
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl, successfulUploadedDetails.mimeType,
-        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
 
       await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
       verify(repository, org.mockito.Mockito.timeout(1000).times(1)).updateStatus(any(), any())
