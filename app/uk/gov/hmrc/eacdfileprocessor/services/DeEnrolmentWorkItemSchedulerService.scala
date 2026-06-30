@@ -56,7 +56,11 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       pulled <- deEnrolmentWorkItemRepository.pullOutstandingBatch(appConfig.DeEnrolmentWorkItemConcurrency)
       _ = logger.info(s"[processBatch] Pulled ${pulled.size} outstanding de-enrolment work item(s)")
       _ = logger.info(s"[processBatch] About to fetch agent services: pulledNonEmpty=${pulled.nonEmpty}")
-      agentServices <- if pulled.nonEmpty then agentServiceCache.getAgentServices() else Future.successful(Set.empty[String])
+      agentServices <- if pulled.nonEmpty then
+        agentServiceCache.getAgentServices().recover { case e =>
+          logger.error(s"[processBatch] Failed to fetch agent services, continuing with empty set: ${e.getMessage}", e)
+          Set.empty[String]
+        } else Future.successful(Set.empty[String])
       _ = logger.info(s"[processBatch] agentServices fetched: size=${agentServices.size}")
       _ = logger.info(s"[processBatch] About to process ${pulled.size} item(s)")
       _ <- Future.traverse(pulled)(processItem(_, agentServices))
@@ -65,8 +69,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       logger.error(s"[processBatch] Batch failed: ${e.getMessage}", e)
       Future.unit
     }
-
-  // Unified processing: validate then handle result
+  
   private def processItem(workItem: WorkItem[DeEnrolmentWorkItem], agentServices: Set[String])(using ExecutionContext): Future[Unit] = {
     val item = workItem.item
     val reference = Reference(item.reference)

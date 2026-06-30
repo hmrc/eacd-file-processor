@@ -20,7 +20,7 @@ import com.google.inject.ImplementedBy
 import org.bson.types.ObjectId
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
-import org.mongodb.scala.model.Filters.{and, equal, in, lte}
+import org.mongodb.scala.model.Filters.{and, equal, in, lte, or}
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
@@ -125,8 +125,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
   override def deleteWorkItemsByReference(reference: String): Future[Unit] = {
     collection.deleteMany(Filters.eq(s"${WorkItemFields.default.item}.reference", reference)).toFuture().map(_ => ())
   }
-
-
+  
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)
 
@@ -138,18 +137,29 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       val WORK_ITEM_STATUS = WorkItemFields.default.status
       val WORK_ITEM_AVAILABLE_AT = WorkItemFields.default.availableAt
 
-      def pullToDoItems(): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
+      def pullAvailableItems(): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
+        val retryThreshold = availableBefore.minus(inProgressRetryAfter)
+
         collection
           .find(
-            and(
-              equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
-              lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
+            or(
+              // Fresh ToDo items available now
+              and(
+                equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
+                lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
+              ),
+              // Stale InProgress items ready for retry
+              and(
+                equal(WORK_ITEM_STATUS, ProcessingStatus.InProgress.name),
+                lte("updatedAt", retryThreshold)
+              )
             )
           )
           .limit(limit)
           .toFuture()
+      }
 
-      pullToDoItems().flatMap { workItems =>
+      pullAvailableItems().flatMap { workItems =>
         workItems.foldLeft(Future.successful(Vector.empty[WorkItem[DeEnrolmentWorkItem]])) {
           (accF, workItem) =>
             accF.flatMap { acc =>
