@@ -22,6 +22,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.http.HeaderCarrier
 
+import java.time.Instant.now
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -45,7 +46,8 @@ class EmailService @Inject()(emailConnector: EmailConnector)(implicit ec: Execut
     val params = Map(
       "requestorName" -> uploadedDetails.requestorName,
       "fileName" -> successfulDetails.name,
-      "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
+      //When upscan is stubbed and callback gets called before uploaded, uploadedDateTime can be empty
+      "uploadedDateTime" -> uploadedDetails.uploadedDateTime.map(_.toString).getOrElse(now().toString),
       "reference" -> uploadedDetails.reference.value,
       "fileExpiryDays" -> fileExpiryDays
     )
