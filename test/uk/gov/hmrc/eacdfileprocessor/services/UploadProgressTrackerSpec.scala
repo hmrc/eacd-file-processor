@@ -22,17 +22,13 @@ import org.mockito.Mockito.{times, verify, when}
 import org.scalatestplus.play.PlaySpec
 import play.api.http.Status.CREATED
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import play.api.test.FakeRequest
-import play.api.mvc.AnyContentAsEmpty
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
 import uk.gov.hmrc.objectstore.client.*
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
-import uk.gov.hmrc.play.audit.http.connector.{AuditConnector, AuditResult}
 
 import java.net.URL
 import java.time.Instant
@@ -49,15 +45,14 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
   when(mockAppConfig.appName).thenReturn("eacd-file-processor")
 
   trait Setup {
-    implicit val request: FakeRequest[AnyContentAsEmpty.type] = FakeRequest()
     val repository: FileRepository = mock[FileRepository]
     val objectStoreClient: PlayObjectStoreClient = mock[PlayObjectStoreClient]
     val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
     val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
-    val mockAuditConnector: AuditConnector = mock[AuditConnector]
-    val mockEmailConnector: EmailConnector = mock[EmailConnector]
+    val mockAuditService: AuditService = mock[AuditService]
+    val mockEmailService: EmailService = mock[EmailService]
 
-    val progressTracker = UploadProgressTracker(repository, mockAppConfig, mockEmailConnector, mockAuditConnector, objectStoreClient)()
+    val progressTracker = UploadProgressTracker(repository, mockAppConfig, objectStoreClient, mockAuditService, mockEmailService)
 
     when(mockHttpClientV2.post(any())(any())).thenReturn(mockRequestBuilder)
     when(mockRequestBuilder.withBody(any())(any(), any(), any())).thenReturn(mockRequestBuilder)
@@ -69,10 +64,6 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
     "update successful upload file details and correctly update status" in new Setup {
       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
       when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      when(repository.findByReference(any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-
-      when(mockAuditConnector.sendExtendedEvent(any())(any(), any())).thenReturn(Future.successful(AuditResult.Success))
-
       when(
         objectStoreClient.uploadFromUrl(
           from = any[URL],
@@ -98,15 +89,8 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
 
       await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
       verify(repository, org.mockito.Mockito.timeout(1000).times(1)).updateStatus(any(), any())
-      verify(mockEmailConnector, org.mockito.Mockito.timeout(2000).times(1)).sendSuccessEmail(
-        any(),
-        any(),
-        any(),
-        any(),
-        any(),
-        any(),
-        any()
-      )(any(), any())
+      verify(mockAuditService, org.mockito.Mockito.timeout(1000).times(1)).auditFileScannedEvent(any(), any())(any())
+      verify(mockEmailService, org.mockito.Mockito.timeout(2000).times(1)).sendFileScannedEmail(any(), any(), any())(any())
     }
 
     "update failed upload file details" in new Setup {
@@ -114,13 +98,12 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
 
       await(progressTracker.registerUploadResult(reference, failedFileDetails))
       verify(repository, times(0)).updateStatus(any(), any())
+      verify(mockAuditService, org.mockito.Mockito.timeout(1000).times(1)).auditFileFailEvent(any(), any())(any())
+      verify(mockEmailService, org.mockito.Mockito.timeout(2000).times(1)).sendFileFailEmail(any(), any())(any())
     }
 
     "Failed to upload file to object store and status remained scanned" in new Setup {
       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      when(repository.findByReference(any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
-      when(mockAuditConnector.sendExtendedEvent(any())(any(), any())).thenReturn(Future.successful(AuditResult.Success))
-
       when(
         objectStoreClient.uploadFromUrl(
           from = any[URL],
@@ -135,16 +118,8 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
 
       await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
 
-      verify(mockEmailConnector, org.mockito.Mockito.timeout(2000).times(1)).sendSuccessEmail(
-        any(),
-        any(),
-        any(),
-        any(),
-        any(),
-        any(),
-        any()
-      )(any(), any())
-
       verify(repository, times(0)).updateStatus(any(), any())
+      verify(mockAuditService, org.mockito.Mockito.timeout(1000).times(1)).auditFileScannedEvent(any(), any())(any())
+      verify(mockEmailService, org.mockito.Mockito.timeout(2000).times(1)).sendFileScannedEmail(any(), any(), any())(any())
     }
   }

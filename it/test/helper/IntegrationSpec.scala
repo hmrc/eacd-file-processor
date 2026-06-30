@@ -28,6 +28,7 @@ import play.api.test.Injecting
 import play.api.Application
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, LockingRepository}
+import uk.gov.hmrc.eacdfileprocessor.services.{AuditService, EmailService}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.MongoComponent
 
@@ -53,6 +54,8 @@ trait IntegrationSpec extends PlaySpec
   lazy val metricRegistry = app.injector.instanceOf[MetricRegistry]
   lazy val counter = app.injector.instanceOf[Counter]
   lazy val mongoRepository: MongoComponent = app.injector.instanceOf[MongoComponent]
+  lazy val auditService: AuditService = app.injector.instanceOf[AuditService]
+  lazy val emailService: EmailService = app.injector.instanceOf[EmailService]
   lazy val appConfig: AppConfig = app.injector.instanceOf[AppConfig]
 
   def appConfigMap: Map[String, Any] = Map(

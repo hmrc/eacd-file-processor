@@ -19,8 +19,8 @@ package uk.gov.hmrc.eacdfileprocessor.scheduler.jobs
 import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledJob
-import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.{ExpiredFileDeletionMessage, ProcessApprovedFileMessage}
-import uk.gov.hmrc.eacdfileprocessor.services.{ExpiredFileDeletionService, ProcessApprovedFileService}
+import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.ExpiredFileDeletionMessage
+import uk.gov.hmrc.eacdfileprocessor.services.ExpiredFileDeletionService
 
 import javax.inject.Inject
 

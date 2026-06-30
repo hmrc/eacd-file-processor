@@ -71,7 +71,7 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
   "StatusController" should {
     "return NO_CONTENT when correctly information is supplied" in {
       when(repository.findByReference(any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
-      when(mockStatusService.updateStatus(any(), any(), any(), any())).thenReturn(Future.successful(NoContent))
+      when(mockStatusService.updateStatus(any(), any(), any(), any())(any())).thenReturn(Future.successful(NoContent))
       val result = TestStatusController.updateStatus("ref1")(FakeRequest(
         routes.StatusController.updateStatus("ref1"))
         .withBody(updateStatusRequestBody)
@@ -89,7 +89,7 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
     }
     "return BAD_REQUEST when status service returns BAD_REQUEST" in {
       when(repository.findByReference(any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
-      when(mockStatusService.updateStatus(any(), any(), any(), any())).thenReturn(Future.successful(
+      when(mockStatusService.updateStatus(any(), any(), any(), any())(any())).thenReturn(Future.successful(
         BadRequest(Json.toJson(ApiErrorResponse("APPROVER_FIELDS_MISSING", "Approver fields are missing for status approved")))))
       val result = TestStatusController.updateStatus("ref1")(FakeRequest(
         routes.StatusController.updateStatus("ref1"))
@@ -100,7 +100,7 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
     }
     "return SERVICE_UNAVAILABLE when status service returns SERVICE_UNAVAILABLE" in {
       when(repository.findByReference(any())).thenReturn(Future.successful(Some(scannedUploadedDetails)))
-      when(mockStatusService.updateStatus(any(), any(), any(), any())).thenReturn(Future.successful(
+      when(mockStatusService.updateStatus(any(), any(), any(), any())(any())).thenReturn(Future.successful(
         ServiceUnavailable(Json.toJson(ApiErrorResponse("SERVICE_UNAVAILABLE", "An unexpected error has occurred")))))
       val result = TestStatusController.updateStatus("ref1")(FakeRequest(
         routes.StatusController.updateStatus("ref1"))
