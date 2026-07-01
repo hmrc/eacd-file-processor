@@ -249,9 +249,12 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
         await(repository.createFileRecord(recentInitial))
         await(repository.createFileRecord(oldNonInitial))
 
-        val actual = await(repository.findExpiredInitialFiles)
+        val actual = await(repository.deleteExpiredInitialFiles)
 
-        actual.map(_.reference.value) shouldBe Seq("expired-initial")
+        actual.getDeletedCount shouldBe 1
+        await(repository.findByReference(Reference("expired-initial"))) shouldBe None
+        await(repository.findByReference(Reference("recent-initial"))).isDefined shouldBe true
+        await(repository.findByReference(Reference("old-non-initial"))).isDefined shouldBe true
       }
 
       "return empty when there are no expired initial records" in {
@@ -272,9 +275,9 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
         await(repository.createFileRecord(recentInitial))
         await(repository.createFileRecord(oldStored))
 
-        val actual = await(repository.findExpiredInitialFiles)
+        val actual = await(repository.deleteExpiredInitialFiles)
 
-        actual shouldBe Seq.empty
+        actual.getDeletedCount shouldBe 0
       }
     }
 

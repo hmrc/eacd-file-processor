@@ -33,7 +33,8 @@ class ExpiredFileDeletionService @Inject()(
                                           appConfig: AppConfig,
                                           fileRepository: FileRepository,
                                           osClient: PlayObjectStoreClient,
-                                          lockService: LockService
+                                          lockService: LockService,
+                                          emailService: EmailService
                                         ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
 
   private given HeaderCarrier = HeaderCarrier()
@@ -45,8 +46,7 @@ class ExpiredFileDeletionService @Inject()(
 
   private def deleteExpiredFiles()(using ExecutionContext): Future[Unit] =
     for {
-      expiredInitial <- fileRepository.findExpiredInitialFiles
-      _ <- Future.traverse(expiredInitial)(f => fileRepository.deleteByReference(f.reference))
+      expiredInitial <- fileRepository.deleteExpiredInitialFiles
       expiredActive <- fileRepository.findExpiredActiveFiles
       _ <- Future.traverse(expiredActive)(deleteActiveFileRecord)
     } yield ()
@@ -56,7 +56,7 @@ class ExpiredFileDeletionService @Inject()(
       case Some(Details.UploadedSuccessfully(fileName, _, _, _, _)) =>
         val path = Path.Directory(file.reference.value).file(fileName)
         osClient.deleteObject(path, owner = appConfig.appName)
-          .flatMap(_ => fileRepository.deleteByReference(file.reference))
+          .flatMap(_ => deleteFileThenSendEmail(file))
           .map(_ => ())
           .recover { case e =>
             logger.warn(
@@ -68,5 +68,13 @@ class ExpiredFileDeletionService @Inject()(
         // If no usable file name is present, skip object-store delete and remove DB record only.
         fileRepository.deleteByReference(file.reference)
           .map(_ => ())
+    }
+    
+  private def deleteFileThenSendEmail(uploadedDetails: UploadedDetails)(using ExecutionContext): Future[Unit] =
+    fileRepository.deleteByReference(uploadedDetails.reference).map {
+      case true =>
+        emailService.sendFileAutoDeletedEmail(uploadedDetails, appConfig.fileExpiryDays.toString)
+      case false =>
+        logger.warn(s"Failed to delete file record for reference ${uploadedDetails.reference.value} from mongoDB")
     }
 }
