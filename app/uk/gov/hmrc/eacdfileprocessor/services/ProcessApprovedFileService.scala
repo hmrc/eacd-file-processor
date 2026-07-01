@@ -91,9 +91,15 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
     }.getOrElse(throw new RuntimeException(s"Can't find file name for reference: $reference"))
   }
 
+  private val Utf8Bom: String = "\uFEFF"
+
+  private def sanitizeRecordLine(line: String): String =
+    line.stripPrefix(Utf8Bom).trim
+
   private def generateWorkItems(contentStr: String, reference: String) =
     val createdAt = Instant.now()
     ArraySeq.unsafeWrapArray(contentStr.split("\n"))
+      .map(sanitizeRecordLine)
       .filter(_.nonEmpty)
       .map(DeEnrolmentWorkItem(reference, _, createdAt))
 
