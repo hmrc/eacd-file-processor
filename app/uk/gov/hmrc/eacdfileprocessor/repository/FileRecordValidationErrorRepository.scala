@@ -60,7 +60,12 @@ class FileRecordValidationErrorRepository @Inject()(mongoComponent: MongoCompone
 
   def countByReference(reference: Reference): Future[Int] =
     collection
-      .countDocuments(Filters.equal("reference", reference.value))
+      .countDocuments(
+        Filters.or(
+          Filters.equal("reference", reference.value),
+          Filters.equal("reference.value", reference.value)
+        )
+      )
       .toFuture()
       .map(_.toInt)
 }
