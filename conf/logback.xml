@@ -32,6 +32,25 @@
         <appender-ref ref="STDOUT"/>
     </logger>
 
+    <logger name="uk.gov.hmrc.eacdfileprocessor.services" level="DEBUG" additivity="true"/>
+
+    <logger name="com.google.inject" level="INFO"/>
+
+    <logger name="uk.gov" level="INFO"/>
+
+    <logger name="application" level="DEBUG"/>
+
+    <logger name="uk.gov.hmrc.eacdfileprocessor.services" level="DEBUG" additivity="true"/>
+
+
+    <logger name="uk.gov.hmrc.mongo.play.json.Codecs" level="WARN"/>
+
+    <logger name="connector" level="TRACE">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+
+    <logger name="uk.gov.hmrc.eacdfileprocessor.connectors" level="INFO" additivity="true"/>
+
     <root level="INFO">
         <appender-ref ref="FILE"/>
         <appender-ref ref="STDOUT"/>

@@ -22,22 +22,26 @@ import play.api.libs.json.JsValue
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps}
+import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class Sec0Connector @Inject()(httpClient: HttpClientV2, appConfig: AppConfig)(using ExecutionContext) extends Logging {
+class Sec0Connector @Inject()(httpClient: HttpClientV2, appConfig: AppConfig, val servicesConfig: ServicesConfig)(using ExecutionContext) extends Logging {
 
   private val readRaw: HttpReads[HttpResponse] = HttpReads.Implicits.readRaw
+  
+  lazy val serviceUrl: String = s"${servicesConfig.baseUrl("service-enrolment-config")}${appConfig.sec0GetServicesPath}?affinityGroup=agent"
 
   def getAgentServiceKeys()(using HeaderCarrier): Future[Set[String]] =
     httpClient
-      .get(url"${appConfig.serviceEnrolmentConfigBaseUrl}${appConfig.sec0GetServicesPath}?affinityGroup=agent")
+      .get(url"$serviceUrl")
       .execute(readRaw)
       .map { response =>
         response.status match {
           case OK =>
+            logger.info(s"SEC0 lookup returned 200 OK; extracting service list with \\ ${response.body}")
             extractServices(response.json)
           case BAD_REQUEST =>
             logger.warn("SEC0 lookup returned 400 Bad Request; check affinityGroup parameter")

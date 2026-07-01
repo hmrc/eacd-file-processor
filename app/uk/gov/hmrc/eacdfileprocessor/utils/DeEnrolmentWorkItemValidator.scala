@@ -26,22 +26,22 @@ class DeEnrolmentWorkItemValidator {
   private def extractServiceKey(enrolmentKey: String): String =
     enrolmentKey.takeWhile(_ != '~')
 
-  def validate(recordDetail: String, agentServices: Set[String]): Option[String] = {
+  def validate(recordDetail: String, agentServices: Set[String]): Either[String, (String,String)] = {
     val columns = recordDetail.split(",", -1).map(_.trim)
 
-    if (columns.length != 2) {
-      Some("Row structure invalid")
-    } else {
-      val serviceKey = extractServiceKey(columns(0))
-      val actionType = columns(1).toLowerCase
+    columns match {
+      case Array(enrolmentKey, rawActionType) =>
+        val serviceKey = extractServiceKey(enrolmentKey)
+        val actionType = rawActionType.trim.toLowerCase
 
-      if (!validActions.contains(actionType) || !agentServices.contains(serviceKey) && actionType == "agent") {
-        Some("Invalid action type")
-      } else if (agentServices.contains(serviceKey) && actionType != "agent") {
-        Some("Agent principal deallocation must specify 'agent'")
-      } else {
-        None
-      }
+        (validActions.contains(actionType), agentServices.contains(serviceKey), actionType) match {
+          case (false, _, _) => Left("Invalid action type")
+          case (_, _, "agent") if !agentServices.contains(serviceKey) => Left("Invalid action type")
+          case (_, true, actionType) if actionType != "agent" => Left("Agent principal deallocation must specify 'agent'")
+          case _ => Right(enrolmentKey, if(actionType == "agent") "principal" else actionType)
+        }
+
+      case _ => Left("Row structure invalid")
     }
   }
 }

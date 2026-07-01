@@ -55,11 +55,13 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
   val lockService: LockService
 
   override def invoke(implicit ec: ExecutionContext): Future[Either[Unit, LockResponse]] =
+    logger.info("ProcessApprovedFileService.invoke - Starting scheduled job")
     lockService.lockAndRelease(this.getClass.getSimpleName) {
       createWorkItemsFromOldestFile
     }
 
   private def getFileStringFromObjectStore(reference: Reference, fileName: String): Future[Option[String]] = {
+    logger.debug(s"Retrieving file from Object Store - Reference: ${reference.value}, FileName: $fileName")
     osClient.getObject[String](
       path = Path.Directory(reference.value).file(fileName),
       owner = appConfig.appName
@@ -70,8 +72,10 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
     fileRepository.findOldestApprovedFile.flatMap {
       case Some(uploadedDetail) =>
         val reference = uploadedDetail.reference
+        logger.info(s"Found oldest approved file with reference: ${reference.value}")
         getFileStringFromObjectStore(reference, getFileName(uploadedDetail)).flatMap {
           case Some(contentStr) =>
+            logger.debug(s"Successfully retrieved file content from Object Store for reference: ${reference.value}")
             pushWorkItems(generateWorkItems(contentStr, reference.value), reference)
           case None =>
             logger.warn(s"No record found for the requested reference: ${reference.value} in Object Store")
@@ -85,25 +89,48 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
 
   private def getFileName(uploadedDetail: UploadedDetails): String = {
     val reference = uploadedDetail.reference.value
+    logger.debug(s"Extracting file name for reference: $reference")
     uploadedDetail.details.map {
-      case s: Details.UploadedSuccessfully => s.name
-      case f: Details.UploadedFailed => throw new RuntimeException(s"Can't find file name for reference: $reference")
-    }.getOrElse(throw new RuntimeException(s"Can't find file name for reference: $reference"))
+      case s: Details.UploadedSuccessfully =>
+        logger.debug(s"File name found: ${s.name}")
+        s.name
+      case f: Details.UploadedFailed =>
+        logger.error(s"Can't find file name for reference: $reference - Status is UploadedFailed")
+        throw new RuntimeException(s"Can't find file name for reference: $reference")
+    }.getOrElse{
+      logger.error(s"Can't find file name for reference: $reference - Details is empty")
+      throw new RuntimeException(s"Can't find file name for reference: $reference")
+    }
   }
 
-  private def generateWorkItems(contentStr: String, reference: String) =
+  private val Utf8Bom: String = "\uFEFF"
+
+  private def sanitizeRecordLine(line: String): String =
+    line.stripPrefix(Utf8Bom).trim
+
+  private def generateWorkItems(contentStr: String, reference: String) = {
     val createdAt = Instant.now()
-    ArraySeq.unsafeWrapArray(contentStr.split("\n"))
+    val workItems = ArraySeq.unsafeWrapArray(contentStr.split("\n"))
+      .map(sanitizeRecordLine)
       .filter(_.nonEmpty)
       .map(DeEnrolmentWorkItem(reference, _, createdAt))
+    logger.info(s"Generated ${workItems.size} work items from file for reference: $reference")
+    workItems
+  }
 
   private def pushWorkItems(workItems: Seq[DeEnrolmentWorkItem], reference: Reference): Future[Unit] =
     if (workItems.nonEmpty)
+      logger.info(s"Pushing ${workItems.size} work items to repository for reference: ${reference.value}")
       workItemRepository.saveRecordDetails(workItems, reference.value)
-        .flatMap(savedWorkItems => fileRepository.setTotalEntryCount(reference, savedWorkItems.size).map(_ => ()))
+        .flatMap(savedWorkItems => {
+          logger.info(s"Successfully saved ${savedWorkItems.size} work items for reference: ${reference.value}")
+          fileRepository.setTotalEntryCount(reference, savedWorkItems.size).map(_ => ())})
         .recover {
-          case _: RuntimeException =>
-            logger.warn(s"CANNOT_LOAD_WORKITEMS for file reference $reference")
+          case ex: RuntimeException =>
+            logger.error(s"CANNOT_LOAD_WORKITEMS for file reference $reference - Exception: ${ex.getMessage}", ex)
         }
-    else Future.unit
+    else {
+      logger.warn(s"No work items to push for reference: ${reference.value}")
+      Future.unit
+    }
 }
