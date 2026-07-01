@@ -119,9 +119,17 @@ class FileDetailsControllerISpec extends IntegrationSpec with TestData with Defa
       val withApprover = scannedUploadedDetails.copy(
         reference = Reference(reference),
         status = APPROVED,
-        approverDetails = Some(approverDetails),
+        approverDetails = Some(ApproverDetails(
+          approverEmail = Some("approverTest@hmrc.gov.uk"),
+          approverPID = Some("12345678"),
+          approverName = Some("Approver1"),
+          errorCode = Some("error code"),
+          errorMessage = Some("error message")
+        )),
         approvedAtDateTime = Some(createdAt),
         totalEntryCount = Some(100),
+        uploadedDateTime = None,
+        lastUpdatedDateTime = None,
         totalSuccessCount = Some(95),
         totalFailureCount = Some(5)
       )
@@ -134,13 +142,38 @@ class FileDetailsControllerISpec extends IntegrationSpec with TestData with Defa
       status(resultF) shouldBe 200
 
       val json = Json.parse(contentAsString(resultF))
-      
-      (json \ "_id" \ "$oid").asOpt[String] shouldBe Some("6994a038d540b44c4403aee4")
 
-      (json \ "reference" \ "value").asOpt[String] shouldBe Some(reference)
+      (json \ "id").asOpt[String] shouldBe Some(withApprover.id.toHexString)
+      (json \ "reference").asOpt[String] shouldBe Some(reference)
+      (json \ "status").asOpt[String] shouldBe Some("approved")
+      (json \ "requestorPID").asOpt[String] shouldBe Some("12345678")
+      (json \ "requestorEmail").asOpt[String] shouldBe Some("test@hmrc.gov.uk")
+      (json \ "requestorName").asOpt[String] shouldBe Some("Test User")
 
-      (json \ "creationDateTime" \ "$date" \ "$numberLong").asOpt[String] shouldBe Some("1771418638342")
-      (json \ "approvedAtDateTime" \ "$date" \ "$numberLong").asOpt[String] shouldBe Some("1771418638342")
+      (json \ "details" \ "name").asOpt[String] shouldBe Some("bulk-de-enrol.csv")
+      (json \ "details" \ "mimeType").asOpt[String] shouldBe Some("text/csv")
+      (json \ "details" \ "downloadUrl").asOpt[String] shouldBe Some("http://localhost:9570/upscan/download/c5da3bd6-f118-4cde-afff-93f763bf6448")
+      (json \ "details" \ "size").asOpt[Long] shouldBe Some(32270L)
+      (json \ "details" \ "checksum").asOpt[String] shouldBe Some("a0acaa6039c1a94c6f5c43f144c5add07de9381f98701cb14c7c6ce2be18020b")
+
+      (json \ "approverDetails" \ "approverEmail").asOpt[String] shouldBe Some("approverTest@hmrc.gov.uk")
+      (json \ "approverDetails" \ "approverPID").asOpt[String] shouldBe Some("12345678")
+      (json \ "approverDetails" \ "approverName").asOpt[String] shouldBe Some("Approver1")
+      (json \ "approverDetails" \ "errorCode").asOpt[String] shouldBe Some("error code")
+      (json \ "approverDetails" \ "errorMessage").asOpt[String] shouldBe Some("error message")
+
+      (json \ "totalEntryCount").asOpt[Int] shouldBe Some(100)
+      (json \ "totalSuccessCount").asOpt[Int] shouldBe Some(95)
+      (json \ "totalFailureCount").asOpt[Int] shouldBe Some(5)
+
+      (json \ "uploadedDateTime").asOpt[String] shouldBe None
+      (json \ "lastUpdatedDateTime").asOpt[String] shouldBe None
+      (json \ "approvedAtDateTime").asOpt[String] shouldBe Some("2026-02-18T12:43:58.342Z")
+      (json \ "creationDateTime").asOpt[String] shouldBe Some("2026-02-18T12:43:58.342Z")
+
+      (json \ "_id").asOpt[String] shouldBe None
+      (json \ "reference" \ "value").asOpt[String] shouldBe None
+      (json \ "creationDateTime" \ "$date").asOpt[String] shouldBe None
     }
   }
 }

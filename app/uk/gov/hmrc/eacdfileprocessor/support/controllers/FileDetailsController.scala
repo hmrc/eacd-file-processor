@@ -22,7 +22,7 @@ import play.api.mvc.*
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.repository.FileUploadRepoFormat.mongoFormat
+import uk.gov.hmrc.eacdfileprocessor.repository.FileUploadRepoFormat.{apiWrites, mongoFormat}
 import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, FileUploadRepoFormat}
 import uk.gov.hmrc.eacdfileprocessor.services.FileDetailService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
@@ -52,7 +52,7 @@ class FileDetailsController @Inject()(
     .async { implicit request: AuthRequest[AnyContent] =>
       fileDetailService.getFileDetail(reference)
         .map {
-          case Some(details) => Ok(Json.toJson(details)(mongoFormat))
+          case Some(details) => Ok(Json.toJson(details)(apiWrites))
           case None => NoContent
         }
         .recover {

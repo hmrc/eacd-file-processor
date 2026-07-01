@@ -119,6 +119,31 @@ object FileUploadRepoFormat {
       ~ (__ \ "totalFailureCount").formatNullable[Int]
       ~ (__ \ "totalSuccessCount").formatNullable[Int]
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
+
+  val apiWrites: Writes[UploadedDetails] = {
+    // Use standard Play Instant serializer, not MongoJavatimeFormats
+    implicit val isoInstantWrites: Writes[Instant] =
+      Writes[Instant](instant => JsString(instant.toString))
+
+    (details: UploadedDetails) =>
+      Json.obj(
+        "id"                  -> details.id.toHexString,
+        "reference"           -> details.reference.value,
+        "status"              -> details.status.value,
+        "requestorPID"        -> details.requestorPID,
+        "requestorEmail"      -> details.requestorEmail,
+        "requestorName"       -> details.requestorName,
+        "details"             -> Json.toJson(details.details),
+        "approverDetails"     -> details.approverDetails,
+        "totalEntryCount"     -> details.totalEntryCount,
+        "uploadedDateTime"    -> details.uploadedDateTime,
+        "lastUpdatedDateTime" -> details.lastUpdatedDateTime,
+        "approvedAtDateTime"  -> details.approvedAtDateTime,
+        "creationDateTime"    -> details.creationDateTime,
+        "totalFailureCount"   -> details.totalFailureCount,
+        "totalSuccessCount"   -> details.totalSuccessCount
+      )
+  }
 }
 
 @Singleton
