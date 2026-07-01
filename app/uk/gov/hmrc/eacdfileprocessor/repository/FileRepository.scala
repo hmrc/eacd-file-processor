@@ -25,6 +25,7 @@ import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Aggregates.{`match`, group}
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.{combine, inc, set}
+import org.mongodb.scala.result.DeleteResult
 import org.mongodb.scala.{MongoWriteException, model}
 import play.api.Logging
 import play.api.libs.functional.syntax.*
@@ -237,9 +238,9 @@ class FileRepository @Inject()(
       `match`(Filters.gte("lastUpdatedDateTime", Instant.now().minus(config.fileExpiryDays, DAYS))),
       group("$status", Accumulators.sum("count", 1))
     )).toFuture()
-  
-  def findExpiredInitialFiles: Future[Seq[UploadedDetails]] =
-    collection.find(
+
+  def deleteExpiredInitialFiles: Future[DeleteResult] =
+    collection.deleteMany(
       Filters.and(
         equal("status", INITIAL.value),
         Filters.lte("creationDateTime", Instant.now().minus(config.initialExpiryDays, DAYS)),
