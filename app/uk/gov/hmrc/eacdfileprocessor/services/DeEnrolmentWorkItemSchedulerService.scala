@@ -21,7 +21,7 @@ import play.api.Logging
 import play.api.http.Status.{NO_CONTENT, OK}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
-import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, FileRecordValidationError, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, FileRecordValidationError, GroupIdsModel, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
@@ -78,7 +78,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
     validationResult match {
       case Left(errorMessage) =>
         logger.warn(s"[processItem] Validation failed for work item ${workItem.id.toHexString}: $errorMessage")
-        recordError(reference, item.recordDetail, errorMessage)
+        recordError(reference, item.recordDetail, errorMessage, true)
 
       case Right((enrolmentKey, actionType)) =>
         logger.debug(s"[processItem] Validation succeeded for work item ${workItem.id.toHexString}. EnrolmentKey: $enrolmentKey, ActionType: $actionType")
@@ -99,10 +99,10 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
         callES1AndProcessResult(enrolmentKey, actionType, reference, recordDetail, workItemId)
       case "both" =>
         logger.error(s"[handleValidatedWorkItem] 'both' actionType not yet implemented for work item ${workItemId.toHexString}. Manual review required.")
-        recordError(reference, recordDetail, "Action type 'both' not yet implemented - manual review required")
+        callES1AndProcessResult(enrolmentKey, "all", reference, recordDetail, workItemId)
       case unknown =>
         logger.error(s"[handleValidatedWorkItem] Unexpected actionType '$unknown' for work item ${workItemId.toHexString}")
-        recordError(reference, recordDetail, s"Unexpected action type: $unknown")
+        recordError(reference, recordDetail, s"Unexpected action type: $unknown", true)
     }
   }
 
@@ -125,11 +125,15 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
           } yield ()
         case OK =>
           logger.debug(s"[callES1AndProcessResult] ES1 returned groups for reference ${reference.value}. Processing de-enrolments.")
-          handleES1Success(enrolmentKey, es1Response.json, reference, recordDetail, workItemId)
+          if (actionType == "all") {
+            handleES1SuccessForBoth(enrolmentKey, es1Response.json, reference, recordDetail, workItemId)
+          } else {
+            handleES1Success(enrolmentKey, es1Response.json, reference, recordDetail, workItemId)
+          }
         case _ =>
           val errorMessage = extractErrorMessage(es1Response.json)
           logger.warn(s"[callES1AndProcessResult] ES1 failed with status ${es1Response.status} for reference ${reference.value}: $errorMessage")
-          recordError(reference, recordDetail, errorMessage)
+          recordError(reference, recordDetail, errorMessage, true)
       }
     }.recover { case e =>
       logger.error(s"[callES1AndProcessResult] Unexpected error processing work item ${workItemId.toHexString}: ${e.getMessage}", e)
@@ -152,7 +156,28 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       logger.info(s"[handleES1Success] No groups found for reference ${reference.value}. Marking work item as complete.")
       deEnrolmentWorkItemRepository.markAsComplete(workItemId).map(_ => ())
     } else {
-      processGroupDeEnrolments(enrolmentKey, groupIds, reference, recordDetail, workItemId)
+      processGroupDeEnrolments(enrolmentKey, groupIds, reference, recordDetail, workItemId, true)
+    }
+  }
+
+  private def handleES1SuccessForBoth(
+                                enrolmentKey: String,
+                                jsonResponse: play.api.libs.json.JsValue,
+                                reference: Reference,
+                                recordDetail: String,
+                                workItemId: ObjectId
+                              )(using ExecutionContext): Future[Unit] = {
+    val groupIds: GroupIdsModel = jsonResponse.as[GroupIdsModel]
+
+    logger.debug(s"[handleES1Success] Found ${groupIds.principalGroupIds.size} principal group(s) to de-enrol for reference ${reference.value}")
+    logger.debug(s"[handleES1Success] Found ${groupIds.delegatedGroupIds.size} delegated group(s) to de-enrol for reference ${reference.value}")
+
+    if (groupIds.principalGroupIds.isEmpty && groupIds.delegatedGroupIds.isEmpty) {
+      logger.info(s"[handleES1Success] No groups found for reference ${reference.value}. Marking work item as complete.")
+      deEnrolmentWorkItemRepository.markAsComplete(workItemId).map(_ => ())
+    } else {
+      processGroupDeEnrolments(enrolmentKey, groupIds.principalGroupIds, reference, recordDetail, workItemId, false)
+      processGroupDeEnrolments(enrolmentKey, groupIds.delegatedGroupIds, reference, recordDetail, workItemId, true)
     }
   }
 
@@ -161,7 +186,8 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                         groupIds: Seq[String],
                                         reference: Reference,
                                         recordDetail: String,
-                                        workItemId: ObjectId
+                                        workItemId: ObjectId,
+                                        lastProcessBatch: Boolean
                                       )(using ExecutionContext): Future[Unit] = {
     Future.sequence(groupIds.map { groupId =>
       espConnector.callES9(groupId, enrolmentKey).flatMap { response =>
@@ -170,20 +196,25 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
         response.status match {
           case NO_CONTENT =>
             logger.info(s"[processGroupDeEnrolments] Successfully de-enrolled groupId $groupId for reference ${reference.value}")
-            fileRepository.incrementSuccessCount(reference)
-              .flatMap(_ => deEnrolmentWorkItemRepository.markAsComplete(workItemId))
-              .map(_ => ())
-              .recover { case e =>
-                logger.error(s"[processGroupDeEnrolments] Failed to mark work item as complete for reference ${reference.value}: ${e.getMessage}", e)
-                throw e
-              }
+            if (lastProcessBatch) {
+              fileRepository.incrementSuccessCount(reference)
+                .flatMap(_ => deEnrolmentWorkItemRepository.markAsComplete(workItemId))
+                .map(_ => ())
+                .recover { case e =>
+                  logger.error(s"[processGroupDeEnrolments] Failed to mark work item as complete for reference ${reference.value}: ${e.getMessage}", e)
+                  throw e
+                }
+            } else {
+              logger.info(s"[processGroupDeEnrolments] Successfully de-enrolled groupId $groupId for reference ${reference.value}")
+              Future.unit
+            }
           case _ =>
             val errorMessage = if (groupIds.size > 1) then
               "Partial processing due to unknown error, review manually"
             else
               extractErrorMessage(response.json)
             logger.warn(s"[processGroupDeEnrolments] ES9 failed for groupId $groupId and reference ${reference.value}: $errorMessage")
-            recordError(reference, recordDetail, errorMessage).map(_ => ()) // <-- Added .map(_ => ()) here
+            recordError(reference, recordDetail, errorMessage, lastProcessBatch).map(_ => ())
         }
       }
     }).map(_ => ()).recover { case e =>
@@ -192,7 +223,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
     }
   }
 
-  private def recordError(reference: Reference, recordDetail: String, errorMessage: String)(using ExecutionContext): Future[Unit] = {
+  private def recordError(reference: Reference, recordDetail: String, errorMessage: String, lastProcessBatch: Boolean)(using ExecutionContext): Future[Unit] = {
     logger.debug(s"[recordError] Recording validation error for reference ${reference.value}: $errorMessage")
     for {
       fileName <- fileRepository.getNameOfFile(reference).map(_.getOrElse(""))
@@ -205,7 +236,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
           errorMessage = errorMessage
         )
       )
-      _ <- fileRepository.incrementFailureCount(reference)
+      _ <- if (lastProcessBatch) fileRepository.incrementFailureCount(reference) else Future.unit
     } yield ()
   }
 
