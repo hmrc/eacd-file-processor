@@ -24,6 +24,7 @@ import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport, UnitSpec}
 
+import java.time.Instant
 import java.time.Instant.now
 import scala.concurrent.Future
 
@@ -88,6 +89,42 @@ class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
         }
 
         exception.getMessage contains "Uploaded date time not found for reference" shouldBe true
+      }
+    }
+    "sendFileAutoDeletedEmail" must {
+      "return true for sending file auto deleted email successfully" in {
+        when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
+          .thenReturn(Future.successful(true))
+
+        val result = await(emailService.sendFileAutoDeletedEmail(initiateUploadDetails.copy(uploadedDateTime = Some(now()), details = Some(successfulUploadedDetails)), "60"))
+
+        result shouldBe true
+      }
+      "throw exception when uploadedDateTime is missing" in {
+        val exception = intercept[RuntimeException] {
+          await(emailService.sendFileAutoDeletedEmail(initiateUploadDetails.copy(details = Some(successfulUploadedDetails)), "60"))
+        }
+
+        exception.getMessage contains "Uploaded date time not found for reference" shouldBe true
+      }
+      "throw exception when file name is missing" in {
+        val exception = intercept[RuntimeException] {
+          await(emailService.sendFileAutoDeletedEmail(initiateUploadDetails.copy(details = Some(failedFileDetails)), "60"))
+        }
+
+        exception.getMessage contains "File name is missing for reference" shouldBe true
+      }
+    }
+    "formatDateTime" must {
+      "return correct format in 24 hours" in {
+        val time = Instant.parse("2026-07-30T14:13:53.726Z")
+        val actual = emailService.formatDateTime(time)
+        actual shouldBe "30-07-2026 15:13:53"
+      }
+      "return correct format" in {
+        val time = Instant.parse("2026-07-30T09:30:15.726Z")
+        val actual = emailService.formatDateTime(time)
+        actual shouldBe "30-07-2026 10:30:15"
       }
     }
   }
