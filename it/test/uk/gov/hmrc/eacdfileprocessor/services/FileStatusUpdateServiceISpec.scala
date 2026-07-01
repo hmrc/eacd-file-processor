@@ -52,7 +52,7 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
   )
 
   private def uniqueRef(prefix: String): Reference =
-    Reference(s"$prefix-${UUID.randomUUID().toString.take(8)}")
+    Reference(s"$prefix-${UUID.randomUUID().toString}")
 
   override def beforeEach(): Unit = {
     await(fileRepository.collection.deleteMany(Filters.exists("_id")).toFuture())
@@ -103,6 +103,10 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
 
     "transition file from PROCESSING to PROCESSEDWITHERRORS when validation errors exist" in {
       val reference = uniqueRef("ref-ispec-errors")
+      await(fileRepository.collection.deleteMany(Filters.eq("reference.value", reference.value)).toFuture())
+      await(fileRecordValidationErrorRepository.collection.deleteMany(Filters.eq("reference.value", reference.value)).toFuture()
+      )
+
       val file = initiateUploadDetails.copy(
         reference = reference,
         status = PROCESSING,
@@ -135,9 +139,7 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
         creationDateTime = Instant.now()
       )
       await(fileRecordValidationErrorRepository.create(error))
-
-      val errorCount = await(fileRecordValidationErrorRepository.countByReference(reference))
-      errorCount shouldBe 1
+      await(fileRecordValidationErrorRepository.countByReference(reference)) shouldBe 1
 
       await(fileStatusUpdateService.invoke(using ExecutionContext.global))
 
@@ -211,6 +213,9 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
       val ref1 = Reference(s"ref-ispec-multi-1-$runId")
       val ref2 = Reference(s"ref-ispec-multi-2-$runId")
 
+      await(fileRepository.collection.deleteMany(Filters.in("reference.value", ref1.value, ref2.value)).toFuture())
+      await(fileRecordValidationErrorRepository.collection.deleteMany(Filters.in("reference.value", ref1.value, ref2.value)).toFuture())
+
       val file1 = initiateUploadDetails.copy(
         id = ObjectId.get(),
         reference = ref1,
@@ -268,6 +273,7 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
         creationDateTime = Instant.now()
       )
       await(fileRecordValidationErrorRepository.create(error))
+      await(fileRecordValidationErrorRepository.countByReference(ref2)) shouldBe 1
 
       await(fileStatusUpdateService.invoke(using ExecutionContext.global))
 
@@ -283,3 +289,4 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
       remainingWorkItems2.size shouldBe 0
     }
   }
+

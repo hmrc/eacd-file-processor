@@ -22,7 +22,7 @@ import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
 import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
+import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.mongo.play.json.formats.{MongoFormats, MongoJavatimeFormats}
 
 import java.time.Instant
@@ -60,7 +60,7 @@ class FileRecordValidationErrorRepository @Inject()(mongoComponent: MongoCompone
 
   def countByReference(reference: Reference): Future[Int] =
     collection
-      .countDocuments(Filters.equal("reference.value", reference.value))
+      .countDocuments(Filters.equal("reference", reference.value))
       .toFuture()
       .map(_.toInt)
 }
