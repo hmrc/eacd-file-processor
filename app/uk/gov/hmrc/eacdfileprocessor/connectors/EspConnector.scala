@@ -30,24 +30,14 @@ import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 class EspConnector @Inject()(httpClient: HttpClientV2, appConfig: AppConfig, val servicesConfig: ServicesConfig)(using ExecutionContext)  extends Logging {
 
   lazy val serviceUrl: String = s"${servicesConfig.baseUrl("enrolment-store-proxy")}/enrolment-store-proxy/enrolment-store"
-
-  //ES1 returns 204 then ES9 is not called and given success code
-   //ES1 returns single error count as an error and record the "message" from the error response
-   //ES1 returns multiple errors count as an error and record the outer "message" from the error response
-   //ES1 returns 200 then return success code and record the "message" from the response
-   
+  
    def callES1(enrolmentKey:String, actionType:String)(using HeaderCarrier): Future[HttpResponse] =
      httpClient
        .get(url"$serviceUrl/enrolments/$enrolmentKey/groups?type=$actionType")
        .execute[HttpResponse]
   
-  //ES9 returns a 500 count as an error status code and record the "message" from the error response and return service unavailable 
-  //ES9 receives BOTH which is "principal" and "agent" then 2 ES9 calls need to be made
-  //ES9 returns 500 on 1 out of the 2 calls then record the record as an error and use the message "Partial processing due to unknown error, review manually"
-
    def callES9(groupId:String, enrolmentKey:String)(using HeaderCarrier): Future[HttpResponse] =
     httpClient
       .delete(url"$serviceUrl/groups/$groupId/enrolments/$enrolmentKey")
       .execute[HttpResponse]
-
 }
