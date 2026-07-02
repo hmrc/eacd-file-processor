@@ -52,10 +52,13 @@ class FileController @Inject()(fileRecordValidationErrorRepository: FileRecordVa
   def getFileErrors(reference: String): Action[AnyContent] =
     authorisedEntity(allowedCallersPredicate, "getFileErrors")
       .async { implicit request: Request[AnyContent] =>
+        logger.info(s"Received get file errors request for reference: $reference")
         fileRecordValidationErrorRepository.findByReference(Reference(reference)).map { errors =>
           if (errors.isEmpty) {
+            logger.info(s"No validation errors found for reference: $reference")
             NoContent
           } else {
+            logger.info(s"Returning ${errors.size} validation error(s) as CSV for reference: $reference")
             Ok(toCsv(errors))
               .as("text/csv; charset=utf-8")
               .withHeaders(

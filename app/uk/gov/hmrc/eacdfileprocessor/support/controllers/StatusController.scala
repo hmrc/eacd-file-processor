@@ -31,11 +31,10 @@ import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
 
 @Singleton
-class StatusController @Inject()(
-                                  fileUploadRepo: FileRepository,
-                                  val cc: ControllerComponents,
-                                  val configuration: Configuration,
-                                  val auth: BackendAuthComponents
+class StatusController @Inject()(fileUploadRepo: FileRepository,
+                                 val cc: ControllerComponents,
+                                 val configuration: Configuration,
+                                 val auth: BackendAuthComponents
                                 )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
   val providedPermission: Predicate = Predicate.Permission(
     Resource(ResourceType("eacd-file-processor"), ResourceLocation("getStatusCounts")),
@@ -47,6 +46,7 @@ class StatusController @Inject()(
 
   def getAllStatusCounts: Action[AnyContent] = authorisedEntity(providedPermission, "getStatusCounts")
     .async { implicit request: Request[AnyContent] =>
+      logger.info("Received get all file status counts request")
       fileUploadRepo.getFileStatusCounts.map {
         case fileStatusCounts if fileStatusCounts.nonEmpty =>
           val allStatusCounts = if (fileStatusCounts.size < 10) {
@@ -54,8 +54,11 @@ class StatusController @Inject()(
           } else {
             fileStatusCounts
           }
+          logger.info(s"Returning status counts for ${allStatusCounts.size} statuses")
           Ok(Json.toJson(allStatusCounts))
-        case _ => NoContent
+        case _ =>
+          logger.info("No file status counts found, returning 204")
+          NoContent
       }
     }
 
