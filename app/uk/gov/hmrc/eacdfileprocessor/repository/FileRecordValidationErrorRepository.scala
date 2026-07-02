@@ -59,16 +59,14 @@ class FileRecordValidationErrorRepository @Inject()(mongoComponent: MongoCompone
     collection.insertOne(error).toFuture().map(_ => ())
   }
 
-  def findByReference(reference: Reference): Future[Seq[FileRecordValidationError]] =
+  def findByReference(reference: Reference): Future[Seq[FileRecordValidationError]] = {
     collection
       .find(Filters.equal("reference.value", reference.value))
       .sort(Sorts.ascending("creationDateTime"))
       .toFuture()
-}
+  }
 
-
-
-  def countByReference(reference: Reference): Future[Int] =
+  def countByReference(reference: Reference): Future[Int] = {
     collection
       .countDocuments(
         Filters.or(
@@ -78,4 +76,5 @@ class FileRecordValidationErrorRepository @Inject()(mongoComponent: MongoCompone
       )
       .toFuture()
       .map(_.toInt)
+  }
 }

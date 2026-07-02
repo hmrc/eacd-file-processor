@@ -23,8 +23,7 @@ import play.inject.{Binding, Module}
 import uk.gov.hmrc.eacdfileprocessor.connectors.{EmailConnector, EmailConnectorImpl}
 import uk.gov.hmrc.eacdfileprocessor.controllers.{CallbackController, FileController, InitiateFileStorageController, StatusController}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, DeEnrolmentWorkItemRepository, FileRepository, LockingRepository}
-import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{DeEnrolmentWorkItemPullJob, FileStatusUpdateJob, ProcessApprovedFileJob}
-import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{DeEnrolmentWorkItemPullJob, ExpiredFileDeletionJob, ProcessApprovedFileJob}
+import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{DeEnrolmentWorkItemPullJob, ExpiredFileDeletionJob, FileStatusUpdateJob, ProcessApprovedFileJob}
 import uk.gov.hmrc.eacdfileprocessor.services.*
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 
