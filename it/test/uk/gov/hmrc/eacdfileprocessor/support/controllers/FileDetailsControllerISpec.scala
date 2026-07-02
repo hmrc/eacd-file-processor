@@ -112,7 +112,8 @@ class FileDetailsControllerISpec extends IntegrationSpec with TestData with Defa
       val result = route(app, request).get
       status(result) shouldBe 204
     }
-    "return a response body with clean JSON format" in {
+
+    "return a response body with MongoDB JSON format" in {
       val request = FakeRequest(GET, s"/eacd-file-processor/support-tool/file-detail/$reference")
         .withHeaders("Authorization" -> "Bearer test-token")
 
@@ -143,8 +144,10 @@ class FileDetailsControllerISpec extends IntegrationSpec with TestData with Defa
 
       val json = Json.parse(contentAsString(resultF))
 
-      (json \ "id").asOpt[String] shouldBe Some(withApprover.id.toHexString)
-      (json \ "reference").asOpt[String] shouldBe Some(reference)
+      (json \ "_id" \ "$oid").asOpt[String] shouldBe Some(withApprover.id.toHexString)
+
+      (json \ "reference" \ "value").asOpt[String] shouldBe Some(reference)
+
       (json \ "status").asOpt[String] shouldBe Some("approved")
       (json \ "requestorPID").asOpt[String] shouldBe Some("12345678")
       (json \ "requestorEmail").asOpt[String] shouldBe Some("test@hmrc.gov.uk")
@@ -168,12 +171,8 @@ class FileDetailsControllerISpec extends IntegrationSpec with TestData with Defa
 
       (json \ "uploadedDateTime").asOpt[String] shouldBe None
       (json \ "lastUpdatedDateTime").asOpt[String] shouldBe None
-      (json \ "approvedAtDateTime").asOpt[String] shouldBe Some("2026-02-18T12:43:58.342Z")
-      (json \ "creationDateTime").asOpt[String] shouldBe Some("2026-02-18T12:43:58.342Z")
-
-      (json \ "_id").asOpt[String] shouldBe None
-      (json \ "reference" \ "value").asOpt[String] shouldBe None
-      (json \ "creationDateTime" \ "$date").asOpt[String] shouldBe None
+      (json \ "approvedAtDateTime" \ "$date" \ "$numberLong").asOpt[String] shouldBe Some("1771418638342")
+      (json \ "creationDateTime" \ "$date" \ "$numberLong").asOpt[String] shouldBe Some("1771418638342")
     }
   }
 }
