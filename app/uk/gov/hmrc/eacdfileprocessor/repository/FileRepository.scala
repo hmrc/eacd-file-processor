@@ -117,6 +117,7 @@ object FileUploadRepoFormat {
       ~ (__ \ "approvedAtDateTime").formatNullable[Instant]
       ~ (__ \ "creationDateTime").format[Instant]
       ~ (__ \ "totalFailureCount").formatNullable[Int]
+      ~ (__ \ "totalSuccessCount").formatNullable[Int]
       )(UploadedDetails.apply, Tuple.fromProductTyped _)
 }
 
@@ -195,6 +196,12 @@ class FileRepository @Inject()(
         case _ => ""
       }, fileStatus = details.status.value, creationDateTime = Some(details.creationDateTime))
     ))
+  }
+
+  def findByStatusAsUploadedDetails(status: FileStatus): Future[Seq[UploadedDetails]] = {
+    collection.find(
+      equal("status", status.value)
+    ).toFuture()
   }
 
   def findOldestApprovedFile: Future[Option[UploadedDetails]] = {

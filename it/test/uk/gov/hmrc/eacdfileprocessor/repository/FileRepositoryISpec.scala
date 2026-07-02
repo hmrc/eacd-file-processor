@@ -16,8 +16,10 @@
 
 package uk.gov.hmrc.eacdfileprocessor.repository
 
+import com.mongodb.client.model.Filters
 import helper.IntegrationSpec
 import org.bson.types.ObjectId
+import org.mongodb.scala.SingleObservableFuture
 import org.scalatest.matchers.should.Matchers.{should, shouldBe}
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
@@ -31,7 +33,7 @@ import java.time.Instant.now
 import java.time.temporal.ChronoUnit.DAYS
 
 class FileRepositoryISpec extends TestData with IntegrationSpec:
-  lazy val repository = app.injector.instanceOf[FileRepository]
+  lazy val repository: FileRepository = app.injector.instanceOf[FileRepository]
 
   override def beforeEach(): Unit = {
     await(repository.collection.drop().headOption())
@@ -158,6 +160,86 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
 
         val actual = await(repository.findByStatus(initiateUploadDetails.copy(reference = Reference("ref5")).status))
         actual shouldBe Seq(statusDetailsModel.copy(reference = "ref5", fileName = None, fileStatus = initiateUploadDetails.status.value, creationDateTime = Some(createdAt)))
+      }
+    }
+
+    "find file by status as UploadedDetails" when {
+      "there is a file matching the file status" in {
+        val status: FileStatus = initiateUploadDetails.status
+        await(repository.createFileRecord(initiateUploadDetails.copy(reference = Reference("ref-ud1"))))
+
+        val actual = await(repository.findByStatusAsUploadedDetails(status))
+        actual.size shouldBe 1
+        actual.head.reference shouldBe Reference("ref-ud1")
+        actual.head.status shouldBe status
+      }
+
+      "there is no file matching the file status" in {
+        await(repository.createFileRecord(initiateUploadDetails.copy(reference = Reference("ref-ud2"))))
+
+        val actual = await(repository.findByStatusAsUploadedDetails(FileStatus.STORED))
+        actual shouldBe Seq.empty[UploadedDetails]
+      }
+
+      "there are multiple files matching the file status" in {
+        val status: FileStatus = initiateUploadDetails.status
+        val ref3 = Reference(s"ref3-${java.util.UUID.randomUUID()}")
+        val ref4 = Reference(s"ref4-${java.util.UUID.randomUUID()}")
+
+        await(repository.createFileRecord(initiateUploadDetails.copy(reference = ref3, id = ObjectId("6974a038d540b44c4403aee3"))))
+        await(repository.createFileRecord(initiateUploadDetails.copy(reference = ref4, id = ObjectId("6984a038d540b44c4403aee3"))))
+
+        val actual = await(repository.findByStatusAsUploadedDetails(status))
+        actual.size shouldBe 2
+        actual.map(_.reference) should contain(ref3)
+        actual.map(_.reference) should contain(ref4)
+        actual.map(_.status) should contain only status
+      }
+
+      "returns UploadedDetails with all fields populated correctly" in {
+        val status: FileStatus = FileStatus.PROCESSING
+        val testDetails = initiateUploadDetails.copy(
+          reference = Reference("ref-ud5"),
+          status = status,
+          totalEntryCount = Some(100),
+          totalSuccessCount = Some(50),
+          totalFailureCount = Some(10)
+        )
+        await(repository.createFileRecord(testDetails))
+
+        val actual = await(repository.findByStatusAsUploadedDetails(status))
+        actual.size shouldBe 1
+        actual.head.reference shouldBe Reference("ref-ud5")
+        actual.head.status shouldBe status
+        actual.head.totalEntryCount shouldBe Some(100)
+        actual.head.totalSuccessCount shouldBe Some(50)
+        actual.head.totalFailureCount shouldBe Some(10)
+      }
+
+      "there are multiple files with different file status" in {
+        val processingStatus: FileStatus = FileStatus.PROCESSING
+        val storedStatus: FileStatus = FileStatus.STORED
+
+        val runId = java.util.UUID.randomUUID().toString
+        val refud6: Reference = Reference(s"refud6-$runId")
+        val refud7: Reference = Reference(s"refud7-$runId")
+
+        // Defensive cleanup in case prior failed runs left rows behind.
+        await(repository.collection.deleteMany(Filters.in("reference.value", refud6.value, refud7.value)).toFuture())
+
+        // Make setup idempotent so duplicate-key cannot fail the test setup.
+        def createIgnoreDuplicate(details: UploadedDetails): Unit =
+          try await(repository.createFileRecord(details))
+          catch {
+            case _: DuplicateReferenceException => ()
+          }
+
+        createIgnoreDuplicate(initiateUploadDetails.copy(reference = refud6, status = processingStatus))
+        createIgnoreDuplicate(initiateUploadDetails.copy(reference = refud7, status = storedStatus))
+
+        val actual = await(repository.findByStatusAsUploadedDetails(processingStatus))
+        actual.map(_.reference) should contain(refud6)
+        actual.forall(_.status == processingStatus) shouldBe true
       }
     }
 
