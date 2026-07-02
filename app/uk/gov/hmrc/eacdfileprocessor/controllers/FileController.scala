@@ -21,16 +21,16 @@ import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.eacdfileprocessor.models.{AuditEvents, Details, Reference}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
+import uk.gov.hmrc.eacdfileprocessor.models.{Details, Reference}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
+import uk.gov.hmrc.eacdfileprocessor.services.AuditService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.internalauth.client.*
 import uk.gov.hmrc.objectstore.client.Path
+import uk.gov.hmrc.objectstore.client.play.Implicits.*
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.objectstore.client.play.Implicits.*
-import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -41,9 +41,9 @@ class FileController @Inject()(
                                 val cc: ControllerComponents,
                                 val configuration: Configuration,
                                 val auth: BackendAuthComponents,
-                                val auditConnector: AuditConnector,
+                                val auditService: AuditService,
                                 val objectStoreClient: PlayObjectStoreClient
-                              )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging with AuditEvents {
+                              )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
   val providedPermission = Predicate.Permission(
     Resource(ResourceType("eacd-file-processor"), ResourceLocation("file")),
     IAAction("ADMIN")
@@ -58,16 +58,7 @@ class FileController @Inject()(
               val fileLocation = Path.Directory(reference).file(fileName)
               objectStoreClient.getObject[Source[ByteString, NotUsed]](fileLocation).map {
                 _.map { o =>
-                  auditConnector.sendExtendedEvent(
-                    DownloadFileEvent(
-                      path = routes.FileController.getFile(reference).url,
-                      fileReference = reference,
-                      requesterId = uploadDetails.requestorPID,
-                      requesterName = uploadDetails.requestorName,
-                      fileName = fileName,
-                      hc = request.headerCarrier
-                    )
-                  )
+                  auditService.auditDownloadFileEvent(uploadDetails, fileName)
                   Ok.chunked(o.content)
                 }.getOrElse {
                   logger.warn("No record found for the requested reference in Object Store")

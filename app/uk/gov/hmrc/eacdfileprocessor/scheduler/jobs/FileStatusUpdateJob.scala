@@ -19,17 +19,17 @@ package uk.gov.hmrc.eacdfileprocessor.scheduler.jobs
 import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledJob
-import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.ExpiredFileDeletionMessage
-import uk.gov.hmrc.eacdfileprocessor.services.ExpiredFileDeletionService
+import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.FileStatusUpdateMessage
+import uk.gov.hmrc.eacdfileprocessor.services.FileStatusUpdateService
 
 import javax.inject.Inject
 
-class ExpiredFileDeletionJob @Inject()(val config: Configuration,
-                                       val expiredFileDeletionService: ExpiredFileDeletionService) extends ScheduledJob {
+class FileStatusUpdateJob @Inject()(val config: Configuration,
+                                    val fileStatusUpdateService: FileStatusUpdateService) extends ScheduledJob {
 
-  val jobName: String           = "ExpiredFileDeletionJob"
+  val jobName: String           = "FileStatusUpdateJob"
   val actorSystem: ActorSystem  = ActorSystem(jobName)
-  val scheduledMessage          = ExpiredFileDeletionMessage(expiredFileDeletionService)
+  val scheduledMessage          = FileStatusUpdateMessage(fileStatusUpdateService)
 
   schedule
 }

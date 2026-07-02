@@ -198,6 +198,12 @@ class FileRepository @Inject()(
     ))
   }
 
+  def findByStatusAsUploadedDetails(status: FileStatus): Future[Seq[UploadedDetails]] = {
+    collection.find(
+      equal("status", status.value)
+    ).toFuture()
+  }
+
   def findOldestApprovedFile: Future[Option[UploadedDetails]] = {
     collection.findOneAndUpdate(
       equal("status", APPROVED.value),

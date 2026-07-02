@@ -23,6 +23,7 @@ import play.inject.{Binding, Module}
 import uk.gov.hmrc.eacdfileprocessor.connectors.{EmailConnector, EmailConnectorImpl}
 import uk.gov.hmrc.eacdfileprocessor.controllers.{CallbackController, FileController, InitiateFileStorageController, StatusController}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, DeEnrolmentWorkItemRepository, FileRepository, LockingRepository}
+import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{DeEnrolmentWorkItemPullJob, FileStatusUpdateJob, ProcessApprovedFileJob}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{DeEnrolmentWorkItemPullJob, ExpiredFileDeletionJob, ProcessApprovedFileJob}
 import uk.gov.hmrc.eacdfileprocessor.services.*
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
@@ -44,22 +45,25 @@ class ServiceBindings extends Module {
   private def bindConfigure(): Seq[Binding[?]] = Seq(
     bindClass(classOf[AppConfig]).toSelf.eagerly()
   )
-  
+
   private def bindConnector(): Seq[Binding[?]] = Seq(
-      bindClass(classOf[EmailConnector]).to(classOf[EmailConnectorImpl]).eagerly()
+    bindClass(classOf[EmailConnector]).to(classOf[EmailConnectorImpl]).eagerly()
   )
 
   private def bindServices(): Seq[Binding[?]] = Seq(
-      bindClass(classOf[LockService]).toSelf.eagerly(),
-      bindClass(classOf[DeEnrolmentWorkItemValidator]).toSelf.eagerly(),
-      bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly()
-    )
+    bindClass(classOf[LockService]).toSelf.eagerly(),
+    bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly(),
+    bindClass(classOf[DeEnrolmentWorkItemValidator]).toSelf.eagerly(),
+    bindClass(classOf[AuditService]).toSelf.eagerly(),
+    bindClass(classOf[EmailService]).toSelf.eagerly()
+  )
 
   private def bindControllers(): Seq[Binding[?]] = Seq(
     bindClass(classOf[CallbackController]).toSelf.eagerly(),
     bindClass(classOf[FileController]).toSelf.eagerly(),
     bindClass(classOf[InitiateFileStorageController]).toSelf.eagerly(),
-    bindClass(classOf[StatusController]).toSelf.eagerly()
+    bindClass(classOf[StatusController]).toSelf.eagerly(),
+    bindClass(classOf[uk.gov.hmrc.eacdfileprocessor.support.controllers.StatusController]).toSelf.eagerly()
   )
 
   private def bindRepositories(): Seq[Binding[?]] = Seq(
@@ -70,6 +74,8 @@ class ServiceBindings extends Module {
 
   private def bindSchedulers(): Seq[Binding[?]] = Seq(
     bindClass(classOf[ProcessApprovedFileJob]).toSelf.eagerly(),
+    bindClass(classOf[DeEnrolmentWorkItemPullJob]).toSelf.eagerly(),
+    bindClass(classOf[FileStatusUpdateJob]).toSelf.eagerly(),
     bindClass(classOf[DeEnrolmentWorkItemPullJob]).toSelf.eagerly(),
     bindClass(classOf[ExpiredFileDeletionJob]).toSelf.eagerly()
   )

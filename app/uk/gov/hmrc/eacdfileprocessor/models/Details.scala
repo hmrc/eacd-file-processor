@@ -38,6 +38,12 @@ object Details {
                              failureReason: String,
                              message: String
                            ) extends Details
+
+  def getFileName(details: Details): String =
+    details match {
+      case UploadedSuccessfully(name, _, _, _, _) => name
+      case UploadedFailed(_, _) => ""
+    }
 }
 
 case class UploadedDetails(
