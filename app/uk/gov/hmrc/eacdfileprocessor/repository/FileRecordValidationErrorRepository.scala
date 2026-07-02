@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import org.bson.types.ObjectId
-import org.mongodb.scala.model.Filters
+import org.mongodb.scala.model.{Filters, Sorts}
 import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
@@ -55,8 +55,18 @@ class FileRecordValidationErrorRepository @Inject()(mongoComponent: MongoCompone
     replaceIndexes = true
   ) {
 
-  def create(error: FileRecordValidationError): Future[Unit] =
+  def create(error: FileRecordValidationError): Future[Unit] = {
     collection.insertOne(error).toFuture().map(_ => ())
+  }
+
+  def findByReference(reference: Reference): Future[Seq[FileRecordValidationError]] =
+    collection
+      .find(Filters.equal("reference.value", reference.value))
+      .sort(Sorts.ascending("creationDateTime"))
+      .toFuture()
+}
+
+
 
   def countByReference(reference: Reference): Future[Int] =
     collection
