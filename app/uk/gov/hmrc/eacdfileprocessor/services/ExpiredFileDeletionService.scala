@@ -56,9 +56,7 @@ class ExpiredFileDeletionService @Inject()(
       case Some(Details.UploadedSuccessfully(fileName, _, _, _, _)) =>
         val path = Path.Directory(file.reference.value).file(fileName)
         osClient.deleteObject(path, owner = appConfig.appName)
-          .flatMap(_ =>
-            logger.warn(s"Deleting file for referenece ${file.reference.value}")
-            deleteFileThenSendEmail(file))
+          .flatMap(_ => deleteFileThenSendEmail(file))
           .map(_ => ())
           .recover { case e =>
             logger.warn(
@@ -76,7 +74,6 @@ class ExpiredFileDeletionService @Inject()(
     fileRepository.deleteByReference(uploadedDetails.reference).map {
       case true =>
         emailService.sendFileAutoDeletedEmail(uploadedDetails, appConfig.fileExpiryDays.toString)
-        logger.warn(s"Sent auto deleted email for referenece ${uploadedDetails.reference.value}")
       case false =>
         logger.warn(s"Failed to delete file record for reference ${uploadedDetails.reference.value} from mongoDB")
     }

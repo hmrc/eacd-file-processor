@@ -41,7 +41,6 @@ class AgentServiceCache @Inject()(sec0Connector: Sec0Connector, appConfig: AppCo
       case _ =>
         sec0Connector.getAgentServiceKeys().map { services =>
           state.set(Some(CacheState(services, now)))
-          logger.warn(s"Agent keys: ${services.mkString(", ")}")
           services
         }
     }
