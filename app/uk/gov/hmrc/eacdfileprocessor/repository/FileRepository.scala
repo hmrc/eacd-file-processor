@@ -144,7 +144,7 @@ class FileRepository @Inject()(
         IndexOptions()
           .unique(false)
           .name("creationDateTime")
-          .expireAfter(config.timeToLive.toLong, TimeUnit.HOURS)
+          .expireAfter(config.timeToLive.toLong, TimeUnit.DAYS)
       )
     ),
     replaceIndexes = true,

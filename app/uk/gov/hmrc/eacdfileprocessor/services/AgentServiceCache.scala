@@ -37,6 +37,7 @@ class AgentServiceCache @Inject()(sec0Connector: Sec0Connector, appConfig: AppCo
     val now = Instant.now(clock)
     state.get() match {
       case Some(cache) if cache.refreshedAt.plusSeconds(appConfig.sec0CacheRefreshHours.toLong * 3600).isAfter(now) =>
+        logger.warn(s"Agent keys: ${cache.serviceKeys.mkString(", ")}")
         Future.successful(cache.serviceKeys)
       case _ =>
         sec0Connector.getAgentServiceKeys().map { services =>
