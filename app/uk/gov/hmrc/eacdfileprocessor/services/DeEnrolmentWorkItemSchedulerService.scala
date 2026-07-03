@@ -59,8 +59,10 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
     val maybeError = validator.validate(item.recordDetail, agentServices)
     val reference = Reference(item.reference)
 
+    logger.warn(s"Agent services: $agentServices")
     val validationEffect: Future[Boolean] = maybeError match {
       case Some(errorMessage) =>
+        logger.warn(s"Work item validation failed for reference ${reference.value}, record: ${item.recordDetail} error: $errorMessage")
         for {
           fileName <- fileRepository.getNameOfFile(reference).map(_.getOrElse(""))
           _ <- fileRecordValidationErrorRepository.create(
@@ -74,7 +76,9 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
           )
           result <- fileRepository.incrementFailureCount(reference).map(_ => true)
         } yield result
-      case None => Future.successful(false)
+      case None =>
+        logger.warn(s"Work item validation passed for reference ${reference.value}, record: ${item.recordDetail}")
+        Future.successful(false)
     }
 
     validationEffect

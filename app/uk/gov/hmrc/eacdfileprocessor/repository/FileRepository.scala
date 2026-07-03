@@ -252,7 +252,7 @@ class FileRepository @Inject()(
     ).toFuture()
 
   def findExpiredActiveFiles: Future[Seq[UploadedDetails]] = {
-    val expiredStatuses = Seq(FAILED.value, STORED.value, REJECTED.value, PROCESSEDWITHERRORS.value, PROCESSEDSUCCESSFULLY.value)
+    val expiredStatuses = Seq(FAILED.value, UPLOADREJECTED.value, STORED.value, REJECTED.value, PROCESSEDWITHERRORS.value, PROCESSEDSUCCESSFULLY.value)
     collection.find(
       Filters.and(
         Filters.in("status", expiredStatuses: _*),

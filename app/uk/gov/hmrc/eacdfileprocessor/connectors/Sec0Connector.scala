@@ -38,7 +38,9 @@ class Sec0Connector @Inject()(httpClient: HttpClientV2, appConfig: AppConfig)(us
       .map { response =>
         response.status match {
           case OK =>
-            extractServices(response.json)
+            val keys = extractServices(response.json)
+            logger.warn(s"SEC0 response: ${response.body} keys: $keys")
+            keys
           case BAD_REQUEST =>
             logger.warn("SEC0 lookup returned 400 Bad Request; check affinityGroup parameter")
             Set.empty[String]

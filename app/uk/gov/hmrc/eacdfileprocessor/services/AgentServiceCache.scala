@@ -34,15 +34,16 @@ class AgentServiceCache @Inject()(sec0Connector: Sec0Connector, appConfig: AppCo
   private val state = new AtomicReference[Option[CacheState]](None)
 
   def getAgentServices()(using HeaderCarrier): Future[Set[String]] = {
+    logger.warn(s"AgentServiceCache is triggered")
     val now = Instant.now(clock)
     state.get() match {
       case Some(cache) if cache.refreshedAt.plusSeconds(appConfig.sec0CacheRefreshHours.toLong * 3600).isAfter(now) =>
-        logger.warn(s"Agent keys: ${cache.serviceKeys.mkString(", ")}")
+        logger.warn(s"Agent keys from cache: ${cache.serviceKeys.mkString(", ")}")
         Future.successful(cache.serviceKeys)
       case _ =>
         sec0Connector.getAgentServiceKeys().map { services =>
           state.set(Some(CacheState(services, now)))
-          logger.warn(s"Agent keys: ${services.mkString(", ")}")
+          logger.warn(s"Agent keys from request: ${services.mkString(", ")}")
           services
         }
     }

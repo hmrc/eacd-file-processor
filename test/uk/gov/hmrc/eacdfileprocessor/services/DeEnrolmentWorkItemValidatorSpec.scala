@@ -35,6 +35,7 @@ class DeEnrolmentWorkItemValidatorSpec extends TestSupport {
     }
 
     "return invalid action type when non-agent service specifies agent action" in {
+      validator.validate("IR-SA~UTR~1234567890,", Set.empty) shouldBe Some("Invalid action type")
       validator.validate("IR-SA~UTR~1234567890,agent", Set("HMRC-MTD-IT")) shouldBe Some("Invalid action type")
     }
 
