@@ -25,6 +25,7 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
+import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import scala.concurrent.Future
 
@@ -32,18 +33,21 @@ class Sec0ConnectorSpec extends TestSupport {
 
   private given HeaderCarrier = HeaderCarrier()
 
+  val servicesConfig: ServicesConfig = mock[ServicesConfig]
+  val appConfig: AppConfig = mock[AppConfig]
+  val httpClient: HttpClientV2 = mock[HttpClientV2]
+  val requestBuilder: RequestBuilder = mock[RequestBuilder]
+
   "Sec0Connector" should {
 
     "extract distinct non-empty services for successful responses" in {
-      val appConfig = mock[AppConfig]
-      val httpClient = mock[HttpClientV2]
-      val requestBuilder = mock[RequestBuilder]
 
-      when(appConfig.serviceEnrolmentConfigBaseUrl).thenReturn("http://localhost:7769")
+      when(servicesConfig.baseUrl("service-enrolment-config")).thenReturn("http://localhost:7769")
       when(appConfig.sec0GetServicesPath).thenReturn("")
       when(httpClient.get(any())(any())).thenReturn(requestBuilder)
       when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
-        .thenReturn(Future.successful(HttpResponse(OK, body = """
+        .thenReturn(Future.successful(HttpResponse(OK, body =
+          """
             |{
             |  "serviceNames": [
             |    " IR-SA ",
@@ -54,45 +58,35 @@ class Sec0ConnectorSpec extends TestSupport {
             |}
             |""".stripMargin)))
 
-      val connector = Sec0Connector(httpClient, appConfig)
+      val connector = Sec0Connector(httpClient, appConfig, servicesConfig)
 
       await(connector.getAgentServiceKeys()) shouldBe Set("IR-SA", "VAT")
     }
 
     "return empty set for 400 responses" in {
-      val appConfig = mock[AppConfig]
-      val httpClient = mock[HttpClientV2]
-      val requestBuilder = mock[RequestBuilder]
 
-      when(appConfig.serviceEnrolmentConfigBaseUrl).thenReturn("http://localhost:7769")
+      when(servicesConfig.baseUrl("service-enrolment-config")).thenReturn("http://localhost:7769")
       when(appConfig.sec0GetServicesPath).thenReturn("")
       when(httpClient.get(any())(any())).thenReturn(requestBuilder)
       when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
         .thenReturn(Future.successful(HttpResponse(BAD_REQUEST, body = "{}")))
 
-      val connector = Sec0Connector(httpClient, appConfig)
+      val connector = Sec0Connector(httpClient, appConfig, servicesConfig)
 
       await(connector.getAgentServiceKeys()) shouldBe Set.empty
     }
 
     "return empty set for unexpected statuses" in {
-      val appConfig = mock[AppConfig]
-      val httpClient = mock[HttpClientV2]
-      val requestBuilder = mock[RequestBuilder]
 
-      when(appConfig.serviceEnrolmentConfigBaseUrl).thenReturn("http://localhost:7769")
+      when(servicesConfig.baseUrl("service-enrolment-config")).thenReturn("http://localhost:7769")
       when(appConfig.sec0GetServicesPath).thenReturn("")
       when(httpClient.get(any())(any())).thenReturn(requestBuilder)
       when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
         .thenReturn(Future.successful(HttpResponse(BAD_GATEWAY, body = "{}")))
 
-      val connector = Sec0Connector(httpClient, appConfig)
+      val connector = Sec0Connector(httpClient, appConfig, servicesConfig)
 
       await(connector.getAgentServiceKeys()) shouldBe Set.empty
     }
   }
 }
-
-
-
-

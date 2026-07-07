@@ -20,13 +20,14 @@ import com.google.inject.ImplementedBy
 import org.bson.types.ObjectId
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
-import org.mongodb.scala.model.Filters.{and, equal, in, lte}
+import org.mongodb.scala.model.Filters.{and, equal, in, lte, or}
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.play.json.Codecs
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, ToDo}
+import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.workitem.*
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
 
@@ -50,6 +51,9 @@ trait DeEnrolmentWorkItemRepository {
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
   def markAsInProgress(id: ObjectId): Future[Boolean]
+
+  def markAsComplete(id: ObjectId): Future[Boolean]
+
   def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 }
 
@@ -132,7 +136,6 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
   override def deleteByReference(reference: String): Future[Unit] =
     deleteWorkItemsByReference(reference)
 
-
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)
 
@@ -144,18 +147,29 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       val WORK_ITEM_STATUS = WorkItemFields.default.status
       val WORK_ITEM_AVAILABLE_AT = WorkItemFields.default.availableAt
 
-      def pullToDoItems(): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
+      def pullAvailableItems(): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
+        val retryThreshold = availableBefore.minus(inProgressRetryAfter)
+
         collection
           .find(
-            and(
-              equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
-              lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
+            or(
+              // Fresh ToDo items available now
+              and(
+                equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
+                lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
+              ),
+              // Stale InProgress items ready for retry
+              and(
+                equal(WORK_ITEM_STATUS, ProcessingStatus.InProgress.name),
+                lte("updatedAt", retryThreshold)
+              )
             )
           )
           .limit(limit)
           .toFuture()
+      }
 
-      pullToDoItems().flatMap { workItems =>
+      pullAvailableItems().flatMap { workItems =>
         workItems.foldLeft(Future.successful(Vector.empty[WorkItem[DeEnrolmentWorkItem]])) {
           (accF, workItem) =>
             accF.flatMap { acc =>
@@ -169,7 +183,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     }
   }
 
-  override def markAsInProgress(id: ObjectId): Future[Boolean] =
+  override def markAsInProgress(id: ObjectId): Future[Boolean] = {
     collection
       .findOneAndUpdate(
         and(
@@ -184,6 +198,25 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       )
       .toFutureOption()
       .map(_.isDefined)
+
+  }
+
+  override def markAsComplete(id: ObjectId): Future[Boolean] = {
+    collection
+      .findOneAndUpdate(
+        and(
+          equal(WorkItemFields.default.id, id),
+          equal(WorkItemFields.default.status, ProcessingStatus.InProgress.name)
+        ),
+        Updates.combine(
+          Updates.set(WorkItemFields.default.status, ProcessingStatus.Succeeded.name),
+          Updates.set(WorkItemFields.default.updatedAt, now())
+        ),
+        FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
+      )
+      .toFutureOption()
+      .map(_.isDefined)
+  }
 
   override def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
     val filter: Bson = Filters.equal("item.reference", reference)

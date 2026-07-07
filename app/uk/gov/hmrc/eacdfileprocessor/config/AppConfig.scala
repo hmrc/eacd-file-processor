@@ -35,6 +35,7 @@ class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig)
   val sec0CacheRefreshHours: Int = config.getOptional[Int]("sec0.cache-refresh-hours").getOrElse(24)
   val sec0GetServicesPath: String = getString("sec0.get-services-path")
   val serviceEnrolmentConfigBaseUrl: String = servicesConfig.baseUrl("service-enrolment-config")
+  val enrolmentStoreProxyBaseUrl: String = servicesConfig.baseUrl("enrolment-store-proxy")
   val initialExpiryDays: Int = getInt("initialExpiryDays")
 
   private[config] def getString(key: String): String =
