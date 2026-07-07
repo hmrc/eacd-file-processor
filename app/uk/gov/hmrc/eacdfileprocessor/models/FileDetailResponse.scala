@@ -46,7 +46,3 @@ case class FileDetailResponse(
                                totalSuccessCount: Int,
                                totalFailureCount: Int
                              )
-
-object FileDetailResponse {
-  implicit val format: OFormat[FileDetailResponse] = Json.format[FileDetailResponse]
-}

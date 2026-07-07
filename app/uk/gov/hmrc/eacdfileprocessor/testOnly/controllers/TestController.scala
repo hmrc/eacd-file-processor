@@ -86,20 +86,4 @@ class TestController @Inject()(
           InternalServerError("Error deleting documents")
       }
   }
-
-
-  def getFileDetail(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "file-detail")
-    .async { implicit request: AuthRequest[AnyContent] =>
-      fileDetailService.getFileDetail(reference)
-        .map {
-          case Some(details) => Ok(details.toString)
-          case None => NoContent
-        }
-        .recover {
-          case e: Exception =>
-            logger.error(s"Error retrieving details for reference '$reference'", e)
-            InternalServerError("Error retrieving details")
-        }
-    }
-
 }

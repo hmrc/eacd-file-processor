@@ -127,7 +127,6 @@ class FileDetailsControllerSpec extends TestSupport with TestData with DefaultAw
 
       status(result) shouldBe OK
       val body = contentAsJson(result)
-      println(Console.MAGENTA + "Response JSON: " + Json.prettyPrint(Json.parse(contentAsString(result))) + Console.RESET)
       (body \ "reference" \ "value").as[String] shouldBe "test-ref-789"
       (body \ "status").as[String] shouldBe APPROVED.value
     }
