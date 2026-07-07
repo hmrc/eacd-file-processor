@@ -26,7 +26,6 @@ sbt clean coverage test coverageReport
 ## API overview
 
 Routes are mounted from:
-
 - `conf/prod.routes`
 - `conf/app.routes`
 - `conf/support.routes`
