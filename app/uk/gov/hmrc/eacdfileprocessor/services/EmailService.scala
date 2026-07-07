@@ -22,7 +22,9 @@ import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.http.HeaderCarrier
 
+import java.time.{Instant, ZoneId}
 import java.time.Instant.now
+import java.time.format.DateTimeFormatter
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -47,7 +49,7 @@ class EmailService @Inject()(emailConnector: EmailConnector)(implicit ec: Execut
       "requestorName" -> uploadedDetails.requestorName,
       "fileName" -> successfulDetails.name,
       //When upscan is stubbed and callback gets called before uploaded, uploadedDateTime can be empty
-      "uploadedDateTime" -> uploadedDetails.uploadedDateTime.map(_.toString).getOrElse(now().toString),
+      "uploadedDateTime" -> uploadedDetails.uploadedDateTime.map(formatDateTime).getOrElse(formatDateTime(now())),
       "reference" -> uploadedDetails.reference.value,
       "fileExpiryDays" -> fileExpiryDays
     )
@@ -73,7 +75,26 @@ class EmailService @Inject()(emailConnector: EmailConnector)(implicit ec: Execut
     emailConnector.sendEmail(params, uploadedDetails.requestorEmail, templateId)
   }
 
+  def sendFileAutoDeletedEmail(uploadedDetails: UploadedDetails, fileExpiryDays: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
+    val params = Map(
+      "requestorName" -> uploadedDetails.requestorName,
+      "fileName" -> uploadedDetails.details.map(Details.getFileName).filterNot(_.isBlank).getOrElse(
+        throw new RuntimeException(s"File name is missing for reference: ${uploadedDetails.reference.value}")),
+      "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
+      "reference" -> uploadedDetails.reference.value,
+      "fileExpiryDays" -> fileExpiryDays
+    )
+
+    emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_auto_deleted")
+  }
+
   private def getUploadedDateTime(uploadedDetails: UploadedDetails): String =
-    uploadedDetails.uploadedDateTime.map(_.toString).getOrElse(
+    uploadedDetails.uploadedDateTime.map(formatDateTime).getOrElse(
       throw new RuntimeException(s"Uploaded date time not found for reference: ${uploadedDetails.reference.value}"))
+
+  private[services] def formatDateTime(instant: Instant): String =
+    val patternFormat = "dd-MM-yyyy HH:mm:ss"
+    val formatter = DateTimeFormatter.ofPattern(patternFormat)
+      .withZone(ZoneId.of("Europe/London"))
+    formatter.format(instant)
 }

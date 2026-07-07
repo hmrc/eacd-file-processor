@@ -74,7 +74,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
   override lazy val inProgressRetryAfter: Duration = Duration.ofSeconds(appConfig.retryInProgressAfter)
 
   override def ensureIndexes(): Future[Seq[String]] = {
-    lazy val ttlInHours = appConfig.workItemTimeToLive
+    lazy val ttlInDays = appConfig.workItemTimeToLive
     val WORK_ITEM_STATUS = WorkItemFields.default.status
     val WORK_ITEM_UPDATED_AT = WorkItemFields.default.updatedAt
     lazy val deEnrolmentWorkItemIndexes = {
@@ -84,7 +84,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
           indexOptions = IndexOptions()
             .name("creationDateTime")
             .unique(false)
-            .expireAfter(ttlInHours.toLong, TimeUnit.HOURS)
+            .expireAfter(ttlInDays.toLong, TimeUnit.DAYS)
         ),
         IndexModel(
           keys = ascending("reference"),
