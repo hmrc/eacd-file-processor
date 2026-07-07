@@ -18,12 +18,13 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 
 import org.bson.types.ObjectId
 import org.mongodb.scala.model.{Filters, Sorts}
+import play.api.libs.functional.syntax.{toFunctionalBuilderOps, toInvariantFunctorOps}
 import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
 import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.mongo.play.json.formats.{MongoFormats, MongoJavatimeFormats}
+import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 
 import java.time.Instant
 import javax.inject.{Inject, Singleton}
@@ -32,7 +33,6 @@ import scala.concurrent.{ExecutionContext, Future}
 object FileRecordValidationErrorFormats {
 
   private given Format[ObjectId] = MongoFormats.objectIdFormat
-
   private given Format[Instant] = MongoJavatimeFormats.instantFormat
 
   val fileRecordValidationErrorFormat: Format[FileRecordValidationError] =
