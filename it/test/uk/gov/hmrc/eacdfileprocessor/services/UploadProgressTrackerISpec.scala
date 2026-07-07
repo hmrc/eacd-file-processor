@@ -92,7 +92,12 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
       for {
         _ <- progressTracker.registerUploadResult(reference, sucessfulDetails)
         uploadedResult <- fileRepository.findByReference(reference)
-      } yield uploadedResult.get.status mustBe STORED
+      } yield uploadedResult)
+      await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
+      eventually {
+        val uploadedResult = await(fileRepository.findByReference(reference))
+        uploadedResult.get.status mustBe STORED
+      }
     }
 
     "Failed to upload file to object store and status remained scanned" in {
