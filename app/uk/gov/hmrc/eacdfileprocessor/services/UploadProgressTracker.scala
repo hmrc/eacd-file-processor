@@ -45,53 +45,28 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
   def registerUploadResult(fileReference: Reference, details: Details)(implicit hc: HeaderCarrier): Future[Unit] =
     for {
       status <- details match {
-        case f: Details.UploadedFailed => Future(FAILED)
+        case f: Details.UploadedFailed      => Future(FAILED)
         case s: Details.UploadedSuccessfully => Future(SCANNED)
       }
       _ <- repository.updateStatusAndDetails(fileReference, status, details).flatMap {
-        case Some(_) if status == SCANNED =>
-          val uploadedDetails = details.asInstanceOf[UploadedSuccessfully]
-          (for {
-            uploadDetails <- repository.findByReference(fileReference).map {
-              case Some(details) => details
-              case None => throw new RuntimeException("Upload details not found for reference: " + fileReference.value)
-            }
-            _ <- auditConnector.sendExtendedEvent(
-              EmailEventScanned(
-                fileReference = fileReference.value,
-                requestorId = uploadDetails.requestorPID,
-                requestorName = uploadDetails.requestorName,
-                fileName = uploadedDetails.name,
-                fileSize = uploadedDetails.size.fold("Unknown")(_.toString),
-                emailAlertSentTo = uploadDetails.requestorEmail,
-                hc = hc
-              )
-            )
-            _ <- emailConnector.sendSuccessEmail(
-              requestorName = uploadDetails.requestorName,
-              fileName = uploadedDetails.name,
-              uploadDateTime = uploadDetails.uploadedDateTime.getOrElse(uploadDetails.creationDateTime),
-              to = uploadDetails.requestorEmail,
-              reference = fileReference.value,
-              fileExpiryDays = appConfig.fileExpiryDays.toString,
-              templateId = "emac_helpdesk_bulk_deenrolment_file_upload_scan_success"
-            )
-          } yield ()).recover {
-            case ex => logger.error(s"issue occurred when sending email and audit ${ex.getMessage}")
-          }
-          transferToObjectStore(downloadUrl = uploadedDetails.downloadUrl,
-            mimeType = uploadedDetails.mimeType,
-            checksum = uploadedDetails.checksum,
-            fileName = uploadedDetails.name,
-            fileReference = fileReference)
+        case Some(uploadedDetails) if status == SCANNED =>
+          val successfulDetails = details.asInstanceOf[UploadedSuccessfully]
+          auditService.auditFileScannedEvent(uploadedDetails, successfulDetails)
+          emailService.sendFileScannedEmail(uploadedDetails, successfulDetails, appConfig.fileExpiryDays.toString)
+          transferToObjectStore(
+            downloadUrl = successfulDetails.downloadUrl,
+            mimeType    = successfulDetails.mimeType,
+            checksum    = successfulDetails.checksum,
+            fileName    = successfulDetails.name,
+            fileReference = fileReference
+          )
         case Some(uploadedDetails) if status == FAILED =>
           auditService.auditFileFailEvent(uploadedDetails, details.asInstanceOf[UploadedFailed])
           emailService.sendFileFailEmail(uploadedDetails, details.asInstanceOf[UploadedFailed])
         case _ =>
           Future.unit
       }
-    } yield
-      ()
+    } yield ()
 
   private[services] def transferToObjectStore(
                                                downloadUrl: URL,

@@ -40,7 +40,6 @@ import scala.concurrent.{Future, TimeoutException}
 class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Eventually:
   val objectStoreClient = mock[PlayObjectStoreClient]
   lazy val mockHttpClientV2: HttpClientV2 = Mockito.mock(classOf[HttpClientV2])
-  val objectStoreClient = mock[PlayObjectStoreClient]
   val mockRequestBuilder: RequestBuilder = Mockito.mock(classOf[RequestBuilder])
 
   val progressTracker = UploadProgressTracker(fileRepository, appConfig, objectStoreClient, auditService, emailService)
@@ -85,7 +84,6 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
           )
         )
       )
-      when(progressTracker.transferToObjectStore(sucessfulDetails.downloadUrl, sucessfulDetails.mimeType, sucessfulDetails.checksum, sucessfulDetails.name, reference)).thenReturn(Future.unit)
 
       val file = await(fileRepository.findByReference(reference)).get
       file.status mustBe INITIAL
@@ -109,7 +107,6 @@ class UploadProgressTrackerISpec extends IntegrationSpec with TestData with Even
           owner = any[String]
         )(using any[HeaderCarrier])
       ).thenReturn(Future.failed(new TimeoutException("Unable to upload, time out.")))
-      when(progressTracker.transferToObjectStore(sucessfulDetails.downloadUrl, sucessfulDetails.mimeType, sucessfulDetails.checksum, sucessfulDetails.name, reference)).thenReturn(Future.unit)
 
       val file = await(fileRepository.findByReference(reference)).get
       file.status mustBe INITIAL
