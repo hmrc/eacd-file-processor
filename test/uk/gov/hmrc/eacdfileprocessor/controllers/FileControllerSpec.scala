@@ -21,7 +21,8 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.Materializer
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
-import org.mockito.ArgumentMatchers.*
+import org.bson.types.ObjectId
+import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
 import org.scalatestplus.mockito.MockitoSugar.mock
@@ -31,31 +32,25 @@ import play.api.test.Helpers.{contentAsString, status}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
+import uk.gov.hmrc.eacdfileprocessor.models.{Details, FileStatus, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
+import uk.gov.hmrc.eacdfileprocessor.services.AuditService
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate, Retrieval}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
-import uk.gov.hmrc.play.audit.http.connector.AuditConnector
-import org.apache.pekko.stream.scaladsl.Source
-import org.apache.pekko.util.ByteString
-import org.apache.pekko.NotUsed
-import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.stream.Materializer
 import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 
+import java.net.URL
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import org.bson.types.ObjectId
-import uk.gov.hmrc.eacdfileprocessor.models.{Details, FileStatus, Reference, UploadedDetails}
-import java.net.URL
 
 class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTimeout {
   private val repository = mock[FileRepository]
   val mockCC: ControllerComponents = Helpers.stubControllerComponents()
   val mockConfig: play.api.Configuration = mock[play.api.Configuration]
   val mockAuth: BackendAuthComponents = mock[BackendAuthComponents]
-  val mockAuditConnector: AuditConnector = mock[AuditConnector]
+  val mockAuditService: AuditService = mock[AuditService]
   val objectStoreClient = mock[PlayObjectStoreClient]
 
   implicit lazy val actorSystem: ActorSystem = ActorSystem()
@@ -63,8 +58,7 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
 
 
 
-
-  object TestStatusController extends FileController(repository, mockCC, mockConfig, mockAuth, mockAuditConnector, objectStoreClient) {
+  object TestStatusController extends FileController(repository, mockCC, mockConfig, mockAuth, mockAuditService, objectStoreClient) {
     override def authorisedEntity(
                                    providedPermission: Predicate,
                                    apiName: String

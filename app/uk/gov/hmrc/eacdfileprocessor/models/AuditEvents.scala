@@ -17,7 +17,6 @@
 package uk.gov.hmrc.eacdfileprocessor.models
 
 import play.api.libs.json.*
-import play.api.mvc.Request
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.play.audit.AuditExtensions
 import uk.gov.hmrc.play.audit.model.ExtendedDataEvent
@@ -27,39 +26,20 @@ trait AuditEvents {
   private val auditSource = "eacd-file-processor"
 
 
-  private def getDetails(fileReference: String, requestorId: String, requestorName: String, extraItems: Seq[(String, JsValue)])
-                        (implicit request: Request[_]): JsValue = {
-
+  private def getDetails(fileReference: String, requestorId: String, requestorName: String, extraItems: Seq[(String, JsValue)]): JsValue = {
 
     JsObject(
       Seq(
         "fileReference" -> JsString(fileReference),
         "requesterId" -> JsString(requestorId),
         "requesterName" -> JsString(requestorName)
-      )
-        ++ Seq(
       ) ++ extraItems
     )
   }
 
-  private def getDownloadDetails(fileReference: String, requestorId: String, requestorName: String, fileName: String)
-                        (implicit request: Request[_]): JsValue = {
-
-
-    JsObject(
-      Seq(
-        "fileReference" -> JsString(fileReference),
-        "requesterId" -> JsString(requestorId),
-        "requesterName" -> JsString(requestorName),
-        "fileName" -> JsString(fileName)
-      )
-    )
-  }
-
-  object EmailEventFailed {
+  object FileFailEvent {
     def apply(fileReference: String, requestorId: String, requestorName: String, failureReason: String, failureMessage: String,
-              emailAlertSentTo: String, hc: HeaderCarrier)
-             (implicit request: Request[_]): ExtendedDataEvent = {
+              emailAlertSentTo: String, hc: HeaderCarrier): ExtendedDataEvent = {
 
       ExtendedDataEvent(
         auditSource = auditSource,
@@ -80,10 +60,9 @@ trait AuditEvents {
 
   }
 
-  object EmailEventScanned {
+  object FileScannedEvent {
     def apply(fileReference: String, requestorId: String, requestorName: String, fileName: String, fileSize: String,
-              emailAlertSentTo: String, hc: HeaderCarrier)
-             (implicit request: Request[_]): ExtendedDataEvent = {
+              emailAlertSentTo: String, hc: HeaderCarrier): ExtendedDataEvent = {
 
       ExtendedDataEvent(
         auditSource = auditSource,
@@ -104,18 +83,41 @@ trait AuditEvents {
   }
 
   object DownloadFileEvent {
-    def apply(path: String, fileReference: String, requesterId: String, requesterName: String, fileName: String, hc: HeaderCarrier)
-             (implicit request: Request[_]): ExtendedDataEvent = {
+    def apply(fileReference: String, requesterId: String, requesterName: String, fileName: String, hc: HeaderCarrier): ExtendedDataEvent = {
 
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "DownloadFile",
         tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
-          detail = getDownloadDetails(
+        detail = getDetails(
           fileReference,
           requesterId,
           requesterName,
-          fileName
+          Seq("fileName" -> JsString(fileName))
+        )
+      )
+    }
+  }
+
+  object UpdateFileStatusEvent {
+    def apply(fileReference: String, requesterId: String, requesterName: String, approvalId: String, approvalName: String,
+              fileName: String, isFileApproved: Boolean, emailAlertSentTo: String, hc: HeaderCarrier): ExtendedDataEvent = {
+
+      ExtendedDataEvent(
+        auditSource = auditSource,
+        auditType = "UpdateFileStatus",
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
+        detail = getDetails(
+          fileReference,
+          requesterId,
+          requesterName,
+          Seq(
+            "approvalId" -> JsString(approvalId),
+            "approvalName" -> JsString(approvalName),
+            "fileName" -> JsString(fileName),
+            "fileApproved" -> JsBoolean(isFileApproved),
+            "emailAlertSentTo" -> JsString(emailAlertSentTo)
+          )
         )
       )
     }

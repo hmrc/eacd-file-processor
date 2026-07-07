@@ -25,6 +25,7 @@ import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Aggregates.{`match`, group}
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.{combine, inc, set}
+import org.mongodb.scala.result.DeleteResult
 import org.mongodb.scala.{MongoWriteException, model}
 import play.api.Logging
 import play.api.libs.functional.syntax.*
@@ -144,7 +145,7 @@ class FileRepository @Inject()(
         IndexOptions()
           .unique(false)
           .name("creationDateTime")
-          .expireAfter(config.timeToLive.toLong, TimeUnit.HOURS)
+          .expireAfter(config.timeToLive.toLong, TimeUnit.DAYS)
       )
     ),
     replaceIndexes = true,
@@ -198,6 +199,12 @@ class FileRepository @Inject()(
     ))
   }
 
+  def findByStatusAsUploadedDetails(status: FileStatus): Future[Seq[UploadedDetails]] = {
+    collection.find(
+      equal("status", status.value)
+    ).toFuture()
+  }
+
   def findOldestApprovedFile: Future[Option[UploadedDetails]] = {
     collection.findOneAndUpdate(
       equal("status", APPROVED.value),
@@ -216,8 +223,7 @@ class FileRepository @Inject()(
   def updateStatusAndDetails(reference: Reference, status: FileStatus, details: Details): Future[Option[UploadedDetails]] =
     updateByReference(reference, Seq(set("status", Codecs.toBson(status)), set("details", Codecs.toBson(details))): _*)
 
-  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails,
-                                     updateUploadedTime: Boolean, approvedAt: Option[Instant]): Future[Option[UploadedDetails]] = {
+  def updateStatusAndApproverDetails(reference: Reference, status: FileStatus, approverDetails: ApproverDetails, updateUploadedTime: Boolean, approvedAt: Option[Instant]): Future[Option[UploadedDetails]] = {
     val updates = Seq(
       set("status", Codecs.toBson(status)),
       set("approverDetails", Codecs.toBson(approverDetails))
@@ -227,20 +233,26 @@ class FileRepository @Inject()(
     updateByReference(reference, updates: _*)
   }
 
-  def updateStatus(reference: Reference, status: FileStatus): Future[Option[UploadedDetails]] =
+  def updateStatus(reference: Reference, status: FileStatus): Future[Option[UploadedDetails]] = {
     updateByReference(reference, set("status", Codecs.toBson(status)))
+  }
 
-  def incrementFailureCount(reference: Reference): Future[Option[UploadedDetails]] =
+  def incrementFailureCount(reference: Reference): Future[Option[UploadedDetails]] = {
     updateByReference(reference, inc("totalFailureCount", 1))
+  }
+
+  def incrementSuccessCount(reference: Reference): Future[Option[UploadedDetails]] = {
+    updateByReference(reference, inc("totalSuccessCount", 1))
+  }
 
   def getFileStatusCounts: Future[Seq[FileStatusCount]] =
     collection.aggregate[FileStatusCount](Seq(
       `match`(Filters.gte("lastUpdatedDateTime", Instant.now().minus(config.fileExpiryDays, DAYS))),
       group("$status", Accumulators.sum("count", 1))
     )).toFuture()
-  
-  def findExpiredInitialFiles: Future[Seq[UploadedDetails]] =
-    collection.find(
+
+  def deleteExpiredInitialFiles: Future[DeleteResult] =
+    collection.deleteMany(
       Filters.and(
         equal("status", INITIAL.value),
         Filters.lte("creationDateTime", Instant.now().minus(config.initialExpiryDays, DAYS)),
@@ -252,7 +264,7 @@ class FileRepository @Inject()(
     ).toFuture()
 
   def findExpiredActiveFiles: Future[Seq[UploadedDetails]] = {
-    val expiredStatuses = Seq(FAILED.value, STORED.value, REJECTED.value, PROCESSEDWITHERRORS.value, PROCESSEDSUCCESSFULLY.value)
+    val expiredStatuses = Seq(FAILED.value, UPLOADREJECTED.value, STORED.value, REJECTED.value, PROCESSEDWITHERRORS.value, PROCESSEDSUCCESSFULLY.value)
     collection.find(
       Filters.and(
         Filters.in("status", expiredStatuses: _*),

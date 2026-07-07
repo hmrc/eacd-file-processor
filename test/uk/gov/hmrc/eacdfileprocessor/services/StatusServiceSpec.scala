@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.apache.pekko.stream.Materializer
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{times, verify, when}
 import org.scalactic.Prettifier.default
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, SERVICE_UNAVAILABLE}
@@ -26,7 +26,7 @@ import play.api.libs.json.Json
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport, UnitSpec}
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{APPROVED, INITIAL, REJECTED, SCANNED, STORED, UPLOADED, UPLOADREJECTED}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.{ApiErrorResponse, FileStatus, StatusApproverDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 
@@ -42,13 +42,17 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
   private lazy val alreadyAtStatusErrorResponse = Json.toJson(ApiErrorResponse("ALREADY_AT_STATUS", "Already at the requested status"))
   private lazy val serviceUnavailableErrorResponse = Json.toJson(ApiErrorResponse("SERVICE_UNAVAILABLE", "An unexpected error has occurred"))
 
-  private val statusService = StatusService(repository)
+  trait Setup {
+    val mockAuditService: AuditService = mock[AuditService]
+    val mockEmailService: EmailService = mock[EmailService]
+    val statusService = StatusService(repository, mockAuditService, mockEmailService)
+  }
 
   when(mockAppConfig.timeToLive).thenReturn("3")
 
   "StatusService" must {
     "updateStatus" must {
-      "return NO_CONTENT when updating to uploadRejected, correct information is supplied and current status is initial" in {
+      "return NO_CONTENT when updating to uploadRejected, correct information is supplied and current status is initial" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected",
           errorCode = Some("error code"),
@@ -58,8 +62,10 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         val result = await(statusService.updateStatus("ref1", INITIAL, "12345678", statusApproverDetails))
 
         status(result) shouldBe NO_CONTENT
+        verify(mockAuditService, times(0)).auditUpdateFileStatusEvent(any())(any())
+        verify(mockEmailService, times(0)).sendUpdateFileStatusEmail(any())(any())
       }
-      "return NO_CONTENT when updating to uploaded, correct information is supplied and current status is initial" in {
+      "return NO_CONTENT when updating to uploaded, correct information is supplied and current status is initial" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploaded"
         )
@@ -67,8 +73,10 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         val result = await(statusService.updateStatus("ref1", INITIAL, "12345678", statusApproverDetails))
 
         status(result) shouldBe NO_CONTENT
+        verify(mockAuditService, times(0)).auditUpdateFileStatusEvent(any())(any())
+        verify(mockEmailService, times(0)).sendUpdateFileStatusEmail(any())(any())
       }
-      "return NO_CONTENT when updating to rejected, correct information is supplied and current status is stored" in {
+      "return NO_CONTENT when updating to rejected, correct information is supplied and current status is stored" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
           approverName = Some("Approver Name"),
@@ -79,8 +87,10 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         val result = await(statusService.updateStatus("ref1", STORED, "12345678", statusApproverDetails))
 
         status(result) shouldBe NO_CONTENT
+        verify(mockAuditService, times(1)).auditUpdateFileStatusEvent(any())(any())
+        verify(mockEmailService, times(1)).sendUpdateFileStatusEmail(any())(any())
       }
-      "return NO_CONTENT when updating to approved, correct information is supplied and current status is stored" in {
+      "return NO_CONTENT when updating to approved, correct information is supplied and current status is stored" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),
@@ -91,8 +101,10 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         val result = await(statusService.updateStatus("ref1", STORED, "12345678", statusApproverDetails))
 
         status(result) shouldBe NO_CONTENT
+        verify(mockAuditService, times(1)).auditUpdateFileStatusEvent(any())(any())
+        verify(mockEmailService, times(1)).sendUpdateFileStatusEmail(any())(any())
       }
-      "return NO_CONTENT when updating to uploaded but current status is stored" in {
+      "return NO_CONTENT when updating to uploaded but current status is stored" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploaded"
         )
@@ -100,7 +112,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
 
         status(result) shouldBe NO_CONTENT
       }
-      "return NO_CONTENT when updating to uploaded but current status is scanned" in {
+      "return NO_CONTENT when updating to uploaded but current status is scanned" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploaded"
         )
@@ -108,7 +120,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
 
         status(result) shouldBe NO_CONTENT
       }
-      "return BAD_REQUEST when updating to uploadRejected, correct information is supplied but current status is not initial" in {
+      "return BAD_REQUEST when updating to uploadRejected, correct information is supplied but current status is not initial" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected",
           errorCode = Some("error code"),
@@ -119,7 +131,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
       }
-      "return BAD_REQUEST when updating to uploadRejected, correct information is supplied but current status is already uploadRejected" in {
+      "return BAD_REQUEST when updating to uploadRejected, correct information is supplied but current status is already uploadRejected" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected",
           errorCode = Some("error code"),
@@ -130,7 +142,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe alreadyAtStatusErrorResponse
       }
-      "return BAD_REQUEST when updating to uploaded, correct information is supplied but current status is already uploaded" in {
+      "return BAD_REQUEST when updating to uploaded, correct information is supplied but current status is already uploaded" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploaded"
         )
@@ -139,7 +151,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe alreadyAtStatusErrorResponse
       }
-      "return BAD_REQUEST when updating to uploaded, correct information is supplied but current status is not initial, scanned or stored" in {
+      "return BAD_REQUEST when updating to uploaded, correct information is supplied but current status is not initial, scanned or stored" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploaded"
         )
@@ -148,7 +160,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
       }
-      "return BAD_REQUEST when updating to rejected, correct information is supplied but current status is not stored" in {
+      "return BAD_REQUEST when updating to rejected, correct information is supplied but current status is not stored" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
           approverName = Some("Approver Name"),
@@ -160,7 +172,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
       }
-      "return BAD_REQUEST when updating to rejected, correct information is supplied but current status is already rejected" in {
+      "return BAD_REQUEST when updating to rejected, correct information is supplied but current status is already rejected" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
           approverName = Some("Approver Name"),
@@ -172,7 +184,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe alreadyAtStatusErrorResponse
       }
-      "return BAD_REQUEST when updating to approved, correct information is supplied but current status is not stored" in {
+      "return BAD_REQUEST when updating to approved, correct information is supplied but current status is not stored" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),
@@ -184,7 +196,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
       }
-      "return BAD_REQUEST when updating to approved, correct information is supplied but current status is already approved" in {
+      "return BAD_REQUEST when updating to approved, correct information is supplied but current status is already approved" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),
@@ -196,7 +208,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe alreadyAtStatusErrorResponse
       }
-      "return BAD_REQUEST when status is not recognized" in {
+      "return BAD_REQUEST when status is not recognized" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "weird status"
         )
@@ -205,7 +217,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("INVALID_STATUS", "Status not supported"))
       }
-      "return SERVICE_UNAVAILABLE when fail updating to mongoDB" in {
+      "return SERVICE_UNAVAILABLE when fail updating to mongoDB" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected",
           errorCode = Some("error code"),
@@ -219,7 +231,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
       }
     }
     "updateApprovedStatus" must {
-      "return NO_CONTENT when correct information is supplied and current status is stored" in {
+      "return NO_CONTENT when correct information is supplied and current status is stored" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),
@@ -231,7 +243,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
 
         status(result) shouldBe NO_CONTENT
       }
-      "return BAD_REQUEST when approver email is missing" in {
+      "return BAD_REQUEST when approver email is missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),
@@ -242,7 +254,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
       }
-      "return BAD_REQUEST when approver name is missing" in {
+      "return BAD_REQUEST when approver name is missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverPID = Some("87654321"),
@@ -253,7 +265,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
       }
-      "return BAD_REQUEST when approver pid is missing" in {
+      "return BAD_REQUEST when approver pid is missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),
@@ -264,7 +276,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
       }
-      "return BAD_REQUEST when approver name, pid and email are missing" in {
+      "return BAD_REQUEST when approver name, pid and email are missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved"
         )
@@ -273,7 +285,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
       }
-      "return BAD_REQUEST when approver email is invalid" in {
+      "return BAD_REQUEST when approver email is invalid" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),
@@ -285,7 +297,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("INVALID_APPROVER_EMAIL", "Approver email address is invalid"))
       }
-      "return BAD_REQUEST when correct information is supplied but current status is scanned" in {
+      "return BAD_REQUEST when correct information is supplied but current status is scanned" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),
@@ -297,7 +309,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
       }
-      "return BAD_REQUEST when approver pid is the same as requestor pid" in {
+      "return BAD_REQUEST when approver pid is the same as requestor pid" in new Setup {
         val requestorPID = "12345678"
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
@@ -312,7 +324,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
       }
     }
     "updateRejectedStatus" must {
-      "return NO_CONTENT when correct information is supplied and current status is stored" in {
+      "return NO_CONTENT when correct information is supplied and current status is stored" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
           approverName = Some("Approver Name"),
@@ -324,7 +336,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
 
         status(result) shouldBe NO_CONTENT
       }
-      "return BAD_REQUEST when approver email is missing" in {
+      "return BAD_REQUEST when approver email is missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
           approverName = Some("Approver Name"),
@@ -335,7 +347,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
       }
-      "return BAD_REQUEST when approver name is missing" in {
+      "return BAD_REQUEST when approver name is missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
           approverPID = Some("87654321"),
@@ -346,7 +358,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
       }
-      "return BAD_REQUEST when approver pid is missing" in {
+      "return BAD_REQUEST when approver pid is missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
           approverName = Some("Approver Name"),
@@ -357,7 +369,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
       }
-      "return BAD_REQUEST when approver name, pid and email are missing" in {
+      "return BAD_REQUEST when approver name, pid and email are missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected"
         )
@@ -366,7 +378,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe approverMissingFieldErrorResponse
       }
-      "return BAD_REQUEST when approver email is invalid" in {
+      "return BAD_REQUEST when approver email is invalid" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
           approverName = Some("Approver Name"),
@@ -378,7 +390,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe Json.toJson(ApiErrorResponse("INVALID_APPROVER_EMAIL", "Approver email address is invalid"))
       }
-      "return BAD_REQUEST when correct information is supplied but current status is scanned" in {
+      "return BAD_REQUEST when correct information is supplied but current status is scanned" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
           approverName = Some("Approver Name"),
@@ -390,7 +402,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
       }
-      "return BAD_REQUEST when approver pid is the same as requestor pid" in {
+      "return BAD_REQUEST when approver pid is the same as requestor pid" in new Setup {
         val requestorPID = "12345678"
         val statusApproverDetails = StatusApproverDetails(
           status = "rejected",
@@ -405,7 +417,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
       }
     }
     "updateUploadRejectedStatus" must {
-      "return NO_CONTENT when correct information is supplied and current status is initiate" in {
+      "return NO_CONTENT when correct information is supplied and current status is initiate" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected",
           errorCode = Some("error code"),
@@ -416,7 +428,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
 
         status(result) shouldBe NO_CONTENT
       }
-      "return BAD_REQUEST when correct information is supplied but current status is stored" in {
+      "return BAD_REQUEST when correct information is supplied but current status is stored" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected",
           errorCode = Some("error code"),
@@ -427,7 +439,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe invalidStatusTransitionErrorResponse
       }
-      "return BAD_REQUEST when error code is missing" in {
+      "return BAD_REQUEST when error code is missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected",
           errorMessage = Some("error message")
@@ -437,7 +449,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe errorFieldsMissingErrorResponse
       }
-      "return BAD_REQUEST when error message is missing" in {
+      "return BAD_REQUEST when error message is missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected",
           errorCode = Some("error code")
@@ -447,7 +459,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
         status(result) shouldBe BAD_REQUEST
         jsonBodyOf(result) shouldBe errorFieldsMissingErrorResponse
       }
-      "return BAD_REQUEST when error code and message are missing" in {
+      "return BAD_REQUEST when error code and message are missing" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "uploadRejected"
         )
@@ -458,7 +470,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
       }
     }
     "updateStatusToRepo" must {
-      "return NO_CONTENT when correct information is supplied" in {
+      "return NO_CONTENT when correct information is supplied" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),
@@ -470,7 +482,7 @@ class StatusServiceSpec extends TestSupport with TestData with UnitSpec:
 
         status(result) shouldBe NO_CONTENT
       }
-      "return SERVICE_UNAVAILABLE when correct information is supplied" in {
+      "return SERVICE_UNAVAILABLE when correct information is supplied" in new Setup {
         val statusApproverDetails = StatusApproverDetails(
           status = "approved",
           approverName = Some("Approver Name"),

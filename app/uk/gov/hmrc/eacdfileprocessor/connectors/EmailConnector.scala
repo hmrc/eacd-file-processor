@@ -16,15 +16,16 @@
 
 package uk.gov.hmrc.eacdfileprocessor.connectors
 
-import javax.inject.{Inject, Singleton}
+import play.api.http.Status.ACCEPTED
 import play.api.libs.json.{Json, OWrites}
-import play.api.{Configuration, Logging}
 import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
+import play.api.{Configuration, Logging}
+import uk.gov.hmrc.http.HttpReads.Implicits.*
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, StringContextOps}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
-import java.time.Instant
+import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 case class SendEmailRequest(to: Seq[String], templateId: String, parameters: Map[String, String])
@@ -35,66 +36,32 @@ object SendEmailRequest {
 
 trait EmailConnector {
 
-  def sendFailedEmail(requestorName: String, fileName: String, uploadDateTime: Instant, to: String,
-                      reference: String, failureReason: String, failureMessage: String, templateId: String)(
-    implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
-
-  def sendSuccessEmail(requestorName: String, fileName: String, uploadDateTime: Instant, to: String,
-                      reference: String, fileExpiryDays: String, templateId: String)(
-    implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
-
+  def sendEmail(params: Map[String, String], to: String, templateId: String)
+               (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
 }
 
 @Singleton
-class EmailConnectorImpl @Inject()(http: HttpClientV2, val runModeConfiguration: Configuration,
+class EmailConnectorImpl @Inject()(http: HttpClientV2,
+                                   val runModeConfiguration: Configuration,
                                    val servicesConfig: ServicesConfig) extends EmailConnector with Logging {
+
   lazy val serviceUrl: String = s"${servicesConfig.baseUrl("email")}/hmrc/email"
 
-  def sendFailedEmail(requestorName: String, fileName: String, uploadDateTime: Instant, to: String,
-                      reference: String, failureReason: String, failureMessage: String, templateId: String)
-                     (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
+  def sendEmail(params: Map[String, String], to: String, templateId: String)
+               (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
 
-    val params = Map(
-      "requestorName" -> requestorName,
-      "fileName" -> fileName,
-      "uploadedDateTime" -> uploadDateTime.toString,
-      "reference" -> reference ,
-      "failureReason" -> failureReason,
-      "failureMessage" -> failureMessage
-    )
-
-    http.post(url"$serviceUrl").withBody(Json.toJson(SendEmailRequest(Seq(to), templateId, params))).execute.map { resp =>
-      resp.status match {
-        case 202 => true
-        case _ => false
+    http.post(url"$serviceUrl")
+      .withBody(Json.toJson(SendEmailRequest(Seq(to), templateId, params)))
+      .execute[HttpResponse]
+      .map { resp =>
+        resp.status match {
+          case ACCEPTED => true
+          case _ => false
+        }
+      }.recover {
+        case e =>
+          logger.error(s"issue encountered while sending email ${e.getMessage}")
+          false
       }
-    }.recover {
-      case e =>
-        logger.error(s"issue encountered while sending email ${e.getMessage}")
-        false
-    }
-  }
-
-  def sendSuccessEmail(requestorName: String, fileName: String, uploadDateTime: Instant, to: String, reference: String,
-                       fileExpiryDays: String, templateId: String)
-                      (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
-    val params = Map(
-      "requestorName" -> requestorName,
-      "fileName" -> fileName,
-      "uploadedDateTime" -> uploadDateTime.toString,
-      "reference" -> reference,
-      "fileExpiryDays" -> fileExpiryDays
-    )
-
-    http.post(url"$serviceUrl").withBody(Json.toJson(SendEmailRequest(Seq(to), templateId, params))).execute.map { resp =>
-      resp.status match {
-        case 202 => true
-        case _ => false
-      }
-    }.recover {
-      case e =>
-        logger.error(s"issue encountered while sending email ${e.getMessage}")
-        false
-    }
   }
 }
