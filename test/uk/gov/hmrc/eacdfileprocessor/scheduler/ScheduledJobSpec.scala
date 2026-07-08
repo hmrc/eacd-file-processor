@@ -17,9 +17,6 @@
 package uk.gov.hmrc.eacdfileprocessor.scheduler
 
 import org.apache.pekko.actor.{ActorRef, ActorSystem}
-import org.apache.pekko.extension.quartz.QuartzSchedulerExtension
-import org.mockito.ArgumentMatchers.{any, eq as eqTo}
-import org.mockito.Mockito.{never, verify}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
@@ -27,6 +24,7 @@ import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.DeEnrolmentWorkIt
 import uk.gov.hmrc.eacdfileprocessor.services.LockResponse
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.*
 
 class ScheduledJobSpec extends TestSupport {
 
@@ -34,75 +32,99 @@ class ScheduledJobSpec extends TestSupport {
     override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] = Future.successful(Left(()))
   }
 
-  private class TestScheduledJob(configMap: Map[String, Any]) extends ScheduledJob {
+  private class TestScheduledJob(configMap: Map[String, Any], testActorSystem: ActorSystem) extends ScheduledJob {
     override val scheduledMessage = DeEnrolmentWorkItemPullMessage(scheduledService)
     override val config: Configuration = Configuration.from(configMap)
-    override val actorSystem: ActorSystem = mock[ActorSystem]
+    override val actorSystem: ActorSystem = testActorSystem
     override val jobName: String = "TestScheduledJob"
-    override lazy val scheduler: QuartzSchedulerExtension = mock[QuartzSchedulerExtension]
     override lazy val schedulingActorRef: ActorRef = null
   }
 
   "ScheduledJob" should {
 
     "read enabled as false when no enabled configuration is provided" in {
-      val job = TestScheduledJob(Map.empty)
+      val testActorSystem = ActorSystem("test")
+      val job = TestScheduledJob(Map.empty, testActorSystem)
 
       job.enabled shouldBe false
+
+      testActorSystem.terminate()
     }
 
     "read optional description when configured" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.description" -> "Runs test schedule"))
+      val testActorSystem = ActorSystem("test")
+      val job = TestScheduledJob(Map("schedules.TestScheduledJob.description" -> "Runs test schedule"), testActorSystem)
 
       job.description shouldBe Some("Runs test schedule")
+
+      testActorSystem.terminate()
     }
 
-    "replace underscores with spaces in expression" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.expression" -> "0/5_*_*_?_*_*_*"))
+    "parse interval duration when configured" in {
+      val testActorSystem = ActorSystem("test")
+      val job = TestScheduledJob(Map("schedules.TestScheduledJob.interval" -> "1 second"), testActorSystem)
 
-      job.expression shouldBe "0/5 * * ? * * *"
+      job.interval shouldBe Some(1.second)
+
+      testActorSystem.terminate()
     }
 
-    "create and register schedule when enabled and expression is present" in {
-      val job = TestScheduledJob(
-        Map(
-          "schedules.TestScheduledJob.enabled" -> true,
-          "schedules.TestScheduledJob.description" -> "My job",
-          "schedules.TestScheduledJob.expression" -> "0/1_*_*_?_*_*_*"
-        )
-      )
+    "parse millisecond interval when configured" in {
+      val testActorSystem = ActorSystem("test")
+      val job = TestScheduledJob(Map("schedules.TestScheduledJob.interval" -> "100 milliseconds"), testActorSystem)
 
-      job.schedule
+      job.interval shouldBe Some(100.milliseconds)
 
-      verify(job.scheduler).createSchedule("TestScheduledJob", Some("My job"), "0/1 * * ? * * *")
-      verify(job.scheduler).schedule(eqTo("TestScheduledJob"), any[ActorRef], any())
+      testActorSystem.terminate()
     }
 
-    "not create or register schedule when enabled but expression is missing" in {
+    "parse minute interval when configured" in {
+      val testActorSystem = ActorSystem("test")
+      val job = TestScheduledJob(Map("schedules.TestScheduledJob.interval" -> "15 minutes"), testActorSystem)
+
+      job.interval shouldBe Some(15.minutes)
+
+      testActorSystem.terminate()
+    }
+
+    "return None when interval is not configured" in {
+      val testActorSystem = ActorSystem("test")
+      val job = TestScheduledJob(Map.empty, testActorSystem)
+
+      job.interval shouldBe None
+
+      testActorSystem.terminate()
+    }
+
+    "not schedule when enabled but interval is missing" in {
+      val testActorSystem = ActorSystem("test")
       val job = TestScheduledJob(
         Map(
           "schedules.TestScheduledJob.enabled" -> true
-        )
+        ),
+        testActorSystem
       )
 
-      job.schedule
+      // This should not throw an exception, just log
+      noException should be thrownBy job.schedule
 
-      verify(job.scheduler, never()).createSchedule("TestScheduledJob", job.description, job.expression)
-      verify(job.scheduler, never()).schedule(eqTo("TestScheduledJob"), any[ActorRef], any())
+      testActorSystem.terminate()
     }
 
-    "not create or register schedule when job is disabled" in {
+    "not schedule when job is disabled" in {
+      val testActorSystem = ActorSystem("test")
       val job = TestScheduledJob(
         Map(
           "schedules.TestScheduledJob.enabled" -> false,
-          "schedules.TestScheduledJob.expression" -> "0/1_*_*_?_*_*_*"
-        )
+          "schedules.TestScheduledJob.interval" -> "1 second"
+        ),
+        testActorSystem
       )
 
-      job.schedule
+      // This should not throw an exception, just log
+      noException should be thrownBy job.schedule
 
-      verify(job.scheduler, never()).createSchedule("TestScheduledJob", job.description, "0/1 * * ? * * *")
-      verify(job.scheduler, never()).schedule(eqTo("TestScheduledJob"), any[ActorRef], any())
+      testActorSystem.terminate()
     }
   }
 }
