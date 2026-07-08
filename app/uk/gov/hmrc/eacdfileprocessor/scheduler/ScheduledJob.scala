@@ -16,11 +16,13 @@
 
 package uk.gov.hmrc.eacdfileprocessor.scheduler
 
-import org.apache.pekko.actor.{ActorRef, ActorSystem}
-import org.apache.pekko.extension.quartz.QuartzSchedulerExtension
+import org.apache.pekko.actor.{ActorRef, ActorSystem, Cancellable}
 import org.slf4j.{Logger, LoggerFactory}
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.ScheduledMessage
+
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.FiniteDuration
 
 trait ScheduledJob {
   private[scheduler] val logger: Logger = LoggerFactory.getLogger(getClass)
@@ -30,7 +32,7 @@ trait ScheduledJob {
   val actorSystem: ActorSystem
   val jobName: String
 
-  lazy val scheduler: QuartzSchedulerExtension = QuartzSchedulerExtension(actorSystem)
+  implicit lazy val ec: ExecutionContext = actorSystem.dispatcher
 
   lazy val schedulingActorRef: ActorRef = actorSystem.actorOf(SchedulingActor.props)
 
@@ -38,21 +40,29 @@ trait ScheduledJob {
 
   lazy val description: Option[String] = config.getOptional[String](s"schedules.$jobName.description")
 
-  lazy val expression: String = config.getOptional[String](s"schedules.$jobName.expression") map (_.replaceAll("_", " ")) getOrElse ""
+  lazy val interval: Option[FiniteDuration] = config.getOptional[FiniteDuration](s"schedules.$jobName.interval")
 
   lazy val schedule: Unit = {
 
-    (enabled, expression.nonEmpty) match {
-      case (true, true) =>
-        scheduler.createSchedule(jobName, description, expression)
-        scheduler.schedule(jobName, schedulingActorRef, scheduledMessage)
-        logger.info(s"Scheduler for $jobName has been started")
-      case (true, false) =>
-        logger.info(s"Scheduler for $jobName is disabled as there is no quartz expression")
+    (enabled, interval) match {
+      case (true, Some(duration)) =>
+        scheduleAtFixedRate(duration)
+        logger.info(s"Scheduler for $jobName has been started with interval: $duration")
+      case (true, None) =>
+        logger.info(s"Scheduler for $jobName is disabled as there is no interval configured")
       case (false, _) =>
         logger.info(s"Scheduler for $jobName is disabled by configuration")
     }
 
+  }
+
+  private def scheduleAtFixedRate(duration: FiniteDuration): Cancellable = {
+    actorSystem.scheduler.scheduleAtFixedRate(
+      initialDelay = duration,
+      interval = duration,
+      receiver = schedulingActorRef,
+      message = scheduledMessage
+    )
   }
 
 }
