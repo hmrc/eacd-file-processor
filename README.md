@@ -5,23 +5,29 @@ This service is used as part of bulk de-enrolment processing.
 A helpdesk user uploads a document and this service stores metadata, receives status callbacks, and exposes
 retrieval/status endpoints.
 
-## Running service
+## Run Service locally:
 
-```bash
-sbt "run 9867"
+To run the service locally you will need to run the following command in the root of the project:
+
+```
+sbt run
 ```
 
-## Running tests
+To run the service locally with testOnly routes you will need to run the following command in the root of the project:
 
-```bash
-sbt clean coverage test it/test coverageReport
+```
+sbt "run -Dapplication.router=testOnlyDoNotUseInAppConf.Routes"
 ```
 
-### Running the unit test suite
+## Run Tests
 
-```bash
-sbt clean coverage test coverageReport
-```
+- Run Unit Tests: `sbt test`
+- Run Integration Tests: `sbt it/test`
+- Run Unit and Integration Tests: `sbt test  it/test`
+- Run Unit and Integration Tests with coverage report: `./run_all_tests.sh` (run `chmod +x ./run_all_tests.sh`first to add
+  executable permissions before running the shell script) <br/> which runs
+  `clean coverage test it/test coverageReport dependencyUpdates"`
+
 
 ## API overview
 
