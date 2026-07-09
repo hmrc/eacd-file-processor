@@ -184,6 +184,65 @@ class DeEnrolmentWorkItemSchedulerServiceISpec extends IntegrationSpec with Test
           successCount shouldBe Some(1)
         }
       }
+
+      "The action is both principal and delegated and ES1 returns a 204 with a single record" in {
+        val payload = DeEnrolmentWorkItem(
+          reference = scannedUploadedDetails.reference.value,
+          recordDetail = "IR-SA~UTR~1234567890,both",
+          creationDateTime = Instant.now()
+        )
+
+        when(mockEspConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(204, body = "")))
+
+        when(mockValidator.validate(payload.recordDetail, Set("IR-SA", "VAT")))
+          .thenReturn(Right(("IR-SA~UTR~1234567890", "both")))
+
+        await(deEnrolmentWorkItemRepository.saveRecordDetails(Seq(payload), scannedUploadedDetails.reference.value))
+        await(fileRepository.createFileRecord(scannedUploadedDetails))
+
+        await(deEnrolmentWorkItemSchedulerService.invoke)
+        eventually {
+          val successCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalSuccessCount
+          val errorCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalFailureCount
+          successCount shouldBe Some(1)
+          errorCount shouldBe None
+        }
+      }
+
+      "The action is both principal and delegated and ES1 returns a 200 and ES9 returns 204 with a single record" in {
+        val payload = DeEnrolmentWorkItem(
+          reference = scannedUploadedDetails.reference.value,
+          recordDetail = "IR-SA~UTR~1234567890,both",
+          creationDateTime = Instant.now()
+        )
+
+        val responseBody =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7531"
+            |    ],
+            |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7541"
+            |    ]
+            |}""".stripMargin
+
+        when(mockEspConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(200, responseBody)))
+        when(mockEspConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(204, body = "")))
+
+        when(mockValidator.validate(payload.recordDetail, Set("IR-SA", "VAT")))
+          .thenReturn(Right(("IR-SA~UTR~1234567890", "both")))
+
+        await(deEnrolmentWorkItemRepository.saveRecordDetails(Seq(payload), scannedUploadedDetails.reference.value))
+        await(fileRepository.createFileRecord(scannedUploadedDetails))
+
+        await(deEnrolmentWorkItemSchedulerService.invoke)
+        eventually {
+          val successCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalSuccessCount
+          val errorCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalFailureCount
+          successCount shouldBe Some(1)
+          errorCount shouldBe None
+        }
+      }
     }
 
     "return total error record" when {
@@ -298,6 +357,105 @@ class DeEnrolmentWorkItemSchedulerServiceISpec extends IntegrationSpec with Test
           errorCount shouldBe Some(1)
         }
       }
+
+      "The action is both principal and delegated and ES1 returns a 500" in {
+        val payload = DeEnrolmentWorkItem(
+          reference = scannedUploadedDetails.reference.value,
+          recordDetail = "IR-SA~UTR~1234567890,both",
+          creationDateTime = Instant.now()
+        )
+
+        when(mockEspConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(500, responseBodyInternalServerError)))
+
+        when(mockValidator.validate(payload.recordDetail, Set("IR-SA", "VAT")))
+          .thenReturn(Right(("IR-SA~UTR~1234567890", "both")))
+
+        await(deEnrolmentWorkItemRepository.saveRecordDetails(Seq(payload), scannedUploadedDetails.reference.value))
+        await(fileRepository.createFileRecord(scannedUploadedDetails))
+
+        await(deEnrolmentWorkItemSchedulerService.invoke)
+        eventually {
+          val errorCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalFailureCount
+          val successCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalSuccessCount
+          errorCount shouldBe Some(1)
+          successCount shouldBe None
+        }
+      }
+
+      "The action is both principal and delegated and ES1 returns a 200 and ES9 returns 500" in {
+        val payload = DeEnrolmentWorkItem(
+          reference = scannedUploadedDetails.reference.value,
+          recordDetail = "IR-SA~UTR~1234567890,both",
+          creationDateTime = Instant.now()
+        )
+
+        val responseBody =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
+            |    ],
+            |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
+            |    ]
+            |}""".stripMargin
+
+        when(mockEspConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(200, responseBody)))
+        when(mockEspConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(500, responseBodyInternalServerError)))
+
+        when(mockValidator.validate(payload.recordDetail, Set("IR-SA", "VAT")))
+          .thenReturn(Right(("IR-SA~UTR~1234567890", "both")))
+
+        await(deEnrolmentWorkItemRepository.saveRecordDetails(Seq(payload), scannedUploadedDetails.reference.value))
+        await(fileRepository.createFileRecord(scannedUploadedDetails))
+
+        await(deEnrolmentWorkItemSchedulerService.invoke)
+        eventually {
+          val errorCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalFailureCount
+          val successCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalSuccessCount
+          errorCount shouldBe Some(1)
+          successCount shouldBe None
+        }
+      }
+
+      "The action is both principal and delegated and ES1 returns a 200 and a ES9 call returns a 500 and another ES9 call returns a 204" in {
+        val payload = DeEnrolmentWorkItem(
+          reference = scannedUploadedDetails.reference.value,
+          recordDetail = "IR-SA~UTR~1234567890,both",
+          creationDateTime = Instant.now()
+        )
+
+        val responseBody =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
+            |    ],
+            |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
+            |    ]
+            |}""".stripMargin
+
+
+        when(mockEspConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(200, responseBody)))
+        when(mockEspConnector.callES9(any[String], any[String])(using any[HeaderCarrier]))
+          .thenReturn(Future.successful(HttpResponse(204, "")))
+          .thenReturn(Future.successful(HttpResponse(500, responseBodyInternalServerError)))
+
+        when(mockValidator.validate(payload.recordDetail, Set("IR-SA", "VAT")))
+          .thenReturn(Right(("IR-SA~UTR~1234567890", "both")))
+
+        await(deEnrolmentWorkItemRepository.saveRecordDetails(Seq(payload), scannedUploadedDetails.reference.value))
+        await(fileRepository.createFileRecord(scannedUploadedDetails))
+
+        await(deEnrolmentWorkItemSchedulerService.invoke)
+        eventually {
+          val errorCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalFailureCount
+          val successCount = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get.totalSuccessCount
+          errorCount shouldBe Some(1)
+          successCount shouldBe None
+        }
+      }
+
     }
+
   }
 
