@@ -26,7 +26,7 @@ sbt "run -Dapplication.router=testOnlyDoNotUseInAppConf.Routes"
 - Run Unit and Integration Tests: `sbt test  it/test`
 - Run Unit and Integration Tests with coverage report: `./run_all_tests.sh` (run `chmod +x ./run_all_tests.sh`first to add
   executable permissions before running the shell script) <br/> which runs
-  `clean coverage test it/test coverageReport dependencyUpdates"`
+  `clean coverage test it/test coverageReport dependencyUpdates`
 
 
 ## API overview
