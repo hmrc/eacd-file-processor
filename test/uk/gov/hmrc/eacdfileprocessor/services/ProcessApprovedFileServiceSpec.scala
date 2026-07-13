@@ -34,7 +34,13 @@ import uk.gov.hmrc.objectstore.client.{Md5Hash, Object, ObjectMetadata, Path}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.time.Instant
+import java.time.temporal.ChronoUnit.HOURS
 import scala.concurrent.{ExecutionContext, Future}
+
+import ch.qos.logback.classic.{Level, Logger}
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import org.slf4j.LoggerFactory
 
 class ProcessApprovedFileServiceSpec extends TestSupport with TestData with UnitSpec:
 
@@ -70,6 +76,24 @@ class ProcessApprovedFileServiceSpec extends TestSupport with TestData with Unit
       override implicit val ec: ExecutionContext = executionContext
       override implicit val mat: Materializer = materializer
       override implicit val hc: HeaderCarrier = HeaderCarrier()
+    }
+
+    private val serviceLogger = LoggerFactory.getLogger(processApprovedFileService.getClass).asInstanceOf[Logger]
+
+    def capturedLogMessages(block: => Unit): Seq[String] = {
+      val originalLevel = serviceLogger.getLevel
+      val appender = new ListAppender[ILoggingEvent]()
+      appender.start()
+      serviceLogger.setLevel(Level.WARN)
+      serviceLogger.addAppender(appender)
+      try {
+        block
+        appender.list.toArray(new Array[ILoggingEvent](0)).toSeq.map(_.getFormattedMessage)
+      } finally {
+        serviceLogger.detachAppender(appender)
+        serviceLogger.setLevel(originalLevel)
+        appender.stop()
+      }
     }
   }
 
@@ -126,5 +150,64 @@ class ProcessApprovedFileServiceSpec extends TestSupport with TestData with Unit
         exception.getMessage contains s"No record found for the requested reference: ${scannedUploadedDetails.reference.value} in Object Store" shouldBe true
       }
     }
-  }
 
+    "checkRecordsWithStaleFileStatus" must {
+      "return Future.unit and call findFilesWithStaleStatus with UPLOADED and APPROVED statuses when no stale records exist" in new Setup {
+        when(mockFileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)))
+          .thenReturn(Future.successful(Seq.empty))
+
+        await(processApprovedFileService.checkRecordsWithStaleFileStatus)
+
+        verify(mockFileRepository, times(1)).findFilesWithStaleStatus(Seq(UPLOADED, APPROVED))
+      }
+
+      "log NO_UPSCAN_CALLBACK when stale UPLOADED records are found" in new Setup {
+        val staleUploadedRecord = initiateUploadDetails.copy(
+          status = UPLOADED,
+          lastUpdatedDateTime = Some(Instant.now().minus(5, HOURS))
+        )
+        when(mockFileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)))
+          .thenReturn(Future.successful(Seq(staleUploadedRecord)))
+
+        val logMessages = capturedLogMessages {
+          await(processApprovedFileService.checkRecordsWithStaleFileStatus)
+        }
+
+        verify(mockFileRepository, times(1)).findFilesWithStaleStatus(Seq(UPLOADED, APPROVED))
+        logMessages.exists(_.contains(s"NO_UPSCAN_CALLBACK for file reference ${staleUploadedRecord.reference}")) shouldBe true
+      }
+
+      "log FILE_NOT_COLLECTED when stale APPROVED records are found" in new Setup {
+        val staleApprovedRecord = initiateUploadDetails.copy(
+          status = APPROVED,
+          lastUpdatedDateTime = Some(Instant.now().minus(5, HOURS))
+        )
+        when(mockFileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)))
+          .thenReturn(Future.successful(Seq(staleApprovedRecord)))
+
+        val logMessages = capturedLogMessages {
+          await(processApprovedFileService.checkRecordsWithStaleFileStatus)
+        }
+
+        verify(mockFileRepository, times(1)).findFilesWithStaleStatus(Seq(UPLOADED, APPROVED))
+        logMessages.exists(_.contains(s"FILE_NOT_COLLECTED for file reference ${staleApprovedRecord.reference}")) shouldBe true
+      }
+
+      "return Future.unit when a mix of stale UPLOADED and APPROVED records are found" in new Setup {
+        val staleUploadedRecord = initiateUploadDetails.copy(
+          status = UPLOADED,
+          lastUpdatedDateTime = Some(Instant.now().minus(6, HOURS))
+        )
+        val staleApprovedRecord = scannedUploadedDetails.copy(
+          status = APPROVED,
+          lastUpdatedDateTime = Some(Instant.now().minus(5, HOURS))
+        )
+        when(mockFileRepository.findFilesWithStaleStatus(Seq(UPLOADED, APPROVED)))
+          .thenReturn(Future.successful(Seq(staleUploadedRecord, staleApprovedRecord)))
+
+        await(processApprovedFileService.checkRecordsWithStaleFileStatus)
+
+        verify(mockFileRepository, times(1)).findFilesWithStaleStatus(Seq(UPLOADED, APPROVED))
+      }
+    }
+  }

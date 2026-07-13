@@ -1,3 +1,5 @@
 # microservice specific routes
 GET        /file-status-count        uk.gov.hmrc.eacdfileprocessor.support.controllers.StatusController.getAllStatusCounts
 GET        /file-detail/:reference   uk.gov.hmrc.eacdfileprocessor.support.controllers.FileDetailsController.getFileDetail(reference: String)
+GET        /file-errors/:reference   uk.gov.hmrc.eacdfileprocessor.support.controllers.FileController.getFileErrors(reference: String)
+
