@@ -47,8 +47,6 @@ trait DeEnrolmentWorkItemRepository {
 
   def deleteWorkItemsByReference(reference: String): Future[Unit]
 
-  def deleteByReference(reference: String): Future[Unit]
-
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
   def markAsComplete(id: ObjectId): Future[Boolean]
@@ -133,9 +131,6 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
   override def deleteWorkItemsByReference(reference: String): Future[Unit] = {
     collection.deleteMany(Filters.eq(s"${workItemFields.item}.reference", reference)).toFuture().map(_ => ())
   }
-
-  override def deleteByReference(reference: String): Future[Unit] =
-    deleteWorkItemsByReference(reference)
 
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem]): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)

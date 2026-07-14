@@ -209,7 +209,7 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec w
       await(repository.saveRecordDetails(deleteRefItems))
       await(repository.saveRecordDetails(otherRefItems))
 
-      await(repository.deleteByReference("ref-delete"))
+      await(repository.deleteWorkItemsByReference("ref-delete"))
       val countOther = await(repository.collection.countDocuments(Filters.eq("item.reference", "ref-other")).toFuture())
 
       countOther shouldBe 2
@@ -218,7 +218,7 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec w
     "deleteByReference should not fail when reference does not exist" in {
       await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
-      await(repository.deleteByReference("nonexistent-ref-delete")) shouldBe()
+      await(repository.deleteWorkItemsByReference("nonexistent-ref-delete")) shouldBe()
       val count = await(repository.collection.countDocuments().toFuture())
       count shouldBe 2
     }

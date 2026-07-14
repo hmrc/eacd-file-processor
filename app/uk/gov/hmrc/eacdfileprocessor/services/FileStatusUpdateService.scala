@@ -28,7 +28,9 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository,
                                         fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
-                                        fileRepository: FileRepository, lockService: LockService
+                                        fileRepository: FileRepository,
+                                        lockService: LockService,
+                                        emailService: EmailService
                                        ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
 
   override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] =
@@ -36,7 +38,7 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
       processProcessingFiles()
     }
 
-  private def processProcessingFiles()(using ExecutionContext): Future[Unit] =
+  private[services] def processProcessingFiles()(using ExecutionContext): Future[Unit] =
     for {
       processingFiles <- fileRepository.findByStatusAsUploadedDetails(PROCESSING)
       _ <- Future.traverse(processingFiles)(processSingleFile)
@@ -44,11 +46,10 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
 
   private def processSingleFile(file: UploadedDetails)(using ExecutionContext): Future[Unit] =
     deEnrolmentWorkItemRepository.countRemainingNonCompleteByReference(file.reference.value).flatMap {
-      case remaining if remaining >= 1 =>
-        Future.unit
-
       case 0 =>
         reconcileAndFinalize(file)
+      case _ =>
+        Future.unit
     }
 
   private def reconcileAndFinalize(file: UploadedDetails)(using ExecutionContext): Future[Unit] = {
@@ -62,9 +63,16 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
     } else {
       for {
         errorCount <- fileRecordValidationErrorRepository.countByReference(file.reference)
-        targetStatus = if (errorCount == 0) PROCESSEDSUCCESSFULLY else PROCESSEDWITHERRORS
-        _ <- fileRepository.updateStatus(file.reference, targetStatus)
-        _ <- deEnrolmentWorkItemRepository.deleteByReference(file.reference.value)
+        targetStatus = if (errorCount == 0 && totalFailureCount == 0) PROCESSEDSUCCESSFULLY else PROCESSEDWITHERRORS
+        _ <- fileRepository.updateStatus(file.reference, targetStatus).map {
+          case Some(uploadedDetails) =>
+            logger.info(s"File reference ${file.reference.value} status updated to $targetStatus")
+            emailService.sendFileProcessedEmail(uploadedDetails)
+            deEnrolmentWorkItemRepository.deleteWorkItemsByReference(uploadedDetails.reference.value)
+          case None =>
+            logger.error(s"Failed to update file status for reference ${file.reference.value}")
+            Future.successful(throw new RuntimeException(s"Failed to update file status for reference ${file.reference.value}"))
+        }
       } yield ()
     }
   }
