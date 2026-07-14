@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.support.controllers
 
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Request}
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.eacdfileprocessor.models.Reference
+import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRecordValidationErrorRepository
 import uk.gov.hmrc.eacdfileprocessor.services.AuditService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
@@ -68,7 +68,7 @@ class FileController @Inject()(fileRecordValidationErrorRepository: FileRecordVa
         }
       }
 
-  private def toCsv(errors: Seq[uk.gov.hmrc.eacdfileprocessor.models.FileRecordValidationError]): String = {
+  private def toCsv(errors: Seq[FileRecordValidationError]): String = {
     val header = "reference,fileName,recordDetail,errorMessage,creationDateTime"
 
     val rows = errors.map { error =>

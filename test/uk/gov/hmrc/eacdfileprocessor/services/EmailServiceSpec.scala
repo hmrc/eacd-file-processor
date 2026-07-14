@@ -115,6 +115,30 @@ class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
         exception.getMessage contains "File name is missing for reference" shouldBe true
       }
     }
+    "sendFileProcessedEmail" must {
+      "return true for sending file processed email successfully" in {
+        when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
+          .thenReturn(Future.successful(true))
+
+        val result = await(emailService.sendFileProcessedEmail(initiateUploadDetails.copy(uploadedDateTime = Some(now()), details = Some(successfulUploadedDetails))))
+
+        result shouldBe true
+      }
+      "throw exception when uploadedDateTime is missing" in {
+        val exception = intercept[RuntimeException] {
+          await(emailService.sendFileProcessedEmail(initiateUploadDetails.copy(details = Some(successfulUploadedDetails))))
+        }
+
+        exception.getMessage contains "Uploaded date time not found for reference" shouldBe true
+      }
+      "throw exception when file name is missing" in {
+        val exception = intercept[RuntimeException] {
+          await(emailService.sendFileProcessedEmail(initiateUploadDetails.copy(details = Some(failedFileDetails))))
+        }
+
+        exception.getMessage contains "File name is missing for reference" shouldBe true
+      }
+    }
     "formatDateTime" must {
       "return correct format in 24 hours" in {
         val time = Instant.parse("2026-07-30T14:13:53.726Z")

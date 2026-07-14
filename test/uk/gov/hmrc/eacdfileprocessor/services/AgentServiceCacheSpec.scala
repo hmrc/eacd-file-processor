@@ -16,7 +16,6 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
-import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{reset, times, verify, when}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig

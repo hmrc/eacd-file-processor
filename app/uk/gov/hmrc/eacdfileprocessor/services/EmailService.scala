@@ -78,8 +78,7 @@ class EmailService @Inject()(emailConnector: EmailConnector)(implicit ec: Execut
   def sendFileAutoDeletedEmail(uploadedDetails: UploadedDetails, fileExpiryDays: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
     val params = Map(
       "requestorName" -> uploadedDetails.requestorName,
-      "fileName" -> uploadedDetails.details.map(Details.getFileName).filterNot(_.isBlank).getOrElse(
-        throw new RuntimeException(s"File name is missing for reference: ${uploadedDetails.reference.value}")),
+      "fileName" -> getFileName(uploadedDetails),
       "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
       "reference" -> uploadedDetails.reference.value,
       "fileExpiryDays" -> fileExpiryDays
@@ -87,6 +86,24 @@ class EmailService @Inject()(emailConnector: EmailConnector)(implicit ec: Execut
 
     emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_auto_deleted")
   }
+
+  def sendFileProcessedEmail(uploadedDetails: UploadedDetails)(implicit hc: HeaderCarrier): Future[Boolean] = {
+    val params = Map(
+      "requestorName" -> uploadedDetails.requestorName,
+      "fileName" -> getFileName(uploadedDetails),
+      "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
+      "reference" -> uploadedDetails.reference.value,
+      "totalRecordCount" -> uploadedDetails.totalEntryCount.getOrElse(0).toString,
+      "successfulRecordCount" -> uploadedDetails.totalSuccessCount.getOrElse(0).toString,
+      "failedRecordCount" -> uploadedDetails.totalFailureCount.getOrElse(0).toString
+    )
+
+    emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_processed")
+  }
+
+  private def getFileName(uploadedDetails: UploadedDetails): String =
+    uploadedDetails.details.map(Details.getFileName).filterNot(_.isBlank).getOrElse(
+      throw new RuntimeException(s"File name is missing for reference: ${uploadedDetails.reference.value}"))
 
   private def getUploadedDateTime(uploadedDetails: UploadedDetails): String =
     uploadedDetails.uploadedDateTime.map(formatDateTime).getOrElse(

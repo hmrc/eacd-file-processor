@@ -16,12 +16,11 @@
 
 package uk.gov.hmrc.eacdfileprocessor.connectors
 
-import org.mockito.ArgumentMatchers.{any, startsWith}
+import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.{BAD_GATEWAY, BAD_REQUEST, NO_CONTENT, OK}
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
@@ -34,7 +33,6 @@ class EspConnectorSpec extends TestSupport {
   private given HeaderCarrier = HeaderCarrier()
 
   val servicesConfig: ServicesConfig = mock[ServicesConfig]
-  val appConfig: AppConfig = mock[AppConfig]
   val httpClient: HttpClientV2 = mock[HttpClientV2]
   val requestBuilder: RequestBuilder = mock[RequestBuilder]
 
@@ -47,7 +45,7 @@ class EspConnectorSpec extends TestSupport {
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(NO_CONTENT)))
 
-        val connector = EspConnector(httpClient, appConfig, servicesConfig)
+        val connector = EspConnector(httpClient, servicesConfig)
 
         await(connector.callES1("Test-enrolement-key", "princpal")).status shouldBe NO_CONTENT
       }
@@ -65,7 +63,7 @@ class EspConnectorSpec extends TestSupport {
               |}
               |""".stripMargin)))
 
-        val connector = EspConnector(httpClient, appConfig, servicesConfig)
+        val connector = EspConnector(httpClient, servicesConfig)
         val result = await(connector.callES1("Test-enrolement-key", "princpal"))
         result.status shouldBe BAD_REQUEST
         result.body.contains("The type parameter was invalid. Expected all, principal or delegated") shouldBe true
@@ -90,7 +88,7 @@ class EspConnectorSpec extends TestSupport {
               |}
               |""".stripMargin)))
 
-        val connector = EspConnector(httpClient, appConfig, servicesConfig)
+        val connector = EspConnector(httpClient, servicesConfig)
 
         await(connector.callES1("Test-enrolement-key", "princpal")).status shouldBe OK
       }
@@ -109,7 +107,7 @@ class EspConnectorSpec extends TestSupport {
               |}
               |""".stripMargin)))
 
-        val connector = EspConnector(httpClient, appConfig, servicesConfig)
+        val connector = EspConnector(httpClient, servicesConfig)
         val result = await(connector.callES9("Test-group-id", "Test-enrolement-key"))
         result.status shouldBe BAD_GATEWAY
         result.body.contains("An unexpected error occurred") shouldBe true
@@ -120,7 +118,7 @@ class EspConnectorSpec extends TestSupport {
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(NO_CONTENT)))
 
-        val connector = EspConnector(httpClient, appConfig, servicesConfig)
+        val connector = EspConnector(httpClient, servicesConfig)
 
         await(connector.callES9("Test-group-id", "Test-enrolement-key")).status shouldBe NO_CONTENT
       }
@@ -136,7 +134,7 @@ class EspConnectorSpec extends TestSupport {
               |}
               |""".stripMargin)))
 
-        val connector = EspConnector(httpClient, appConfig, servicesConfig)
+        val connector = EspConnector(httpClient, servicesConfig)
         val result = await(connector.callES9("Test-group-id", "Test-enrolement-key"))
         result.status shouldBe BAD_REQUEST
         result.body.contains("The enrolment was not found for the group") shouldBe true

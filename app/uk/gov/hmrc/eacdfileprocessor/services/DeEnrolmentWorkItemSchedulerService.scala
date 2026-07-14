@@ -21,7 +21,7 @@ import play.api.Logging
 import play.api.http.Status.{NO_CONTENT, OK}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
-import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, FileRecordValidationError, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
@@ -175,18 +175,18 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
             logger.info(s"[processGroupDeEnrolments] Successfully de-enrolled groupId $groupId for reference ${reference.value}")
             fileRepository.incrementSuccessCount(reference)
               .flatMap(_ => deEnrolmentWorkItemRepository.markAsComplete(workItemId))
-              .map(_ => ())
               .recover { case e =>
                 logger.error(s"[processGroupDeEnrolments] Failed to mark work item as complete for reference ${reference.value}: ${e.getMessage}", e)
                 throw e
               }
+            Future.unit
           case _ =>
             val errorMessage = if (groupIds.size > 1) then
               "Partial processing due to unknown error, review manually"
             else
               extractErrorMessage(response.json)
             logger.warn(s"[processGroupDeEnrolments] ES9 failed for groupId $groupId and reference ${reference.value}: $errorMessage")
-            recordError(reference, recordDetail, errorMessage).map(_ => ()) // <-- Added .map(_ => ()) here
+            recordError(reference, recordDetail, errorMessage)
         }
       }
     }).map(_ => ()).recover { case e =>
@@ -198,7 +198,8 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
   private def recordError(reference: Reference, recordDetail: String, errorMessage: String)(using ExecutionContext): Future[Unit] = {
     logger.debug(s"[recordError] Recording validation error for reference ${reference.value}: $errorMessage")
     for {
-      fileName <- fileRepository.getNameOfFile(reference).map(_.getOrElse(""))
+      uploadedDetailsOpt <- fileRepository.incrementFailureCount(reference)
+      fileName = uploadedDetailsOpt.flatMap(_.details.map(Details.getFileName)).getOrElse("")
       _ <- fileRecordValidationErrorRepository.create(
         FileRecordValidationError(
           id = ObjectId.get(),
@@ -208,7 +209,6 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
           errorMessage = errorMessage
         )
       )
-      _ <- fileRepository.incrementFailureCount(reference)
     } yield ()
   }
 

@@ -46,8 +46,6 @@ trait DeEnrolmentWorkItemRepository {
 
   def deleteWorkItemsByReference(reference: String): Future[Unit]
 
-  def deleteByReference(reference: String): Future[Unit]
-
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
   def markAsInProgress(id: ObjectId): Future[Boolean]
@@ -133,9 +131,6 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     collection.deleteMany(Filters.eq(s"${WorkItemFields.default.item}.reference", reference)).toFuture().map(_ => ())
   }
 
-  override def deleteByReference(reference: String): Future[Unit] =
-    deleteWorkItemsByReference(reference)
-
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)
 
@@ -161,7 +156,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
               // Stale InProgress items ready for retry
               and(
                 equal(WORK_ITEM_STATUS, ProcessingStatus.InProgress.name),
-                lte("updatedAt", retryThreshold)
+                lte(WorkItemFields.default.updatedAt, retryThreshold)
               )
             )
           )
