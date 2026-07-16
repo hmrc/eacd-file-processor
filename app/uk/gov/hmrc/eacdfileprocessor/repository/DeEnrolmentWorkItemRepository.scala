@@ -41,8 +41,6 @@ import scala.concurrent.{ExecutionContext, Future}
 trait DeEnrolmentWorkItemRepository {
   def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem]): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
-  def incompleteWorkItemsCountForRef(reference: String): Future[Int]
-
   def countRemainingNonCompleteByReference(reference: String): Future[Int]
 
   def deleteWorkItemsByReference(reference: String): Future[Unit]
@@ -114,7 +112,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     MongoUtils.ensureIndexes(collection, deEnrolmentWorkItemIndexes, true)
   }
 
-  override def incompleteWorkItemsCountForRef(reference: String): Future[Int] = {
+  override def countRemainingNonCompleteByReference(reference: String): Future[Int] = {
     val selector = and(
       equal(
         s"${workItemFields.item}.reference", Codecs.toBson(reference)
@@ -124,9 +122,6 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
 
     collection.countDocuments(selector).toFuture().map(_.toInt)
   }
-
-  override def countRemainingNonCompleteByReference(reference: String): Future[Int] =
-    incompleteWorkItemsCountForRef(reference)
 
   override def deleteWorkItemsByReference(reference: String): Future[Unit] = {
     collection.deleteMany(Filters.eq(s"${workItemFields.item}.reference", reference)).toFuture().map(_ => ())
