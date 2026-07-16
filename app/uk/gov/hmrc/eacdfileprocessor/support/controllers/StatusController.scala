@@ -49,7 +49,7 @@ class StatusController @Inject()(fileUploadRepo: FileRepository,
       logger.info("Received get all file status counts request")
       fileUploadRepo.getFileStatusCounts.map {
         case fileStatusCounts if fileStatusCounts.nonEmpty =>
-          val allStatusCounts = if (fileStatusCounts.size < 10) {
+          val allStatusCounts = if (fileStatusCounts.size < fileStatus.size) {
             generateAllStatusCount(fileStatusCounts)
           } else {
             fileStatusCounts
