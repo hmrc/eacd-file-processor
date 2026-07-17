@@ -60,7 +60,7 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec w
       await(repository.saveRecordDetails(deEnrolmentWorkItems))
       await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
-      val count = await(repository.incompleteWorkItemsCountForRef("ref1"))
+      val count = await(repository.countRemainingNonCompleteByReference("ref1"))
       count shouldBe 2
     }
 
@@ -82,7 +82,7 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec w
         )
       }
 
-      val count = await(repository.incompleteWorkItemsCountForRef("ref1"))
+      val count = await(repository.countRemainingNonCompleteByReference("ref1"))
       count shouldBe incompleteStatuses.size
     }
 
