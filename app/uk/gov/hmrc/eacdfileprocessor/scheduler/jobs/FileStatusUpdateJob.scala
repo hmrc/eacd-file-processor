@@ -29,7 +29,7 @@ class FileStatusUpdateJob @Inject()(val config: Configuration,
 
   val jobName: String           = "FileStatusUpdateJob"
   val actorSystem: ActorSystem  = ActorSystem(jobName)
-  val scheduledMessage          = FileStatusUpdateMessage(fileStatusUpdateService)
+  val scheduledMessage          = FileStatusUpdateMessage(fileStatusUpdateService, () => isWithinAllowedUtcWindow(), utcWindowSkipReason)
 
   schedule
 }

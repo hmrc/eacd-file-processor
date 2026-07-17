@@ -29,7 +29,7 @@ class ProcessApprovedFileJob @Inject()(val config: Configuration,
 
   val jobName: String           = "ProcessApprovedFileJob"
   val actorSystem: ActorSystem  = ActorSystem(jobName)
-  val scheduledMessage          = ProcessApprovedFileMessage(processApprovedFilesService)
+  val scheduledMessage          = ProcessApprovedFileMessage(processApprovedFilesService, () => isWithinAllowedUtcWindow(), utcWindowSkipReason)
 
   schedule
 }

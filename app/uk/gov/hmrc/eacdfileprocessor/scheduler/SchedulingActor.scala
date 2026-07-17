@@ -23,28 +23,50 @@ import uk.gov.hmrc.eacdfileprocessor.services.{ExpiredFileDeletionService, LockR
 
 class SchedulingActor extends Actor with ActorLogging {
   import context.dispatcher
-  
+
   private[scheduler] val logger: Logger = LoggerFactory.getLogger(getClass)
-  
+
   override def receive: Receive = {
     case message: ScheduledMessage[_] =>
-      logger.info(s"Received ${message.getClass.getSimpleName}")
-      message.service.invoke
+      if (message.canRun()) {
+        logger.info(s"Received ${message.getClass.getSimpleName}")
+        message.service.invoke
+      } else {
+        logger.debug(s"Skipping ${message.getClass.getSimpleName}: ${message.skipReason.getOrElse("outside allowed run window")}")
+      }
   }
 }
 
 object SchedulingActor {
   sealed trait ScheduledMessage[A] {
     val service: ScheduledService[A]
+    val canRun: () => Boolean
+    val skipReason: Option[String]
   }
 
-  case class ProcessApprovedFileMessage(service: ProcessApprovedFileService) extends ScheduledMessage[Either[Unit, LockResponse]]
+  case class ProcessApprovedFileMessage(
+    service: ProcessApprovedFileService,
+    canRun: () => Boolean = () => true,
+    skipReason: Option[String] = None
+  ) extends ScheduledMessage[Either[Unit, LockResponse]]
 
-  case class DeEnrolmentWorkItemPullMessage(service: ScheduledService[Either[Unit, LockResponse]]) extends ScheduledMessage[Either[Unit, LockResponse]]
+  case class DeEnrolmentWorkItemPullMessage(
+    service: ScheduledService[Either[Unit, LockResponse]],
+    canRun: () => Boolean = () => true,
+    skipReason: Option[String] = None
+  ) extends ScheduledMessage[Either[Unit, LockResponse]]
 
-  case class ExpiredFileDeletionMessage(service: ExpiredFileDeletionService) extends ScheduledMessage[Either[Unit, LockResponse]]
+  case class ExpiredFileDeletionMessage(
+    service: ExpiredFileDeletionService,
+    canRun: () => Boolean = () => true,
+    skipReason: Option[String] = None
+  ) extends ScheduledMessage[Either[Unit, LockResponse]]
 
-  case class FileStatusUpdateMessage(service: ScheduledService[Either[Unit, LockResponse]]) extends ScheduledMessage[Either[Unit, LockResponse]]
+  case class FileStatusUpdateMessage(
+    service: ScheduledService[Either[Unit, LockResponse]],
+    canRun: () => Boolean = () => true,
+    skipReason: Option[String] = None
+  ) extends ScheduledMessage[Either[Unit, LockResponse]]
 
   def props: Props = Props(classOf[SchedulingActor])
 }
