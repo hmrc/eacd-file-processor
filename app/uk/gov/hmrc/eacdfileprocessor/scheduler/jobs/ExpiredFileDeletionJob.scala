@@ -29,7 +29,7 @@ class ExpiredFileDeletionJob @Inject()(val config: Configuration,
 
   val jobName: String           = "ExpiredFileDeletionJob"
   val actorSystem: ActorSystem  = ActorSystem(jobName)
-  val scheduledMessage          = ExpiredFileDeletionMessage(expiredFileDeletionService)
+  val scheduledMessage          = ExpiredFileDeletionMessage(expiredFileDeletionService, () => isWithinAllowedUtcWindow(), utcWindowSkipReason)
 
   schedule
 }
