@@ -17,8 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import play.api.Logging
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{PROCESSEDWITHERRORS, PROCESSEDSUCCESSFULLY, PROCESSING}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{PROCESSEDSUCCESSFULLY, PROCESSEDWITHERRORS, PROCESSING}
 import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
@@ -28,15 +27,10 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class FileStatusUpdateService @Inject()(
-                                         appConfig: AppConfig,
-                                         deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository,
-                                         fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
-                                         fileRepository: FileRepository,
-                                         lockService: LockService
+class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolmentWorkItemRepository,
+                                        fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
+                                        fileRepository: FileRepository, lockService: LockService
                                        ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
-
-  private given HeaderCarrier = HeaderCarrier()
 
   override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] =
     lockService.lockAndRelease("FileStatusUpdateJob") {

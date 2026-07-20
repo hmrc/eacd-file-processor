@@ -23,7 +23,6 @@ import org.mongodb.scala.SingleObservableFuture
 import org.mongodb.scala.model.Filters
 import org.scalatest.matchers.should.Matchers.{should, shouldBe}
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
@@ -36,20 +35,12 @@ import scala.concurrent.ExecutionContext
 
 class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
 
-  private val mockAppConfig = mock[AppConfig]
-
   override lazy val fileRepository: FileRepository = app.injector.instanceOf[FileRepository]
   lazy val deEnrolmentWorkItemRepository: DeEnrolmentWorkItemMongoRepository = app.injector.instanceOf[DeEnrolmentWorkItemMongoRepository]
   lazy val fileRecordValidationErrorRepository: FileRecordValidationErrorRepository = app.injector.instanceOf[FileRecordValidationErrorRepository]
   lazy val lockService: LockService = app.injector.instanceOf[LockService]
 
-  lazy val fileStatusUpdateService = new FileStatusUpdateService(
-    appConfig = mockAppConfig,
-    deEnrolmentWorkItemRepository = deEnrolmentWorkItemRepository,
-    fileRecordValidationErrorRepository = fileRecordValidationErrorRepository,
-    fileRepository = fileRepository,
-    lockService = lockService
-  )
+  lazy val fileStatusUpdateService = new FileStatusUpdateService(deEnrolmentWorkItemRepository = deEnrolmentWorkItemRepository, fileRecordValidationErrorRepository = fileRecordValidationErrorRepository, fileRepository = fileRepository, lockService = lockService)
 
   private def uniqueRef(prefix: String): Reference =
     Reference(s"$prefix-${UUID.randomUUID().toString}")
@@ -79,7 +70,7 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
         deEnrolmentWorkItems.head.copy(reference = reference.value),
         deEnrolmentWorkItems.last.copy(reference = reference.value)
       )
-      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems, reference.value))
+      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems))
 
       val pendingItems = await(deEnrolmentWorkItemRepository.findByReference(reference.value))
       pendingItems.foreach { workItem =>
@@ -120,7 +111,7 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
       val workItems = Seq(
         deEnrolmentWorkItems.head.copy(reference = reference.value)
       )
-      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems, reference.value))
+      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems))
 
       val pendingItems = await(deEnrolmentWorkItemRepository.findByReference(reference.value))
       pendingItems.foreach { workItem =>
@@ -163,7 +154,7 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
         deEnrolmentWorkItems.head.copy(reference = reference.value),
         deEnrolmentWorkItems.last.copy(reference = reference.value)
       )
-      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems, reference.value))
+      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems))
 
       val incompleteCount = await(deEnrolmentWorkItemRepository.countRemainingNonCompleteByReference(reference.value))
       incompleteCount should be > 0
@@ -189,7 +180,7 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
       val workItems = Seq(
         deEnrolmentWorkItems.head.copy(reference = reference.value)
       )
-      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems, reference.value))
+      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems))
 
       val pendingItems = await(deEnrolmentWorkItemRepository.findByReference(reference.value))
       pendingItems.foreach { workItem =>
@@ -253,8 +244,8 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
         )
       )
 
-      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems1, ref1.value))
-      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems2, ref2.value))
+      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems1))
+      await(deEnrolmentWorkItemRepository.saveRecordDetails(workItems2))
 
       val allPendingItems = await(deEnrolmentWorkItemRepository.collection.find().toFuture())
       allPendingItems.foreach { workItem =>

@@ -19,7 +19,6 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import helper.IntegrationSpec
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.mongo.MongoComponent
 
 import java.time.{Clock, Instant, ZoneId}
@@ -28,7 +27,9 @@ class JobLockRepositoryISpec extends IntegrationSpec {
 
   private final class MutableClock(var now: Instant, zone: ZoneId = ZoneId.of("UTC")) extends Clock {
     override def getZone: ZoneId = zone
+
     override def withZone(zone: ZoneId): Clock = MutableClock(now, zone)
+
     override def instant(): Instant = now
   }
 

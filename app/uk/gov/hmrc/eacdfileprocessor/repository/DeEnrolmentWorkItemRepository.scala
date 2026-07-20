@@ -38,7 +38,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @ImplementedBy(classOf[DeEnrolmentWorkItemMongoRepository])
 trait DeEnrolmentWorkItemRepository {
-  def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
+  def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem]): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
   def incompleteWorkItemsCountForRef(reference: String): Future[Int]
 
@@ -136,7 +136,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
   override def deleteByReference(reference: String): Future[Unit] =
     deleteWorkItemsByReference(reference)
 
-  override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem], reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
+  override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem]): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)
 
   override def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
@@ -201,22 +201,8 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
 
   }
 
-  override def markAsComplete(id: ObjectId): Future[Boolean] = {
-    collection
-      .findOneAndUpdate(
-        and(
-          equal(WorkItemFields.default.id, id),
-          equal(WorkItemFields.default.status, ProcessingStatus.InProgress.name)
-        ),
-        Updates.combine(
-          Updates.set(WorkItemFields.default.status, ProcessingStatus.Succeeded.name),
-          Updates.set(WorkItemFields.default.updatedAt, now())
-        ),
-        FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
-      )
-      .toFutureOption()
-      .map(_.isDefined)
-  }
+  override def markAsComplete(id: ObjectId): Future[Boolean] =
+      complete(id, ProcessingStatus.Succeeded)
 
   override def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
     val filter: Bson = Filters.equal("item.reference", reference)

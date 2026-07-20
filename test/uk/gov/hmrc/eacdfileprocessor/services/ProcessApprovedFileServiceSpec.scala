@@ -78,23 +78,23 @@ class ProcessApprovedFileServiceSpec extends TestSupport with TestData with Unit
       "totalEntryCount is set when save record details into DeEnrolmentWorkItem successfully" in new Setup {
         when(mockFileRepository.findOldestApprovedFile).thenReturn(Future(Some(scannedUploadedDetails.copy(status = APPROVED))))
         when(objectStoreClient.getObject[String](any(), any())(any(), any())).thenReturn(Future.successful(Some(o)))
-        when(deEnrolmentWorkItemRepository.saveRecordDetails(any(), any())).thenReturn(Future.successful(deEnrolmentWorkItems))
+        when(deEnrolmentWorkItemRepository.saveRecordDetails(any())).thenReturn(Future.successful(deEnrolmentWorkItems))
         await(processApprovedFileService.createWorkItemsFromOldestFile)
-        verify(deEnrolmentWorkItemRepository, times(1)).saveRecordDetails(any(), any())
+        verify(deEnrolmentWorkItemRepository, times(1)).saveRecordDetails(any())
         verify(mockFileRepository, times(1)).setTotalEntryCount(any(), any())
       }
       "not save record details into DeEnrolmentWorkItem when there is no approved file" in new Setup {
         when(mockFileRepository.findOldestApprovedFile).thenReturn(Future(None))
         processApprovedFileService.createWorkItemsFromOldestFile
-        verify(deEnrolmentWorkItemRepository, times(0)).saveRecordDetails(any(), any())
+        verify(deEnrolmentWorkItemRepository, times(0)).saveRecordDetails(any())
         verify(mockFileRepository, times(0)).setTotalEntryCount(any(), any())
       }
       "totalEntryCount is not insert when save record details into DeEnrolmentWorkItem failed" in new Setup {
         when(mockFileRepository.findOldestApprovedFile).thenReturn(Future(Some(scannedUploadedDetails.copy(status = APPROVED))))
         when(objectStoreClient.getObject[String](any(), any())(any(), any())).thenReturn(Future.successful(Some(o)))
-        when(deEnrolmentWorkItemRepository.saveRecordDetails(any(), any())).thenReturn(Future(throw new RuntimeException(s"Only 1 items were saved")))
+        when(deEnrolmentWorkItemRepository.saveRecordDetails(any())).thenReturn(Future(throw new RuntimeException(s"Only 1 items were saved")))
         await(processApprovedFileService.createWorkItemsFromOldestFile)
-        verify(deEnrolmentWorkItemRepository, times(1)).saveRecordDetails(any(), any())
+        verify(deEnrolmentWorkItemRepository, times(1)).saveRecordDetails(any())
         verify(mockFileRepository, times(0)).setTotalEntryCount(any(), any())
       }
       "throw RuntimeException when can't find file name" in new Setup {
