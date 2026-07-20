@@ -17,26 +17,24 @@
 package uk.gov.hmrc.eacdfileprocessor.connectors
 
 import play.api.Logging
-import play.api.http.Status.OK
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps}
+import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
-import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 
-class EspConnector @Inject()(httpClient: HttpClientV2, appConfig: AppConfig, val servicesConfig: ServicesConfig)(using ExecutionContext)  extends Logging {
+class EspConnector @Inject()(httpClient: HttpClientV2, val servicesConfig: ServicesConfig)(using ExecutionContext) extends Logging {
 
   lazy val serviceUrl: String = s"${servicesConfig.baseUrl("enrolment-store-proxy")}/enrolment-store-proxy/enrolment-store"
-  
-   def callES1(enrolmentKey:String, actionType:String)(using HeaderCarrier): Future[HttpResponse] =
-     httpClient
-       .get(url"$serviceUrl/enrolments/$enrolmentKey/groups?type=$actionType")
-       .execute[HttpResponse]
-  
-   def callES9(groupId:String, enrolmentKey:String)(using HeaderCarrier): Future[HttpResponse] =
+
+  def callES1(enrolmentKey: String, actionType: String)(using HeaderCarrier): Future[HttpResponse] =
+    httpClient
+      .get(url"$serviceUrl/enrolments/$enrolmentKey/groups?type=$actionType")
+      .execute[HttpResponse]
+
+  def callES9(groupId: String, enrolmentKey: String)(using HeaderCarrier): Future[HttpResponse] =
     httpClient
       .delete(url"$serviceUrl/groups/$groupId/enrolments/$enrolmentKey")
       .execute[HttpResponse]

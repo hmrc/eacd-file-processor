@@ -19,6 +19,9 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import helper.IntegrationSpec
 import org.mongodb.scala.{Document, SingleObservableFuture}
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
+import uk.gov.hmrc.mongo.MongoComponent
+
+import java.time.{Clock, Instant, ZoneId}
 import uk.gov.hmrc.eacdfileprocessor.helper.AssertionHelpers
 import uk.gov.hmrc.eacdfileprocessor.models.JobLock
 

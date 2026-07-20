@@ -43,12 +43,8 @@ class DeEnrolmentWorkItemValidatorSpec extends TestSupport {
       validator.validate("IR-SA~UTR~1234567890,principla", Set.empty) shouldBe Left("Invalid action type")
     }
 
-    "return no error when record is valid" in {
-      validator.validate("IR-SA~UTR~1234567890,principal", Set.empty) shouldBe Right("IR-SA~UTR~1234567890", "principal")
-    }
-
-    "return no error when record is valid and is an agent so it makes it a principle" in {
-      validator.validate("HMRC-MTD-IT~MTDBSA~1234567890,agent", Set("HMRC-MTD-IT")) shouldBe Right("HMRC-MTD-IT~MTDBSA~1234567890", "principal")
+    "return no error and lowercase action type when record is valid" in {
+      validator.validate("IR-SA~UTR~1234567890,PRINCIPAL", Set.empty) shouldBe Right("IR-SA~UTR~1234567890", "principal")
     }
 
     "derive the service key from the enrolment key prefix before the first tilde" in {

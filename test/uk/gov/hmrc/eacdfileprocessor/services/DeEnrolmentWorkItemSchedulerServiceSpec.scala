@@ -17,6 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.bson.types.ObjectId
+import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{never, times, verify, when}
 import org.scalatest.concurrent.ScalaFutures
@@ -112,24 +113,54 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
     "persist validation errors and increment total failure count for invalid rows" in new Setup {
       when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT"))).thenReturn(Left("Invalid action type"))
       when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
+      when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
       when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
 
       Await.result(service.invoke, 5.seconds)
 
       verify(fileRecordValidationErrorRepository).create(any[FileRecordValidationError])
       verify(fileRepository).incrementFailureCount(Reference(payload.reference))
+      verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+    }
+
+    "throw exception when fail to mark workItem complete and not increase total failure count" in new Setup() {
+      when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT"))).thenReturn(Left("Invalid action type"))
+      when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(false))
+
+      val exception = intercept[RuntimeException] {
+        Await.result(service.invoke, 5.seconds)
+      }
+
+      exception.getMessage contains "[recordError] Failed to mark work item as complete for workItemId" shouldBe true
+      verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
+      verify(fileRepository, never()).incrementFailureCount(Reference(payload.reference))
     }
 
     "only mark work item as succeeded for valid rows" in new Setup {
       when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
         .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
       when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
-      when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+      when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
       Await.result(service.invoke, 5.seconds)
 
       verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
       verify(fileRepository, never()).incrementFailureCount(any())
+      verify(fileRepository, times(1)).incrementSuccessCount(any())
+      verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+    }
+
+    "throw exception when fail to mark workItem complete and not increase total success count" in new Setup(){
+      when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+        .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
+      when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+      when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(false))
+
+      val exception = intercept[RuntimeException] {
+        Await.result(service.invoke, 5.seconds)
+      }
+
+      exception.getMessage contains "[processGroupDeEnrolments] Failed to mark work item as complete for workItemId" shouldBe true
     }
 
     "not call agentServiceCache when no work items are pulled" in new Setup {
@@ -192,11 +223,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
           .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
       }
 
       "The action is principal and calls ES9" in new Setup {
@@ -211,11 +245,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBody)))
         when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(2000).times(1)).incrementSuccessCount(any())
       }
 
       "The action is principal and calls ES9 for multiple enrolments" in new Setup {
@@ -231,14 +268,17 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBody)))
         when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
       }
 
-      "The action is principal and returns a 400 " in new Setup {
+      "The action is principal and SE1 returns a 400 " in new Setup {
         val responseBody =
           """
             |{
@@ -249,15 +289,20 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBody)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
 
-      "The action is principal and return multiple enrolments with a 400" in new Setup {
+      "The action is principal and SE1 return multiple errors with a 400" in new Setup {
         val responseBody =
           """
             |{
@@ -278,13 +323,19 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBody)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
-      "The action is principal and multiple calls are made to ES9 and one returns a 500" in new Setup {
+      "The action is principal and multiple calls are made to ES9 and second call returns a 500" in new Setup {
         val responseBodyES1 =
           """{
             |    "principalGroupIds": [
@@ -302,30 +353,73 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBodyES1)))
-        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
-        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBodyES9Error)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier]))
+          .thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+          .thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBodyES9Error)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(2000).times(1)).markAsComplete(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+      }
+      "The action is principal and multiple calls are made to ES9 and first call returns a 500" in new Setup {
+        val responseBodyES1 =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7511"
+            |    ]
+            |}""".stripMargin
+        val responseBodyES9Error =
+          """
+            |{
+            |    "code": "INTERNAL_SERVER_ERROR",
+            |    "message": "An unexpected error occurred"
+            |}
+            |""".stripMargin
+        when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBodyES1)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBodyES9Error)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
     }
     "Action is agent" when {
 
-      "The action is agent" in new Setup {
+      "The action is agent and ES1 return 204" in new Setup {
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementFailureCount(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
-      "The action is agent and calls ES9" in new Setup {
+      "The action is agent and call ES9 return 204" in new Setup {
         val responseBody =
           """{
             |    "principalGroupIds": [
@@ -337,13 +431,17 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBody)))
         when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementFailureCount(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
-      "The action is agent and calls ES9 for multiple enrolments" in new Setup {
+      "The action is agent and calls ES9 for multiple enrolments and return 204" in new Setup {
         val responseBody =
           """{
             |    "principalGroupIds": [
@@ -356,13 +454,17 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBody)))
         when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementFailureCount(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
-      "The action is agent and returns a 400 " in new Setup {
+      "The action is agent and ES1 returns a 400 " in new Setup {
         val responseBody =
           """
             |{
@@ -373,14 +475,20 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBody)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-
+        verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
-      "The action is agent and return multiple enrolments with a 400" in new Setup {
+      "The action is agent and ES1 return multiple errors with a 400" in new Setup {
         val responseBody =
           """
             |{
@@ -401,11 +509,18 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBody)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
       }
       "The action is agent and multiple calls are made to ES9 and one returns a 400" in new Setup {
         val responseBodyES1 =
@@ -425,29 +540,40 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "agent"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBodyES1)))
-        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
-        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBodyES9Error)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier]))
+          .thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+          .thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBodyES9Error)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
       }
     }
     "Action is delegated" when {
-      "The action is delegated" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,delegated")) {
+      "The action is delegated, ES1 returns 204" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,delegated")) {
         when(validator.validate("IR-SA~UTR~1234567890,delegated", Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementFailureCount(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
-      "The action is delegated and calls ES9" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567892,delegated")) {
+      "The action is delegated and calls ES9 returns 204" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567892,delegated")) {
         val responseBody =
           """{
             |    "delegatedGroupIds": [
@@ -459,11 +585,15 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBody)))
         when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementFailureCount(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
     }
       "The action is delegated and calls ES9 for multiple enrolments" in new Setup {
         val responseBody =
@@ -478,13 +608,17 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBody)))
         when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementFailureCount(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
-      "The action is delegated and returns a 400 " in new Setup {
+      "The action is delegated and ES1 returns a 400 " in new Setup {
         val responseBody =
           """
             |{
@@ -495,14 +629,21 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBody)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, never()).callES9(any(), any())(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
 
       }
-      "The action is delegated and return multiple enrolments with a 400" in new Setup {
+      "The action is delegated and return ES1 multiple errors with a 400" in new Setup {
         val responseBody =
           """
             |{
@@ -523,13 +664,20 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBody)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, never()).callES9(any(), any())(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
-      "The action is delegated and multiple calls are made to ES9 and one returns a 500" in new Setup {
+      "The action is delegated and multiple calls are made to ES9 and last one returns a 500" in new Setup {
         val responseBodyES1 =
           """{
             |    "delegatedGroupIds": [
@@ -547,14 +695,21 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "delegated"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBodyES1)))
-        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
-        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBodyES9Error)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier]))
+          .thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+          .thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBodyES9Error)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
 
     }
@@ -564,11 +719,15 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
           .thenReturn(Right("IR-SA~UTR~1234567890", "both"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementFailureCount(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
 
       "The action is both and ES1 is called OK is returned with both principal and delegated group ids" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,both")) {
@@ -587,11 +746,43 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBody)))
         when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementFailureCount(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
+      }
+
+      "The action is both and ES1 is called OK is returned with both principal and multiple delegated group ids" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,both")) {
+        val responseBody: String =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
+            |    ],
+            |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7519",
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7520"
+            |    ]
+            |}""".stripMargin
+
+        when(validator.validate("IR-SA~UTR~1234567890,both", Set("HMRC-MTD-IT")))
+          .thenReturn(Right("IR-SA~UTR~1234567890", "both"))
+        when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBody)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+
+        Await.result(service.invoke, 5.seconds)
+
+        verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
+        verify(espConnector, times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementFailureCount(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
 
       "The action is both and ES1 is called OK is returned with both principal and delegated group ids and ES9 returns BAD_REQUEST" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,both")) {
@@ -601,7 +792,8 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7514"
             |    ],
             |    "delegatedGroupIds": [
-            |       "c0506dd9-1feb-400a-bf70-6351e1ff7516"
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7516",
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7517"
             |    ]
             |}""".stripMargin
 
@@ -618,21 +810,28 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
           .thenReturn(Right("IR-SA~UTR~1234567890", "both"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBodyES1)))
         when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseErrorBody)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
 
-      "The action is both and multiple calls are made to ES9 and one returns a 500" in new Setup {
+      "The action is both and multiple calls are made to ES9 and last one returns a 500" in new Setup {
         val responseBodyES1: String =
           """{
             |    "principalGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7514"
             |    ],
             |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7516",
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7516"
             |    ]
             |}""".stripMargin
@@ -648,14 +847,22 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
           .thenReturn(Right("IR-SA~UTR~1234567890", "both"))
         when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(OK, responseBodyES1)))
-        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
-        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBodyES9Error)))
-        when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(espConnector.callES9(any[String], any[String])(using any[HeaderCarrier]))
+          .thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+          .thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
+          .thenReturn(Future.successful(HttpResponse(BAD_REQUEST, responseBodyES9Error)))
+        when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
+        when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
+        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, never()).incrementSuccessCount(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
     }
   }
