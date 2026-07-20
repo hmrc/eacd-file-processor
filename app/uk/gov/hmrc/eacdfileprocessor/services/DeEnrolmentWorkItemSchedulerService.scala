@@ -181,7 +181,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
             isFailed <- if errorOccurred then
               Future.successful(true)
             else
-              callES9(groupId, groupIds, enrolmentKey, reference, recordDetail, workItemId)
+              handleES9Call(groupId, groupIds, enrolmentKey, reference, recordDetail, workItemId)
           } yield isFailed
           processNextGroup(failed, tail)
       }
@@ -190,7 +190,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
     processNextGroup(Future.successful(false), groupIds)
   }
 
-  private def callES9(groupId: String,
+  private def handleES9Call(groupId: String,
                       groupIds: Seq[String],
                       enrolmentKey: String,
                       reference: Reference,
