@@ -865,6 +865,24 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
     }
+    "transformActionType" when {
+      "return principal when action type is principal" in new Setup {
+        val actual = service.transformActionType("principal")
+        actual shouldBe "principal"
+      }
+      "return delegated when action type is delegated" in new Setup {
+        val actual = service.transformActionType("delegated")
+        actual shouldBe "delegated"
+      }
+      "return principal when action type is agent" in new Setup {
+        val actual = service.transformActionType("agent")
+        actual shouldBe "principal"
+      }
+      "return all when action type is both" in new Setup {
+        val actual = service.transformActionType("both")
+        actual shouldBe "all"
+      }
+    }
   }
 }
 

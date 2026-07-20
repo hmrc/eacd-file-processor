@@ -115,15 +115,11 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                        recordDetail: String,
                                        workItemId: ObjectId
                                      )(using ExecutionContext): Future[Unit] = {
-    val es1Type = actionType match {
-      case "agent" => "principal"
-      case "both" => "all"
-      case _ => actionType
-    }
+    val es1Type = transformActionType(actionType)
 
     logger.info(s"[callES1AndProcessResult] Calling ES1 for work item ${workItemId.toHexString} with enrolmentKey $enrolmentKey and type $es1Type")
 
-    espConnector.callES1(enrolmentKey, actionType).flatMap { es1Response =>
+    espConnector.callES1(enrolmentKey, es1Type).flatMap { es1Response =>
       logger.debug(s"[callES1AndProcessResult] ES1 response for work item $workItemId: status=${es1Response.status}")
       es1Response.status match {
         case NO_CONTENT =>
@@ -245,6 +241,13 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       case _ => Future.successful(throw RuntimeException(s"[processGroupDeEnrolments] Failed to mark work item as complete for workItemId ${workItemId.toHexString} reference ${reference.value}"))
     }
   }
+  
+  private[services] def transformActionType(actionType: String) =
+    actionType match {
+      case "agent" => "principal"
+      case "both" => "all"
+      case _ => actionType
+    }
 
   private def extractGroupIds(json: play.api.libs.json.JsValue): Seq[String] =
     (json \ "principalGroupIds").asOpt[Seq[String]].getOrElse(Seq.empty) ++
