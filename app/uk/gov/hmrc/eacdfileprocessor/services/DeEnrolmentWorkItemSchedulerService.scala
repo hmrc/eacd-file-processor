@@ -197,7 +197,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                       recordDetail: String,
                       workItemId: ObjectId)(using ExecutionContext): Future[Boolean] = {
     espConnector.callES9(groupId, enrolmentKey).map { response =>
-      logger.debug(s"[processGroupDeEnrolments] ES9 response for groupId $groupId and reference ${reference.value}: status=${response.status}")
+      logger.info(s"[processGroupDeEnrolments] ES9 response for groupId $groupId and reference ${reference.value}: status=${response.status}")
 
       response.status match {
         case NO_CONTENT => false
