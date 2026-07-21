@@ -16,54 +16,105 @@
 
 package uk.gov.hmrc.eacdfileprocessor.repository
 
-import org.mongodb.scala.model.Filters.equal
-import org.mongodb.scala.model.Updates.set
-import org.mongodb.scala.model.{FindOneAndUpdateOptions, IndexModel, IndexOptions, ReturnDocument}
+import org.mongodb.scala.model.Indexes.ascending
+import org.mongodb.scala.model.{IndexModel, IndexOptions}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.JobLock
+import uk.gov.hmrc.eacdfileprocessor.selectors.JobLockSelectors
+import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
-import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
+import uk.gov.hmrc.mongo.play.json.Codecs.logger
+import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 
+import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.time.{Clock, Instant}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class JobLockRepository @Inject()(mongoComponent: MongoComponent, appConfig: AppConfig, clock: Clock)(using ExecutionContext)
+class JobLockRepository @Inject()(mongo: MongoComponent,
+                                  config: AppConfig,
+                                  implicit val ec: ExecutionContext,
+                                  metrics: MetricsReporter)
   extends PlayMongoRepository[JobLock](
+    mongoComponent = mongo,
     collectionName = "job-locks",
-    mongoComponent = mongoComponent,
-    domainFormat = {
-      import JobLock.given
-      summon[play.api.libs.json.Format[JobLock]]
-    },
-    indexes = Seq(IndexModel(org.mongodb.scala.model.Indexes.ascending("job"), IndexOptions().name("Job").unique(true))),
-    replaceIndexes = true
+    domainFormat = JobLock.jobLockFormat,
+    indexes = Seq(
+      IndexModel(
+        ascending("job"),
+        IndexOptions()
+          .name("Job")
+          .unique(true)
+          .sparse(false)
+      )
+    )
   ) {
 
-  private val lockDurationMinutes: Long = appConfig.lockTimeoutMinutes.toLong
+  val lockDuration: Int = config.lockTimeoutMinutes
 
-  override lazy val requiresTtlIndex: Boolean = false
+  def lockJob(job: String): Future[Boolean] = {
+    val now = Instant.now()
+    val newExpiration = now.plus(lockDuration, ChronoUnit.MINUTES)
 
-  def lockJob(job: String): Future[Boolean] =
-    collection.find(equal("job", job)).headOption().flatMap {
-      case Some(existing) if existing.lockExpiration.plus(lockDurationMinutes, ChronoUnit.MINUTES).isAfter(Instant.now(clock)) =>
-        Future.successful(false)
-      case Some(_) =>
-        collection
-          .findOneAndUpdate(
-            filter = equal("job", job),
-            update = set("lockCreatedAt", Codecs.toBson(Instant.now(clock))(using MongoJavatimeFormats.instantFormat)),
-            options = FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
-          )
-          .toFutureOption()
-          .map(_.isDefined)
-      case None =>
-        collection.insertOne(JobLock(job, Instant.now(clock))).toFuture().map(_.wasAcknowledged())
-    }
+    metrics.timeCompletionOfFuture("lockJobFindMongoTimer", {
+      collection.find(JobLockSelectors.jobLockedOf(job)).toFuture().map(_.toSeq).flatMap {
+        case Seq(JobLock(_, expiration)) if expiration.isAfter(now) =>
+          logger.warn(s"[lockJob] - $job is still locked")
+          Future.successful(false)
+        case Seq(_) =>
+          metrics.timeCompletionOfFuture("lockJobUpdateMongoTimer", {
+            collection.replaceOne(JobLockSelectors.jobLockedOf(job), JobLock(job, newExpiration)).toFuture() map { uwr =>
+              uwr.wasAcknowledged() -> uwr.getMatchedCount match {
+                case (true, 1) => true
+                case (_, 0) =>
+                  logger.error(s"[lockJob] - $job was not locked")
+                  false
+                case (_, _) =>
+                  logger.error(s"[lockJob] - There was a problem locking $job")
+                  false
+              }
+            }
+          })
+        case _ =>
+          metrics.timeCompletionOfFuture("lockJobInsertMongoTimer", {
+            collection.insertOne(JobLock(job, newExpiration)).toFuture() map { wr =>
+              if (wr.wasAcknowledged()) {
+                logger.info(s"[lockJob] - Locking $job")
+                true
+              } else {
+                logger.error(s"[lockJob] - There was a problem locking $job")
+                false
+              }
+            }
+          })
+      }
+    })
+  }
 
-  def releaseLock(job: String): Future[Boolean] =
-    collection.deleteOne(equal("job", job)).toFuture().map(_.wasAcknowledged())
+  def isJobLocked(job: String): Future[Boolean] = {
+    metrics.timeCompletionOfFuture("isJobLockedMongoTimer", {
+      collection.find(JobLockSelectors.jobLockedOf(job)).toFuture().map(_.toSeq).map {
+        case Seq(JobLock(_, expiration)) if expiration.isAfter(Instant.now()) =>
+          logger.warn(s"[isJobLocked] - $job is currently locked")
+          true
+        case _ =>
+          false
+      }
+    })
+  }
+
+  def releaseLock(job: String): Future[Boolean] = {
+    metrics.timeCompletionOfFuture("releaseLockMongoTimer", {
+      collection.deleteOne(JobLockSelectors.jobLockedOf(job)).toFuture().map { wr =>
+        if (wr.wasAcknowledged()) {
+          logger.info(s"[releaseLock] - Releasing lock on $job")
+          true
+        } else {
+          logger.error(s"[releaseLock] - There was a problem release lock on $job")
+          false
+        }
+      }
+    })
+  }
 }
