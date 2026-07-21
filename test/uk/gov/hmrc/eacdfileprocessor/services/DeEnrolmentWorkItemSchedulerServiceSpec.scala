@@ -27,7 +27,7 @@ import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
 import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, FileStatus, Reference, UploadedDetails}
-import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository, LockingRepository}
+import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository, JobLockRepository}
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse}
@@ -74,7 +74,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         Future.successful(Set("HMRC-MTD-IT"))
     }
     val validator: DeEnrolmentWorkItemValidator = mock[DeEnrolmentWorkItemValidator]
-    val lockRepository: LockingRepository = mock[LockingRepository]
+    val lockRepository: JobLockRepository = mock[JobLockRepository]
 
     when(appConfig.DeEnrolmentWorkItemConcurrency).thenReturn(5)
 

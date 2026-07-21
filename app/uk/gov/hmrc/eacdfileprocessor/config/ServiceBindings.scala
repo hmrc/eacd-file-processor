@@ -22,7 +22,7 @@ import play.inject.Module.bindClass
 import play.inject.{Binding, Module}
 import uk.gov.hmrc.eacdfileprocessor.connectors.{EmailConnector, EmailConnectorImpl}
 import uk.gov.hmrc.eacdfileprocessor.controllers.{CallbackController, FileController, InitiateFileStorageController, StatusController}
-import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, DeEnrolmentWorkItemRepository, FileRepository, LockingRepository}
+import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, DeEnrolmentWorkItemRepository, FileRepository, JobLockRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{DeEnrolmentWorkItemPullJob, ExpiredFileDeletionJob, FileStatusUpdateJob, ProcessApprovedFileJob}
 import uk.gov.hmrc.eacdfileprocessor.services.*
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
@@ -67,7 +67,7 @@ class ServiceBindings extends Module {
 
   private def bindRepositories(): Seq[Binding[?]] = Seq(
     bindClass(classOf[FileRepository]).toSelf.eagerly(),
-    bindClass(classOf[LockingRepository]).toSelf.eagerly(),
+    bindClass(classOf[JobLockRepository]).toSelf.eagerly(),
     bindClass(classOf[DeEnrolmentWorkItemRepository]).to(classOf[DeEnrolmentWorkItemMongoRepository]).eagerly()
   )
 
