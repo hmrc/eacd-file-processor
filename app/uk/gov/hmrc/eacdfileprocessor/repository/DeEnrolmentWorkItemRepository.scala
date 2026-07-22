@@ -23,6 +23,7 @@ import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Filters.{and, equal, in, lte, or}
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import play.api.Logging
+import play.api.libs.json.Json
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.play.json.Codecs
@@ -150,20 +151,24 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       def pullAvailableItems(): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
         val retryThreshold = availableBefore.minus(inProgressRetryAfter)
 
+        val query: Bson = or(
+          // Fresh ToDo items available now
+          and(
+            equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
+            lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
+          ),
+          // Stale InProgress items ready for retry
+          and(
+            equal(WORK_ITEM_STATUS, ProcessingStatus.InProgress.name),
+            lte("updatedAt", retryThreshold)
+          )
+        )
+
+        logger.warn("Work items available for processing query: \n" + Json.prettyPrint(Json.parse(query.toBsonDocument.toJson)))
+
         collection
           .find(
-            or(
-              // Fresh ToDo items available now
-              and(
-                equal(WORK_ITEM_STATUS, ProcessingStatus.ToDo.name),
-                lte(WORK_ITEM_AVAILABLE_AT, availableBefore)
-              ),
-              // Stale InProgress items ready for retry
-              and(
-                equal(WORK_ITEM_STATUS, ProcessingStatus.InProgress.name),
-                lte("updatedAt", retryThreshold)
-              )
-            )
+            query
           )
           .limit(limit)
           .toFuture()
