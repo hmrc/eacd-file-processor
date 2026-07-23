@@ -83,11 +83,11 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
     validationResult match {
       case Left(errorMessage) =>
         logger.warn(s"[processItem] Validation failed for work item ${workItem.id.toHexString}: $errorMessage")
-        recordErrorAndMarkComplete(reference, item.recordDetail, errorMessage, workItem.id, isRetry(workItem.failureCount))
+        recordErrorAndMarkComplete(reference, item.recordDetail, errorMessage, workItem.id)
 
       case Right((enrolmentKey, actionType)) =>
         logger.info(s"[processItem] Validation succeeded for work item ${workItem.id.toHexString}. EnrolmentKey: $enrolmentKey, ActionType: $actionType")
-        handleValidatedWorkItem(enrolmentKey, actionType, reference, item.recordDetail, workItem.id, isRetry(workItem.failureCount))
+        handleValidatedWorkItem(enrolmentKey, actionType, reference, item.recordDetail, workItem.id)
     }
   }
 
@@ -96,16 +96,14 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                        actionType: String,
                                        reference: Reference,
                                        recordDetail: String,
-                                       workItemId: ObjectId,
-                                       isRetry: Boolean
-                                     )(using ExecutionContext): Future[Unit] = {
+                                       workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
     actionType.toLowerCase match {
       case "principal" | "delegated" | "agent" | "both" =>
         logger.info(s"[handleValidatedWorkItem] Calling ES1 for work item ${workItemId.toHexString} with enrolmentKey $enrolmentKey and actionType $actionType")
-        callES1AndProcessResult(enrolmentKey, actionType, reference, recordDetail, workItemId, isRetry)
+        callES1AndProcessResult(enrolmentKey, actionType, reference, recordDetail, workItemId)
       case unknown =>
         logger.error(s"[handleValidatedWorkItem] Unexpected actionType '$unknown' for work item ${workItemId.toHexString}")
-        recordErrorAndMarkComplete(reference, recordDetail, s"Unexpected action type: $unknown", workItemId, isRetry)
+        recordErrorAndMarkComplete(reference, recordDetail, s"Unexpected action type: $unknown", workItemId)
     }
   }
 
@@ -114,9 +112,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                        actionType: String,
                                        reference: Reference,
                                        recordDetail: String,
-                                       workItemId: ObjectId,
-                                       isRetry: Boolean
-                                     )(using ExecutionContext): Future[Unit] = {
+                                       workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
     val es1Type = transformActionType(actionType)
 
     logger.info(s"[callES1AndProcessResult] Calling ES1 for work item ${workItemId.toHexString} with enrolmentKey $enrolmentKey and type $es1Type")
@@ -129,11 +125,11 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
           workItemProcessedSuccessfully(reference, workItemId)
         case OK =>
           logger.info(s"[callES1AndProcessResult] ES1 returned groups for reference ${reference.value}. Processing de-enrolments.")
-            handleES1Success(enrolmentKey, es1Response.json, reference, recordDetail, workItemId, isRetry)
+            handleES1Success(enrolmentKey, es1Response.json, reference, recordDetail, workItemId)
         case _ =>
           val errorMessage = extractErrorMessage(es1Response.json)
           logger.warn(s"[callES1AndProcessResult] ES1 failed with status ${es1Response.status} for reference ${reference.value}: $errorMessage")
-          recordErrorAndMarkComplete(reference, recordDetail, errorMessage, workItemId, isRetry)
+          recordErrorAndMarkComplete(reference, recordDetail, errorMessage, workItemId)
       }
     }.recover { case e =>
       logger.error(s"[callES1AndProcessResult] Unexpected error processing work item ${workItemId.toHexString}, reference ${reference.value}: ${e.getMessage}", e)
@@ -147,9 +143,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                 jsonResponse: JsValue,
                                 reference: Reference,
                                 recordDetail: String,
-                                workItemId: ObjectId,
-                                isRetry: Boolean
-                              )(using ExecutionContext): Future[Unit] = {
+                                workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
     val groupIds = extractGroupIds(jsonResponse)
     logger.info(s"[handleES1Success] Found ${groupIds.size} group(s) to de-enrol for reference ${reference.value}")
 
@@ -157,7 +151,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       logger.info(s"[handleES1Success] No groups found for reference ${reference.value}. Marking work item as complete and incrementing success count.")
       workItemProcessedSuccessfully(reference, workItemId)
     } else {
-      processGroupDeEnrolments(enrolmentKey, groupIds, reference, recordDetail, workItemId, isRetry)
+      processGroupDeEnrolments(enrolmentKey, groupIds, reference, recordDetail, workItemId)
       Future.unit
     }
   }
@@ -167,9 +161,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                         groupIds: Seq[String],
                                         reference: Reference,
                                         recordDetail: String,
-                                        workItemId: ObjectId,
-                                        isRetry: Boolean
-                                      )(using ExecutionContext) = {
+                                        workItemId: ObjectId)(using ExecutionContext) = {
 
     @tailrec
     def processNextGroup(hasError: Future[Boolean], remainingGroupIds: Seq[String]): Future[Unit] = {
@@ -185,7 +177,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
             isFailed <- if errorOccurred then
               Future.successful(true)
             else
-              handleES9Call(groupId, groupIds, enrolmentKey, reference, recordDetail, workItemId, isRetry)
+              handleES9Call(groupId, groupIds, enrolmentKey, reference, recordDetail, workItemId)
           } yield isFailed
           processNextGroup(failed, tail)
       }
@@ -195,12 +187,11 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
   }
 
   private def handleES9Call(groupId: String,
-                      groupIds: Seq[String],
-                      enrolmentKey: String,
-                      reference: Reference,
-                      recordDetail: String,
-                      workItemId: ObjectId,
-                            isRetry: Boolean)(using ExecutionContext): Future[Boolean] = {
+                            groupIds: Seq[String],
+                            enrolmentKey: String,
+                            reference: Reference,
+                            recordDetail: String,
+                            workItemId: ObjectId)(using ExecutionContext): Future[Boolean] = {
     espConnector.callES9(groupId, enrolmentKey).map { response =>
       logger.info(s"[processGroupDeEnrolments] ES9 response for groupId $groupId and reference ${reference.value}: status=${response.status}")
 
@@ -212,13 +203,13 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
           else
             extractErrorMessage(response.json)
           logger.error(s"[processGroupDeEnrolments] ES9 failed for groupId $groupId and reference ${reference.value}, error: $errorMessage")
-          recordErrorAndMarkComplete(reference, recordDetail, errorMessage, workItemId, isRetry)
+          recordErrorAndMarkComplete(reference, recordDetail, errorMessage, workItemId)
           true
       }
     }
   }
 
-  private def recordErrorAndMarkComplete(reference: Reference, recordDetail: String, errorMessage: String, workItemId: ObjectId, isRetry: Boolean)(using ExecutionContext): Future[Unit] = {
+  private def recordErrorAndMarkComplete(reference: Reference, recordDetail: String, errorMessage: String, workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
     logger.debug(s"[recordError] Recording validation error for reference ${reference.value}: $errorMessage")
 
     for {
@@ -236,7 +227,6 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
           errorMessage = errorMessage
         )
       )
-      _ <- deEnrolmentWorkItemRepository.increaseFailureCount(workItemId)
     } yield ()
   }
 
@@ -254,9 +244,6 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       case "both" => "all"
       case _ => actionType
     }
-
-  private def isRetry(failureCount: Int) =
-    failureCount > 0
 
   private def extractGroupIds(json: play.api.libs.json.JsValue): Seq[String] =
     (json \ "principalGroupIds").asOpt[Seq[String]].getOrElse(Seq.empty) ++

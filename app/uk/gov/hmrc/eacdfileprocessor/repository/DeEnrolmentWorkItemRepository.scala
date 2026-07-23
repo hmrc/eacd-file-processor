@@ -54,8 +54,6 @@ trait DeEnrolmentWorkItemRepository {
 
   def markAsComplete(id: ObjectId): Future[Boolean]
 
-  def increaseFailureCount(id: ObjectId): Future[Boolean]
-
   def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 }
 
@@ -164,7 +162,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
           and(
             equal(WORK_ITEM_STATUS, ProcessingStatus.InProgress.name),
             lte(WORK_ITEM_UPDATED_AT, availableBefore.minus(30, ChronoUnit.SECONDS)),
-            lt(WorkItemFields.default.failureCount, 3)
+            lte(WorkItemFields.default.failureCount, 3)
           )
         )
 
@@ -182,13 +180,15 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
         workItems.foldLeft(Future.successful(Vector.empty[WorkItem[DeEnrolmentWorkItem]])) {
           (accF, workItem) =>
             accF.flatMap { acc =>
-              if workItem.status == ProcessingStatus.InProgress then
-                Future.successful(acc :+ workItem)
-              else
-                markAsInProgress(workItem.id).map {
-                  case true => acc :+ workItem.copy(status = ProcessingStatus.InProgress)
-                  case false => acc
-                }
+              workItem.status match {
+                case ProcessingStatus.InProgress =>
+                  handleInProgressRetry(acc, workItem)
+                case _ =>
+                  markAsInProgress(workItem.id).map {
+                    case true => acc :+ workItem.copy(status = ProcessingStatus.InProgress)
+                    case false => acc
+                  }
+              }
             }
         }
       }
@@ -221,15 +221,14 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     collection.find(filter).toFuture()
   }
 
-  override def increaseFailureCount(id: ObjectId): Future[Boolean] =
+  private[repository] def increaseFailureCount(id: ObjectId): Future[WorkItem[DeEnrolmentWorkItem]] =
     collection
       .findOneAndUpdate(
         equal(WorkItemFields.default.id, id),
         inc(workItemFields.failureCount, 1),
         FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
       )
-      .toFutureOption()
-      .map(_.isDefined)
+      .toFuture()
 
   private[repository] def updateById(id: ObjectId, failureCount: Int, updatedAt: Instant) =
     collection
@@ -240,4 +239,11 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       )
       .toFutureOption()
       .map(_.isDefined)
+
+  private def handleInProgressRetry(acc: Vector[WorkItem[DeEnrolmentWorkItem]], workItem: WorkItem[DeEnrolmentWorkItem]): Future[Vector[WorkItem[DeEnrolmentWorkItem]]] =
+    if workItem.failureCount < 3 then
+      increaseFailureCount(workItem.id).map(item => acc :+ item)
+    else
+      markAsComplete(workItem.id)
+      Future.successful(acc)
 }
