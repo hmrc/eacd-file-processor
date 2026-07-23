@@ -17,7 +17,10 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import helper.IntegrationSpec
+import org.bson.types.ObjectId
 import org.mongodb.scala.SingleObservableFuture
+import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.model.Updates.{combine, set}
 import org.mongodb.scala.model.{Filters, Updates}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers
@@ -29,6 +32,9 @@ import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields}
 
+import java.time.Instant
+import java.time.Instant.now
+import java.time.temporal.ChronoUnit.{SECONDS, MINUTES}
 import scala.language.postfixOps
 
 class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
@@ -92,14 +98,26 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
 
       val firstPull = await(repository.pullOutstandingBatch(1))
       firstPull.size shouldBe 1
+      firstPull.head.item.reference shouldBe "ref1"
       firstPull.head.status shouldBe ProcessingStatus.InProgress
 
       val secondPull = await(repository.pullOutstandingBatch(10))
       secondPull.size shouldBe 1
+      secondPull.head.item.reference shouldBe "ref2"
       secondPull.head.status shouldBe ProcessingStatus.InProgress
 
       val thirdPull = await(repository.pullOutstandingBatch(10))
       thirdPull shouldBe Seq.empty
+    }
+
+    "pull up stale workItems at least 30 seconds before and 30 minutes ago" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref-limit"))
+      val pull = await(repository.pullOutstandingBatch(10))
+      repository.updateWorkItemUpdatedAt(pull.head.id, now().minus(30, SECONDS))
+      repository.updateWorkItemUpdatedAt(pull.last.id, now().minus(15, MINUTES))
+
+      val secondPull = await(repository.pullOutstandingBatch(5))
+      secondPull.size shouldBe 2
     }
 
     "only allow markAsInProgress once for the same work item" in {

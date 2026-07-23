@@ -20,18 +20,19 @@ import com.google.inject.ImplementedBy
 import org.bson.types.ObjectId
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
-import org.mongodb.scala.model.Filters.{and, equal, in, lte, or}
+import org.mongodb.scala.model.Filters.*
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
+import org.mongodb.scala.model.Updates.set
 import play.api.Logging
 import play.api.libs.json.Json
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.play.json.Codecs
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, ToDo}
-import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields, WorkItemRepository}
 import uk.gov.hmrc.mongo.workitem.*
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
 
+import java.time.temporal.ChronoUnit.MINUTES
 import java.time.{Duration, Instant}
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
@@ -51,9 +52,9 @@ trait DeEnrolmentWorkItemRepository {
 
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
-  def markAsInProgress(id: ObjectId): Future[Boolean]
-
   def markAsComplete(id: ObjectId): Future[Boolean]
+  
+  def increaseFailCount(id: ObjectId): Future[Boolean]
 
   def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 }
@@ -147,6 +148,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       val availableBefore = now()
       val WORK_ITEM_STATUS = WorkItemFields.default.status
       val WORK_ITEM_AVAILABLE_AT = WorkItemFields.default.availableAt
+      val WORK_ITEM_UPDATED_AT = WorkItemFields.default.updatedAt
 
       def pullAvailableItems(): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
         val retryThreshold = availableBefore.minus(inProgressRetryAfter)
@@ -160,16 +162,15 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
           // Stale InProgress items ready for retry
           and(
             equal(WORK_ITEM_STATUS, ProcessingStatus.InProgress.name),
-            lte("updatedAt", retryThreshold)
+            lte(WORK_ITEM_UPDATED_AT, retryThreshold),
           )
         )
 
         logger.warn("Work items available for processing query: \n" + Json.prettyPrint(Json.parse(query.toBsonDocument.toJson)))
 
         collection
-          .find(
-            query
-          )
+          .find(query)
+          .sort(Sorts.descending("status"))
           .limit(limit)
           .toFuture()
       }
@@ -188,7 +189,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     }
   }
 
-  override def markAsInProgress(id: ObjectId): Future[Boolean] = {
+  private[repository] def markAsInProgress(id: ObjectId): Future[Boolean] = {
     collection
       .findOneAndUpdate(
         and(
@@ -213,4 +214,13 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     val filter: Bson = Filters.equal("item.reference", reference)
     collection.find(filter).toFuture()
   }
+
+  override def increaseFailCount(id: ObjectId): Future[Boolean] = ???
+  
+  
+  private[repository] def updateWorkItemUpdatedAt(workItemId: ObjectId, updatedAt: Instant) =
+    collection.findOneAndUpdate(
+      filter = equal("_id", workItemId),
+      update = set("updatedAt", updatedAt),
+    ).toFutureOption()
 }
