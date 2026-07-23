@@ -74,7 +74,8 @@ trait IntegrationSpec extends PlaySpec
     "work-item.retry-in-progress-after.seconds" -> 30,
     "work-item.ttlInHours" -> 720,
     "locking.timeoutMinutes" -> lockingTestTimeout,
-    "fileExpiryDays" -> 60
+    "fileExpiryDays" -> 60,
+    "email.enabled" -> true,
   )
 
   override lazy val app: Application = new GuiceApplicationBuilder()

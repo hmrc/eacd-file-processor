@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
+import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
 import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.models.Details.UploadedSuccessfully
@@ -29,63 +30,71 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class EmailService @Inject()(emailConnector: EmailConnector)(implicit ec: ExecutionContext) {
+class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)(implicit ec: ExecutionContext) {
 
   def sendFileFailEmail(uploadDetails: UploadedDetails, failureDetails: Details.UploadedFailed)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    val params = Map(
-      "requestorName" -> uploadDetails.requestorName,
-      "fileName" -> uploadDetails.details.map(Details.getFileName).getOrElse(""),
-      "uploadedDateTime" -> getUploadedDateTime(uploadDetails),
-      "reference" -> uploadDetails.reference.value,
-      "failureReason" -> failureDetails.failureReason,
-      "failureMessage" -> failureDetails.message
-    )
+    if (!appConfig.emailEnabled) Future(true) else {
+      val params = Map(
+        "requestorName" -> uploadDetails.requestorName,
+        "fileName" -> uploadDetails.details.map(Details.getFileName).getOrElse(""),
+        "uploadedDateTime" -> getUploadedDateTime(uploadDetails),
+        "reference" -> uploadDetails.reference.value,
+        "failureReason" -> failureDetails.failureReason,
+        "failureMessage" -> failureDetails.message
+      )
 
-    emailConnector.sendEmail(params, uploadDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_upload_failure")
+      emailConnector.sendEmail(params, uploadDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_upload_failure")
+    }
   }
 
   def sendFileScannedEmail(uploadedDetails: UploadedDetails, successfulDetails: UploadedSuccessfully, fileExpiryDays: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    val params = Map(
-      "requestorName" -> uploadedDetails.requestorName,
-      "fileName" -> successfulDetails.name,
-      //When upscan is stubbed and callback gets called before uploaded, uploadedDateTime can be empty
-      "uploadedDateTime" -> uploadedDetails.uploadedDateTime.map(formatDateTime).getOrElse(formatDateTime(now())),
-      "reference" -> uploadedDetails.reference.value,
-      "fileExpiryDays" -> fileExpiryDays
-    )
+    if (!appConfig.emailEnabled) Future(true) else {
+      val params = Map(
+        "requestorName" -> uploadedDetails.requestorName,
+        "fileName" -> successfulDetails.name,
+        //When upscan is stubbed and callback gets called before uploaded, uploadedDateTime can be empty
+        "uploadedDateTime" -> uploadedDetails.uploadedDateTime.map(formatDateTime).getOrElse(formatDateTime(now())),
+        "reference" -> uploadedDetails.reference.value,
+        "fileExpiryDays" -> fileExpiryDays
+      )
 
-    emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_upload_scan_success")
+      emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_upload_scan_success")
+    }
   }
 
   def sendUpdateFileStatusEmail(uploadedDetails: UploadedDetails)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    val approverDetails = uploadedDetails.approverDetails.getOrElse(
-      throw new RuntimeException(s"Approver details not found for file reference: ${uploadedDetails.reference.value}"))
-    val params = Map(
-      "requestorName" -> uploadedDetails.requestorName,
-      "fileName" -> uploadedDetails.details.map(Details.getFileName).getOrElse(""),
-      "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
-      "approverName" -> approverDetails.approverName.getOrElse(""),
-      "approverEmail" -> approverDetails.approverEmail.getOrElse(""),
-      "reference" -> uploadedDetails.reference.value
-    )
-    val templateId = if uploadedDetails.status == APPROVED then
-      "emac_helpdesk_bulk_deenrolment_file_approved"
-    else
-      "emac_helpdesk_bulk_deenrolment_file_rejected_by_approver"
-    emailConnector.sendEmail(params, uploadedDetails.requestorEmail, templateId)
+    if (!appConfig.emailEnabled) Future(true) else {
+      val approverDetails = uploadedDetails.approverDetails.getOrElse(
+        throw new RuntimeException(s"Approver details not found for file reference: ${uploadedDetails.reference.value}"))
+      val params = Map(
+        "requestorName" -> uploadedDetails.requestorName,
+        "fileName" -> uploadedDetails.details.map(Details.getFileName).getOrElse(""),
+        "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
+        "approverName" -> approverDetails.approverName.getOrElse(""),
+        "approverEmail" -> approverDetails.approverEmail.getOrElse(""),
+        "reference" -> uploadedDetails.reference.value
+      )
+      val templateId = if uploadedDetails.status == APPROVED then
+        "emac_helpdesk_bulk_deenrolment_file_approved"
+      else
+        "emac_helpdesk_bulk_deenrolment_file_rejected_by_approver"
+      emailConnector.sendEmail(params, uploadedDetails.requestorEmail, templateId)
+    }
   }
 
   def sendFileAutoDeletedEmail(uploadedDetails: UploadedDetails, fileExpiryDays: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    val params = Map(
-      "requestorName" -> uploadedDetails.requestorName,
-      "fileName" -> uploadedDetails.details.map(Details.getFileName).filterNot(_.isBlank).getOrElse(
-        throw new RuntimeException(s"File name is missing for reference: ${uploadedDetails.reference.value}")),
-      "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
-      "reference" -> uploadedDetails.reference.value,
-      "fileExpiryDays" -> fileExpiryDays
-    )
+    if (!appConfig.emailEnabled) Future(true) else {
+      val params = Map(
+        "requestorName" -> uploadedDetails.requestorName,
+        "fileName" -> uploadedDetails.details.map(Details.getFileName).filterNot(_.isBlank).getOrElse(
+          throw new RuntimeException(s"File name is missing for reference: ${uploadedDetails.reference.value}")),
+        "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
+        "reference" -> uploadedDetails.reference.value,
+        "fileExpiryDays" -> fileExpiryDays
+      )
 
-    emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_auto_deleted")
+      emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_auto_deleted")
+    }
   }
 
   private def getUploadedDateTime(uploadedDetails: UploadedDetails): String =
