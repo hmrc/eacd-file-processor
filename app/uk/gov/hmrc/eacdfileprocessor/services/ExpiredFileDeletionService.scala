@@ -30,12 +30,12 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class ExpiredFileDeletionService @Inject()(
-                                          appConfig: AppConfig,
-                                          fileRepository: FileRepository,
-                                          osClient: PlayObjectStoreClient,
-                                          lockService: LockService,
-                                          emailService: EmailService
-                                        ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
+                                            appConfig: AppConfig,
+                                            fileRepository: FileRepository,
+                                            osClient: PlayObjectStoreClient,
+                                            lockService: LockService,
+                                            emailService: EmailService
+                                          ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
 
   private given HeaderCarrier = HeaderCarrier()
 
@@ -73,7 +73,7 @@ class ExpiredFileDeletionService @Inject()(
   private def deleteFileThenSendEmail(uploadedDetails: UploadedDetails)(using ExecutionContext): Future[Unit] =
     fileRepository.deleteByReference(uploadedDetails.reference).map {
       case true =>
-          emailService.sendFileAutoDeletedEmail(uploadedDetails, appConfig.fileExpiryDays.toString)
+        emailService.sendFileAutoDeletedEmail(uploadedDetails, appConfig.fileExpiryDays.toString)
       case false =>
         logger.warn(s"Failed to delete file record for reference ${uploadedDetails.reference.value} from mongoDB")
     }
