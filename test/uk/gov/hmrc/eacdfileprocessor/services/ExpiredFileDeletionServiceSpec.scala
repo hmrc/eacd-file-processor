@@ -40,6 +40,7 @@ class ExpiredFileDeletionServiceSpec extends TestSupport with TestData with Unit
     val emailService: EmailService = mock[EmailService]
 
     when(appConfig.appName).thenReturn("eacd-file-processor")
+    when(appConfig.emailEnabled).thenReturn(true)
 
     val lockService: LockService = new LockService(null) {
       override def lockAndRelease[T](job: String)(f: => Future[T])(using ExecutionContext): Future[Either[T, LockResponse]] =
@@ -119,6 +120,39 @@ class ExpiredFileDeletionServiceSpec extends TestSupport with TestData with Unit
       )(any())
       verify(fileRepository).deleteByReference(expiredActive.reference)
       verify(emailService).sendFileAutoDeletedEmail(any(), any())(any())
+    }
+
+    "delete expired active files from object store and mongo but skip email when disabled" in new Setup {
+      when(appConfig.emailEnabled).thenReturn(false)
+
+      val fileName = "expired.csv"
+      val expiredActive: UploadedDetails = failedUploadedDetails.copy(
+        status = STORED,
+        details = Some(
+          Details.UploadedSuccessfully(
+            name = fileName,
+            mimeType = "text/csv",
+            downloadUrl = null,
+            size = Some(10L),
+            checksum = "abc"
+          )
+        )
+      )
+
+      when(fileRepository.deleteExpiredInitialFiles).thenReturn(Future.successful(acknowledged(0)))
+      when(fileRepository.findExpiredActiveFiles).thenReturn(Future.successful(Seq(expiredActive)))
+      when(osClient.deleteObject(any(), any())(any())).thenReturn(Future.successful(()))
+      when(fileRepository.deleteByReference(expiredActive.reference)).thenReturn(Future.successful(true))
+
+      val result: Either[Unit, LockResponse] = await(service.invoke)
+
+      result shouldBe Left(())
+      verify(osClient).deleteObject(
+        eqTo(Path.Directory(expiredActive.reference.value).file(fileName)),
+        eqTo("eacd-file-processor")
+      )(any())
+      verify(fileRepository).deleteByReference(expiredActive.reference)
+      verify(emailService, never()).sendFileAutoDeletedEmail(any(), any())(any())
     }
 
     "delete expired active files from object store but fail deleting from mongo and no email is sent" in new Setup {

@@ -73,7 +73,8 @@ class ExpiredFileDeletionService @Inject()(
   private def deleteFileThenSendEmail(uploadedDetails: UploadedDetails)(using ExecutionContext): Future[Unit] =
     fileRepository.deleteByReference(uploadedDetails.reference).map {
       case true =>
-        emailService.sendFileAutoDeletedEmail(uploadedDetails, appConfig.fileExpiryDays.toString)
+        if (appConfig.emailEnabled)
+          emailService.sendFileAutoDeletedEmail(uploadedDetails, appConfig.fileExpiryDays.toString)
       case false =>
         logger.warn(s"Failed to delete file record for reference ${uploadedDetails.reference.value} from mongoDB")
     }
