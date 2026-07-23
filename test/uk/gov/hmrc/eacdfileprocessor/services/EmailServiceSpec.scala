@@ -21,6 +21,7 @@ import org.mockito.Mockito.when
 import org.scalactic.Prettifier.default
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
+import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport, UnitSpec}
 
@@ -30,7 +31,9 @@ import scala.concurrent.Future
 
 class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
   private lazy val mockEmailConnector = mock[EmailConnector]
-  private val emailService = EmailService(mockEmailConnector)
+  private val mockAppConfig = mock[AppConfig]
+  private val emailService = EmailService(appConfig = mockAppConfig)(mockEmailConnector)
+  when(mockAppConfig.emailEnabled).thenReturn(true)
 
   "EmailConnector" must {
     "sendFileFailEmail" must {
