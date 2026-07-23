@@ -34,7 +34,8 @@ import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields}
 
 import java.time.Instant
 import java.time.Instant.now
-import java.time.temporal.ChronoUnit.{SECONDS, MINUTES}
+import java.time.temporal.ChronoUnit
+import java.time.temporal.ChronoUnit.{MINUTES, SECONDS}
 import scala.language.postfixOps
 
 class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
@@ -110,14 +111,21 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
       thirdPull shouldBe Seq.empty
     }
 
-    "pull up stale workItems at least 30 seconds before and 30 minutes ago" in {
+    "pull up stale workItems to retry up to 3 time" in {
       await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref-limit"))
+      val updatedAt = now().minus(30, ChronoUnit.MINUTES)
       val pull = await(repository.pullOutstandingBatch(10))
-      repository.updateWorkItemUpdatedAt(pull.head.id, now().minus(30, SECONDS))
-      repository.updateWorkItemUpdatedAt(pull.last.id, now().minus(15, MINUTES))
+      repository.updateById(pull.head.id, 1, updatedAt)
+      repository.updateById(pull.last.id, 1, updatedAt)
 
       val secondPull = await(repository.pullOutstandingBatch(5))
       secondPull.size shouldBe 2
+
+      repository.updateById(pull.head.id, 3, updatedAt)
+      repository.updateById(pull.last.id, 3, updatedAt)
+      
+      val thirdPull = await(repository.pullOutstandingBatch(5))
+      thirdPull.size shouldBe 0
     }
 
     "only allow markAsInProgress once for the same work item" in {
