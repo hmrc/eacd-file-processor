@@ -136,7 +136,7 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
   private def pushWorkItems(workItems: Seq[DeEnrolmentWorkItem], reference: Reference): Future[Unit] =
     if (workItems.nonEmpty)
       logger.info(s"Pushing ${workItems.size} work items to repository for reference: ${reference.value}")
-      workItemRepository.saveRecordDetails(workItems, reference.value)
+      workItemRepository.saveRecordDetails(workItems)
         .flatMap(savedWorkItems => {
           logger.info(s"Successfully saved ${savedWorkItems.size} work items for reference: ${reference.value}")
           fileRepository.setTotalEntryCount(reference, savedWorkItems.size).map(_ => ())})

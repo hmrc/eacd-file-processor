@@ -22,8 +22,8 @@ import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json.*
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
 import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.mongo.play.json.formats.{MongoFormats, MongoJavatimeFormats}
+import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 
 import java.time.Instant
 import javax.inject.{Inject, Singleton}
@@ -61,7 +61,7 @@ class FileRecordValidationErrorRepository @Inject()(mongoComponent: MongoCompone
 
   def findByReference(reference: Reference): Future[Seq[FileRecordValidationError]] = {
     collection
-      .find(Filters.equal("reference.value", reference.value))
+      .find(Filters.equal("reference", Codecs.toBson(reference)))
       .sort(Sorts.ascending("creationDateTime"))
       .toFuture()
   }
@@ -69,10 +69,7 @@ class FileRecordValidationErrorRepository @Inject()(mongoComponent: MongoCompone
   def countByReference(reference: Reference): Future[Int] = {
     collection
       .countDocuments(
-        Filters.or(
-          Filters.equal("reference", reference.value),
-          Filters.equal("reference.value", reference.value)
-        )
+        Filters.equal("reference", Codecs.toBson(reference))
       )
       .toFuture()
       .map(_.toInt)
