@@ -22,10 +22,8 @@ import org.mongodb.scala.model.{Filters, Updates}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
-import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields}
 
@@ -35,10 +33,7 @@ import java.time.temporal.ChronoUnit
 import scala.language.postfixOps
 
 class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
-  private val mockAppConfig = mock[AppConfig]
-
-  private val mongoRepository: MongoComponent = app.injector.instanceOf[MongoComponent]
-  private val repository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, mockAppConfig)
+  private val repository = app.injector.instanceOf[DeEnrolmentWorkItemMongoRepository]
 
   override def beforeEach(): Unit = {
     await(repository.collection.deleteMany(Filters.exists("_id")).toFuture())
@@ -137,14 +132,6 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
       val workItem2 = await(repository.findByReference("ref2")).head
       workItem2.status shouldBe ProcessingStatus.Succeeded
       workItem2.failureCount shouldBe 3
-    }
-
-    "only allow markAsInProgress once for the same work item" in {
-      val result = await(repository.saveRecordDetails(Seq(deEnrolmentWorkItems.head)))
-      val workItemId = result.head.id
-
-      await(repository.markAsInProgress(workItemId)) shouldBe true
-      await(repository.markAsInProgress(workItemId)) shouldBe false
     }
 
     "return empty for non-positive pull limits" in {

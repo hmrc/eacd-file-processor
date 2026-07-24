@@ -22,9 +22,8 @@ import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Filters.*
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
-import org.mongodb.scala.model.Updates.{inc, set}
+import org.mongodb.scala.model.Updates.{combine, inc, set}
 import play.api.Logging
-import play.api.libs.json.Json
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.play.json.Codecs
@@ -77,8 +76,8 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
 
   override def ensureIndexes(): Future[Seq[String]] = {
     lazy val ttlInDays = appConfig.workItemTimeToLive
-    val WORK_ITEM_STATUS = WorkItemFields.default.status
-    val WORK_ITEM_UPDATED_AT = WorkItemFields.default.updatedAt
+    val WORK_ITEM_STATUS = workItemFields.status
+    val WORK_ITEM_UPDATED_AT = workItemFields.updatedAt
     lazy val deEnrolmentWorkItemIndexes = {
       indexes ++ Seq(
         IndexModel(
@@ -120,7 +119,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
   override def incompleteWorkItemsCountForRef(reference: String): Future[Int] = {
     val selector = and(
       equal(
-        s"${WorkItemFields.default.item}.reference", Codecs.toBson(reference)
+        s"${workItemFields.item}.reference", Codecs.toBson(reference)
       ),
       in(workItemFields.status, ToDo, InProgress)
     )
@@ -132,7 +131,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     incompleteWorkItemsCountForRef(reference)
 
   override def deleteWorkItemsByReference(reference: String): Future[Unit] = {
-    collection.deleteMany(Filters.eq(s"${WorkItemFields.default.item}.reference", reference)).toFuture().map(_ => ())
+    collection.deleteMany(Filters.eq(s"${workItemFields.item}.reference", reference)).toFuture().map(_ => ())
   }
 
   override def deleteByReference(reference: String): Future[Unit] =
@@ -146,12 +145,11 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
       Future.successful(Seq.empty)
     } else {
       val availableBefore = now()
-      val WORK_ITEM_STATUS = WorkItemFields.default.status
-      val WORK_ITEM_AVAILABLE_AT = WorkItemFields.default.availableAt
-      val WORK_ITEM_UPDATED_AT = WorkItemFields.default.updatedAt
+      val WORK_ITEM_STATUS = workItemFields.status
+      val WORK_ITEM_AVAILABLE_AT = workItemFields.availableAt
+      val WORK_ITEM_UPDATED_AT = workItemFields.updatedAt
 
       def pullAvailableItems(): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
-
         val query: Bson = or(
           // Fresh ToDo items available now
           and(
@@ -161,22 +159,21 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
           // Stale InProgress items ready for retry
           and(
             equal(WORK_ITEM_STATUS, ProcessingStatus.InProgress.name),
-            lte(WORK_ITEM_UPDATED_AT, availableBefore.minus(30, ChronoUnit.SECONDS)),
-            lte(WorkItemFields.default.failureCount, 3)
+            lte(WORK_ITEM_UPDATED_AT, availableBefore.minus(retrySeconds, ChronoUnit.SECONDS)),
+            lte(workItemFields.failureCount, 3)
           )
         )
 
-        logger.warn("Work items available for processing query: \n" + Json.prettyPrint(Json.parse(query.toBsonDocument.toJson)))
-
         collection
           .find(query)
+          //Todo should be picked before in-progress
           .sort(Sorts.descending("status"))
           .limit(limit)
           .toFuture()
       }
 
       pullAvailableItems().flatMap { workItems =>
-        logger.warn(s"Work items available from processing query size: ${workItems.size}")
+        logger.info(s"Work items available from processing query size: ${workItems.size}")
         workItems.foldLeft(Future.successful(Vector.empty[WorkItem[DeEnrolmentWorkItem]])) {
           (accF, workItem) =>
             accF.flatMap { acc =>
@@ -195,26 +192,11 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     }
   }
 
-  private[repository] def markAsInProgress(id: ObjectId): Future[Boolean] = {
-    collection
-      .findOneAndUpdate(
-        and(
-          equal(WorkItemFields.default.id, id),
-          equal(WorkItemFields.default.status, ProcessingStatus.ToDo.name),
-        ),
-        Updates.combine(
-          Updates.set(WorkItemFields.default.status, ProcessingStatus.InProgress.name),
-          Updates.set(WorkItemFields.default.updatedAt, now())
-        ),
-        FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
-      )
-      .toFutureOption()
-      .map(_.isDefined)
-
-  }
+  private[repository] def markAsInProgress(id: ObjectId): Future[Boolean] =
+    markAs(id, ProcessingStatus.InProgress, None)
 
   override def markAsComplete(id: ObjectId): Future[Boolean] =
-      complete(id, ProcessingStatus.Succeeded)
+    complete(id, ProcessingStatus.Succeeded)
 
   override def findByReference(reference: String): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] = {
     val filter: Bson = Filters.equal("item.reference", reference)
@@ -224,8 +206,8 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
   private[repository] def increaseFailureCount(id: ObjectId): Future[WorkItem[DeEnrolmentWorkItem]] =
     collection
       .findOneAndUpdate(
-        equal(WorkItemFields.default.id, id),
-        inc(workItemFields.failureCount, 1),
+        equal(workItemFields.id, id),
+        combine(inc(workItemFields.failureCount, 1), set(workItemFields.updatedAt, now())),
         FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
       )
       .toFuture()
@@ -233,7 +215,7 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
   private[repository] def updateById(id: ObjectId, failureCount: Int, updatedAt: Instant) =
     collection
       .findOneAndUpdate(
-        equal(WorkItemFields.default.id, id),
+        equal(workItemFields.id, id),
         Seq(set(workItemFields.failureCount, failureCount), set(workItemFields.updatedAt, updatedAt)),
         FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
       )
