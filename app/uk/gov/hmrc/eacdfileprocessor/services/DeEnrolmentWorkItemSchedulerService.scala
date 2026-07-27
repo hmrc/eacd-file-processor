@@ -96,8 +96,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                        actionType: String,
                                        reference: Reference,
                                        recordDetail: String,
-                                       workItemId: ObjectId
-                                     )(using ExecutionContext): Future[Unit] = {
+                                       workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
     actionType.toLowerCase match {
       case "principal" | "delegated" | "agent" | "both" =>
         logger.info(s"[handleValidatedWorkItem] Calling ES1 for work item ${workItemId.toHexString} with enrolmentKey $enrolmentKey and actionType $actionType")
@@ -113,8 +112,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                        actionType: String,
                                        reference: Reference,
                                        recordDetail: String,
-                                       workItemId: ObjectId
-                                     )(using ExecutionContext): Future[Unit] = {
+                                       workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
     val es1Type = transformActionType(actionType)
 
     logger.info(s"[callES1AndProcessResult] Calling ES1 for work item ${workItemId.toHexString} with enrolmentKey $enrolmentKey and type $es1Type")
@@ -145,8 +143,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                 jsonResponse: JsValue,
                                 reference: Reference,
                                 recordDetail: String,
-                                workItemId: ObjectId
-                              )(using ExecutionContext): Future[Unit] = {
+                                workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
     val groupIds = extractGroupIds(jsonResponse)
     logger.info(s"[handleES1Success] Found ${groupIds.size} group(s) to de-enrol for reference ${reference.value}")
 
@@ -164,8 +161,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                         groupIds: Seq[String],
                                         reference: Reference,
                                         recordDetail: String,
-                                        workItemId: ObjectId
-                                      )(using ExecutionContext) = {
+                                        workItemId: ObjectId)(using ExecutionContext) = {
 
     @tailrec
     def processNextGroup(hasError: Future[Boolean], remainingGroupIds: Seq[String]): Future[Unit] = {
@@ -191,11 +187,11 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
   }
 
   private def handleES9Call(groupId: String,
-                      groupIds: Seq[String],
-                      enrolmentKey: String,
-                      reference: Reference,
-                      recordDetail: String,
-                      workItemId: ObjectId)(using ExecutionContext): Future[Boolean] = {
+                            groupIds: Seq[String],
+                            enrolmentKey: String,
+                            reference: Reference,
+                            recordDetail: String,
+                            workItemId: ObjectId)(using ExecutionContext): Future[Boolean] = {
     espConnector.callES9(groupId, enrolmentKey).map { response =>
       logger.info(s"[processGroupDeEnrolments] ES9 response for groupId $groupId and reference ${reference.value}: status=${response.status}")
 
@@ -241,7 +237,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       case _ => Future.successful(throw RuntimeException(s"[processGroupDeEnrolments] Failed to mark work item as complete for workItemId ${workItemId.toHexString} reference ${reference.value}"))
     }
   }
-  
+
   private[services] def transformActionType(actionType: String) =
     actionType match {
       case "agent" => "principal"

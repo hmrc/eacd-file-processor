@@ -19,23 +19,22 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import helper.IntegrationSpec
 import org.mongodb.scala.SingleObservableFuture
 import org.mongodb.scala.model.{Filters, Updates}
+import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
-import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields}
 
+import java.time.Instant
+import java.time.Instant.now
+import java.time.temporal.ChronoUnit
 import scala.language.postfixOps
 
-class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
-  private val mockAppConfig = mock[AppConfig]
-
-  private val mongoRepository: MongoComponent = app.injector.instanceOf[MongoComponent]
-  private val repository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, mockAppConfig)
+class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec with Eventually{
+  private val repository = app.injector.instanceOf[DeEnrolmentWorkItemMongoRepository]
 
   override def beforeEach(): Unit = {
     await(repository.collection.deleteMany(Filters.exists("_id")).toFuture())
@@ -92,22 +91,52 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
 
       val firstPull = await(repository.pullOutstandingBatch(1))
       firstPull.size shouldBe 1
+      firstPull.head.item.reference shouldBe "ref1"
       firstPull.head.status shouldBe ProcessingStatus.InProgress
 
       val secondPull = await(repository.pullOutstandingBatch(10))
       secondPull.size shouldBe 1
+      secondPull.head.item.reference shouldBe "ref2"
       secondPull.head.status shouldBe ProcessingStatus.InProgress
 
       val thirdPull = await(repository.pullOutstandingBatch(10))
       thirdPull shouldBe Seq.empty
     }
 
-    "only allow markAsInProgress once for the same work item" in {
-      val result = await(repository.saveRecordDetails(Seq(deEnrolmentWorkItems.head)))
-      val workItemId = result.head.id
+    "pull up stale workItems correctly" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
+      val updatedAt = now().minus(30, ChronoUnit.MINUTES)
+      val pull = await(repository.pullOutstandingBatch(5))
+      await(repository.updateById(pull.head.id, 1, updatedAt))
+      await(repository.updateById(pull.last.id, 1, updatedAt))
 
-      await(repository.markAsInProgress(workItemId)) shouldBe true
-      await(repository.markAsInProgress(workItemId)) shouldBe false
+      val secondPull = await(repository.pullOutstandingBatch(5))
+      secondPull.size shouldBe 2
+      val workItem = secondPull.head
+      workItem.status shouldBe ProcessingStatus.InProgress
+      workItem.failureCount shouldBe 2
+    }
+
+    "update status to succeeded when retried 3 times" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
+      val updatedAt = now().minus(30, ChronoUnit.MINUTES)
+      val pull = await(repository.pullOutstandingBatch(5))
+
+      eventually {
+        await(repository.updateById(pull.head.id, 3, updatedAt))
+        await(repository.updateById(pull.last.id, 3, updatedAt))
+
+        val thirdPull = await(repository.pullOutstandingBatch(5))
+        thirdPull.size shouldBe 0
+        
+        val workItem1 = await(repository.findByReference("ref1")).head
+        workItem1.status shouldBe ProcessingStatus.Succeeded
+        workItem1.failureCount shouldBe 3
+        val workItem2 = await(repository.findByReference("ref2")).head
+        workItem2.status shouldBe ProcessingStatus.Succeeded
+        workItem2.failureCount shouldBe 3
+      }
+
     }
 
     "return empty for non-positive pull limits" in {
