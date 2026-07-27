@@ -22,7 +22,7 @@ import play.api.http.Status.{NO_CONTENT, OK}
 import play.api.libs.json.JsValue
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
-import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, Reference}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator

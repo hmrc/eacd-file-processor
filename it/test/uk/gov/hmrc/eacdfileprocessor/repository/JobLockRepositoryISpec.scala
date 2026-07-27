@@ -21,10 +21,9 @@ import org.mongodb.scala.{Document, SingleObservableFuture}
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.helper.AssertionHelpers
 import uk.gov.hmrc.eacdfileprocessor.models.JobLock
-import uk.gov.hmrc.mongo.MongoComponent
 
+import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.time.{Clock, Instant, ZoneId}
 
 class JobLockRepositoryISpec extends AssertionHelpers with IntegrationSpec {
 

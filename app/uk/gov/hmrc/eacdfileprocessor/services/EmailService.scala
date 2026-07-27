@@ -33,7 +33,9 @@ import scala.concurrent.{ExecutionContext, Future}
 class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)(implicit ec: ExecutionContext) {
 
   def sendFileFailEmail(uploadDetails: UploadedDetails, failureDetails: Details.UploadedFailed)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    if (!appConfig.emailEnabled) Future(true) else {
+    if (!appConfig.emailEnabled) 
+      Future(true) 
+    else {
       val params = Map(
         "requestorName" -> uploadDetails.requestorName,
         "fileName" -> uploadDetails.details.map(Details.getFileName).getOrElse(""),
@@ -97,17 +99,20 @@ class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)
   }
 
   def sendFileProcessedEmail(uploadedDetails: UploadedDetails)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    val params = Map(
-      "requestorName" -> uploadedDetails.requestorName,
-      "fileName" -> getFileName(uploadedDetails),
-      "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
-      "reference" -> uploadedDetails.reference.value,
-      "totalRecordCount" -> uploadedDetails.totalEntryCount.getOrElse(0).toString,
-      "successfulRecordCount" -> uploadedDetails.totalSuccessCount.getOrElse(0).toString,
-      "failedRecordCount" -> uploadedDetails.totalFailureCount.getOrElse(0).toString
-    )
-
-    emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_processed")
+    if !appConfig.emailEnabled then
+      Future(true)
+    else
+      val params = Map(
+        "requestorName" -> uploadedDetails.requestorName,
+        "fileName" -> getFileName(uploadedDetails),
+        "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
+        "reference" -> uploadedDetails.reference.value,
+        "totalRecordCount" -> uploadedDetails.totalEntryCount.getOrElse(0).toString,
+        "successfulRecordCount" -> uploadedDetails.totalSuccessCount.getOrElse(0).toString,
+        "failedRecordCount" -> uploadedDetails.totalFailureCount.getOrElse(0).toString
+      )
+      
+      emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_processed")
   }
 
   private def getFileName(uploadedDetails: UploadedDetails): String =
