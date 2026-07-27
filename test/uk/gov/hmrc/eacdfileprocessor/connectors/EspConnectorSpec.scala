@@ -37,24 +37,20 @@ class EspConnectorSpec extends TestSupport {
   val requestBuilder: RequestBuilder = mock[RequestBuilder]
   val connector = EspConnector(httpClient, servicesConfig)
 
+  when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
+  when(httpClient.get(any())(any())).thenReturn(requestBuilder)
+
   "EspConnector" should {
     "calling ES1 display correct behavior" when {
 
       "ES1 returns 204" in {
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
-        when(httpClient.get(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(NO_CONTENT)))
-
-        val connector = EspConnector(httpClient, servicesConfig)
 
         await(connector.callES1("Test-enrolement-key", "princpal")).status shouldBe NO_CONTENT
       }
 
       "ES1 returns 400" in {
-
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
-        when(httpClient.get(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(BAD_REQUEST, body =
             """
@@ -64,17 +60,12 @@ class EspConnectorSpec extends TestSupport {
               |}
               |""".stripMargin)))
 
-        val connector = EspConnector(httpClient, servicesConfig)
         val result = await(connector.callES1("Test-enrolement-key", "princpal"))
         result.status shouldBe BAD_REQUEST
         result.body.contains("The type parameter was invalid. Expected all, principal or delegated") shouldBe true
-
       }
 
       "ES1 returns 200" in {
-
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
-        when(httpClient.get(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(OK, body =
             """
@@ -89,15 +80,12 @@ class EspConnectorSpec extends TestSupport {
               |}
               |""".stripMargin)))
 
-        val connector = EspConnector(httpClient, servicesConfig)
-
         await(connector.callES1("Test-enrolement-key", "princpal")).status shouldBe OK
       }
     }
     "calling ES9 display correct behavior" when {
 
       "ES9 returns 500" in {
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
         when(httpClient.delete(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(BAD_GATEWAY, body =
@@ -108,23 +96,18 @@ class EspConnectorSpec extends TestSupport {
               |}
               |""".stripMargin)))
 
-        val connector = EspConnector(httpClient, servicesConfig)
         val result = await(connector.callES9("Test-group-id", "Test-enrolement-key"))
         result.status shouldBe BAD_GATEWAY
         result.body.contains("An unexpected error occurred") shouldBe true
       }
       "ES9 returns 204" in {
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
         when(httpClient.delete(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(NO_CONTENT)))
 
-        val connector = EspConnector(httpClient, servicesConfig)
-
         await(connector.callES9("Test-group-id", "Test-enrolement-key")).status shouldBe NO_CONTENT
       }
       "ES9 returns 400" in {
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
         when(httpClient.delete(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(BAD_REQUEST, body =
@@ -135,7 +118,6 @@ class EspConnectorSpec extends TestSupport {
               |}
               |""".stripMargin)))
 
-        val connector = EspConnector(httpClient, servicesConfig)
         val result = await(connector.callES9("Test-group-id", "Test-enrolement-key"))
         result.status shouldBe BAD_REQUEST
         result.body.contains("The enrolment was not found for the group") shouldBe true

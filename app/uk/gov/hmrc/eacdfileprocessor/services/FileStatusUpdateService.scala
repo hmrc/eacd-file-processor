@@ -21,6 +21,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{PROCESSEDSUCCESSFULLY, P
 import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
+import uk.gov.hmrc.http.HeaderCarrier
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -67,7 +68,7 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
         _ <- fileRepository.updateStatus(file.reference, targetStatus).map {
           case Some(uploadedDetails) =>
             logger.info(s"File reference ${file.reference.value} status updated to $targetStatus")
-            emailService.sendFileProcessedEmail(uploadedDetails)
+            emailService.sendFileProcessedEmail(uploadedDetails)(HeaderCarrier())
             deEnrolmentWorkItemRepository.deleteWorkItemsByReference(uploadedDetails.reference.value)
           case None =>
             logger.error(s"Failed to update file status for reference ${file.reference.value}")
