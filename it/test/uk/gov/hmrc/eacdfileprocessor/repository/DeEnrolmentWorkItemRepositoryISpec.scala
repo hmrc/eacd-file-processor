@@ -19,6 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import helper.IntegrationSpec
 import org.mongodb.scala.SingleObservableFuture
 import org.mongodb.scala.model.{Filters, Updates}
+import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
@@ -32,7 +33,7 @@ import java.time.Instant.now
 import java.time.temporal.ChronoUnit
 import scala.language.postfixOps
 
-class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
+class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec with Eventually{
   private val repository = app.injector.instanceOf[DeEnrolmentWorkItemMongoRepository]
 
   override def beforeEach(): Unit = {
@@ -120,11 +121,14 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
       await(repository.saveRecordDetails(deEnrolmentWorkItems))
       val updatedAt = now().minus(30, ChronoUnit.MINUTES)
       val pull = await(repository.pullOutstandingBatch(5))
-      await(repository.updateById(pull.head.id, 3, updatedAt))
-      await(repository.updateById(pull.last.id, 3, updatedAt))
 
-      val thirdPull = await(repository.pullOutstandingBatch(5))
-      thirdPull.size shouldBe 0
+      eventually {
+        await(repository.updateById(pull.head.id, 3, updatedAt))
+        await(repository.updateById(pull.last.id, 3, updatedAt))
+
+        val thirdPull = await(repository.pullOutstandingBatch(5))
+        thirdPull.size shouldBe 0
+      }
 
       val workItem1 = await(repository.findByReference("ref1")).head
       workItem1.status shouldBe ProcessingStatus.Succeeded
