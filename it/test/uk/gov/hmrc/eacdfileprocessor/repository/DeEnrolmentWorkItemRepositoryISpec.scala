@@ -128,14 +128,15 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec w
 
         val thirdPull = await(repository.pullOutstandingBatch(5))
         thirdPull.size shouldBe 0
+        
+        val workItem1 = await(repository.findByReference("ref1")).head
+        workItem1.status shouldBe ProcessingStatus.Succeeded
+        workItem1.failureCount shouldBe 3
+        val workItem2 = await(repository.findByReference("ref2")).head
+        workItem2.status shouldBe ProcessingStatus.Succeeded
+        workItem2.failureCount shouldBe 3
       }
 
-      val workItem1 = await(repository.findByReference("ref1")).head
-      workItem1.status shouldBe ProcessingStatus.Succeeded
-      workItem1.failureCount shouldBe 3
-      val workItem2 = await(repository.findByReference("ref2")).head
-      workItem2.status shouldBe ProcessingStatus.Succeeded
-      workItem2.failureCount shouldBe 3
     }
 
     "return empty for non-positive pull limits" in {
