@@ -17,13 +17,14 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{never, when, verify}
+import org.mockito.Mockito.{never, verify, when}
 import org.scalactic.Prettifier.default
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EmailConnector
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport, UnitSpec}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.APPROVED
 
 import java.time.Instant
 import java.time.Instant.now
@@ -82,11 +83,19 @@ class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
       }
     }
     "sendUpdateFileStatusEmail" must {
-      "return true for sending update status email successfully" in new SetUp {
+      "return true for sending update status email successfully when status is not approved" in new SetUp {
         when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
           .thenReturn(Future.successful(true))
 
         val result = await(emailService.sendUpdateFileStatusEmail(initiateUploadDetails.copy(uploadedDateTime = Some(now()), approverDetails = Some(approverDetails))))
+
+        result shouldBe true
+      }
+      "return true for sending update status email successfully when status is approved" in new SetUp {
+        when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
+          .thenReturn(Future.successful(true))
+
+        val result = await(emailService.sendUpdateFileStatusEmail(initiateUploadDetails.copy(status = APPROVED, uploadedDateTime = Some(now()), approverDetails = Some(approverDetails))))
 
         result shouldBe true
       }

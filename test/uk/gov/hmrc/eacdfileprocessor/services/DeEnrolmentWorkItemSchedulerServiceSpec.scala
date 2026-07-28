@@ -274,7 +274,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
       }
 
@@ -550,7 +550,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
         verify(fileRepository, times(1)).incrementFailureCount(any())
@@ -705,7 +705,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
         verify(fileRepository, times(1)).incrementFailureCount(any())
@@ -779,10 +779,10 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
 
       "The action is both and ES1 is called OK is returned with both principal and delegated group ids and ES9 returns BAD_REQUEST" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,both")) {

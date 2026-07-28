@@ -33,7 +33,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)(implicit ec: ExecutionContext) {
 
   def sendFileFailEmail(uploadDetails: UploadedDetails, failureDetails: Details.UploadedFailed)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    if (!appConfig.emailEnabled) 
+    if (!appConfig.emailEnabled)
       Future(true) 
     else {
       val params = Map(
@@ -50,7 +50,9 @@ class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)
   }
 
   def sendFileScannedEmail(uploadedDetails: UploadedDetails, successfulDetails: UploadedSuccessfully, fileExpiryDays: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    if (!appConfig.emailEnabled) Future(true) else {
+    if (!appConfig.emailEnabled)
+      Future(true)
+    else {
       val params = Map(
         "requestorName" -> uploadedDetails.requestorName,
         "fileName" -> successfulDetails.name,
@@ -65,7 +67,9 @@ class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)
   }
 
   def sendUpdateFileStatusEmail(uploadedDetails: UploadedDetails)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    if (!appConfig.emailEnabled) Future(true) else {
+    if (!appConfig.emailEnabled)
+      Future(true)
+    else {
       val approverDetails = uploadedDetails.approverDetails.getOrElse(
         throw new RuntimeException(s"Approver details not found for file reference: ${uploadedDetails.reference.value}"))
       val params = Map(
@@ -85,7 +89,9 @@ class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)
   }
 
   def sendFileAutoDeletedEmail(uploadedDetails: UploadedDetails, fileExpiryDays: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    if (!appConfig.emailEnabled) Future(true) else {
+    if (!appConfig.emailEnabled)
+      Future(true)
+    else {
       val params = Map(
         "requestorName" -> uploadedDetails.requestorName,
         "fileName" -> getFileName(uploadedDetails),
