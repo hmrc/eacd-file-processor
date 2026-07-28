@@ -42,7 +42,7 @@ class AuditService @Inject()(val auditConnector: AuditConnector)(implicit ec: Ex
       )
     )
   }
-  
+
   def auditFileScannedEvent(uploadedDetails: UploadedDetails, successfulDetails: UploadedSuccessfully)(implicit hc: HeaderCarrier): Future[AuditResult] = {
     auditConnector.sendExtendedEvent(
       FileScannedEvent(
@@ -82,6 +82,28 @@ class AuditService @Inject()(val auditConnector: AuditConnector)(implicit ec: Ex
         fileName = uploadDetails.details.map(Details.getFileName).getOrElse(""),
         isFileApproved = if uploadDetails.status == APPROVED then true else false,
         emailAlertSentTo = uploadDetails.requestorEmail,
+        hc = hc
+      )
+    )
+  }
+
+  def auditDeallocateEnrolmentEvent(
+                                     uploadedDetails: UploadedDetails,
+                                     enrolmentKey: String,
+                                     enrolmentAction: String
+                                   )(implicit hc: HeaderCarrier): Future[AuditResult] = {
+    val approverDetails = uploadedDetails.approverDetails.getOrElse(
+      throw new RuntimeException(s"Approver details not found for file reference: ${uploadedDetails.reference.value}"))
+    auditConnector.sendExtendedEvent(
+      DeallocateEnrolmentEvent(
+        fileReference = uploadedDetails.reference.value,
+        fileName = uploadedDetails.details.map(Details.getFileName).getOrElse(""),
+        requesterId = uploadedDetails.requestorPID,
+        requesterName = uploadedDetails.requestorName.trim,
+        approvalId = approverDetails.approverPID.getOrElse(""),
+        approvalName = approverDetails.approverName.getOrElse("").trim,
+        enrolmentKey = enrolmentKey,
+        enrolmentAction = enrolmentAction,
         hc = hc
       )
     )

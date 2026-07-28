@@ -123,4 +123,35 @@ trait AuditEvents {
     }
   }
 
+  object DeallocateEnrolmentEvent {
+    def apply(
+               fileReference: String,
+               fileName: String,
+               requesterId: String,
+               requesterName: String,
+               approvalId: String,
+               approvalName: String,
+               enrolmentKey: String,
+               enrolmentAction: String,
+               hc: HeaderCarrier
+             ): ExtendedDataEvent =
+      ExtendedDataEvent(
+        auditSource = auditSource,
+        auditType = "DeallocateEnrolment",
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
+        detail = getDetails(
+          fileReference,
+          requesterId,
+          requesterName,
+          Seq(
+            "fileName" -> JsString(fileName),
+            "approvalId" -> JsString(approvalId),
+            "approvalName" -> JsString(approvalName),
+            "enrolmentKey" -> JsString(enrolmentKey),
+            "enrolmentAction" -> JsString(enrolmentAction)
+          )
+        )
+      )
+  }
+
 }

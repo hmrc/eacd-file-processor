@@ -42,7 +42,8 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                                      espConnector: EspConnector,
                                                      lockService: LockService,
                                                      agentServiceCache: AgentServiceCache,
-                                                     validator: DeEnrolmentWorkItemValidator
+                                                     validator: DeEnrolmentWorkItemValidator,
+                                                     auditService: AuditService
                                                    ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
 
   private given HeaderCarrier = HeaderCarrier()
@@ -122,10 +123,10 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       es1Response.status match {
         case NO_CONTENT =>
           logger.info(s"[callES1AndProcessResult] ES1 completed for reference ${reference.value}. Incrementing success count.")
-          workItemProcessedSuccessfully(reference, workItemId)
+          workItemProcessedSuccessfully(reference, workItemId, enrolmentKey, actionType)
         case OK =>
           logger.info(s"[callES1AndProcessResult] ES1 returned groups for reference ${reference.value}. Processing de-enrolments.")
-            handleES1Success(enrolmentKey, es1Response.json, reference, recordDetail, workItemId)
+            handleES1Success(enrolmentKey, actionType, es1Response.json, reference, recordDetail, workItemId)
         case _ =>
           val errorMessage = extractErrorMessage(es1Response.json)
           logger.warn(s"[callES1AndProcessResult] ES1 failed with status ${es1Response.status} for reference ${reference.value}: $errorMessage")
@@ -140,6 +141,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
 
   private def handleES1Success(
                                 enrolmentKey: String,
+                                actionType: String,
                                 jsonResponse: JsValue,
                                 reference: Reference,
                                 recordDetail: String,
@@ -149,15 +151,16 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
 
     if (groupIds.isEmpty) {
       logger.info(s"[handleES1Success] No groups found for reference ${reference.value}. Marking work item as complete and incrementing success count.")
-      workItemProcessedSuccessfully(reference, workItemId)
+      workItemProcessedSuccessfully(reference, workItemId, enrolmentKey, actionType)
     } else {
-      processGroupDeEnrolments(enrolmentKey, groupIds, reference, recordDetail, workItemId)
+      processGroupDeEnrolments(enrolmentKey, actionType ,groupIds, reference, recordDetail, workItemId)
       Future.unit
     }
   }
 
   private def processGroupDeEnrolments(
                                         enrolmentKey: String,
+                                        actionType: String,
                                         groupIds: Seq[String],
                                         reference: Reference,
                                         recordDetail: String,
@@ -169,7 +172,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
         case Nil =>
           for {
             errorOccurred <- hasError
-            _ = if !errorOccurred then workItemProcessedSuccessfully(reference, workItemId)
+            _ = if !errorOccurred then workItemProcessedSuccessfully(reference, workItemId, enrolmentKey, actionType)
           } yield ()
         case groupId :: tail =>
           val failed = for {
@@ -230,11 +233,30 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
     } yield ()
   }
 
-  private def workItemProcessedSuccessfully(reference: Reference, workItemId: ObjectId)(using ExecutionContext): Future[Unit] = {
-    logger.info(s"[processGroupDeEnrolments] Successfully marking work item as complete and increase success count for reference ${reference.value}")
-    deEnrolmentWorkItemRepository.markAsComplete(workItemId).map {
-      case true => fileRepository.incrementSuccessCount(reference)
-      case _ => Future.successful(throw RuntimeException(s"[processGroupDeEnrolments] Failed to mark work item as complete for workItemId ${workItemId.toHexString} reference ${reference.value}"))
+  private def workItemProcessedSuccessfully(
+                                             reference: Reference,
+                                             workItemId: ObjectId,
+                                             enrolmentKey: String,
+                                             actionType: String
+                                           )(using ExecutionContext): Future[Unit] = {
+    logger.info(s"[workItemProcessedSuccessfully] Marking work item as complete and incrementing success count for reference ${reference.value}")
+    deEnrolmentWorkItemRepository.markAsComplete(workItemId).flatMap {
+      case true =>
+        fileRepository.incrementSuccessCount(reference).flatMap { uploadedDetailsOpt =>
+          uploadedDetailsOpt match {
+            case Some(uploadedDetails) =>
+              auditService.auditDeallocateEnrolmentEvent(
+                uploadedDetails = uploadedDetails,
+                enrolmentKey = enrolmentKey,
+                enrolmentAction = actionType
+              ).map(_ => ())
+            case None =>
+              logger.warn(s"[workItemProcessedSuccessfully] No UploadedDetails found for reference ${reference.value}, skipping audit")
+              Future.unit
+          }
+        }
+      case false =>
+        Future.failed(RuntimeException(s"[workItemProcessedSuccessfully] Failed to mark work item as complete for workItemId ${workItemId.toHexString} reference ${reference.value}"))
     }
   }
 
