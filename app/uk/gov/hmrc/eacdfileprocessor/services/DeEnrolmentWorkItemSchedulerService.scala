@@ -153,8 +153,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       logger.info(s"[handleES1Success] No groups found for reference ${reference.value}. Marking work item as complete and incrementing success count.")
       workItemProcessedSuccessfully(reference, workItemId, enrolmentKey, actionType)
     } else {
-      processGroupDeEnrolments(enrolmentKey, actionType ,groupIds, reference, recordDetail, workItemId)
-      Future.unit
+      processGroupDeEnrolments(enrolmentKey, actionType, groupIds, reference, recordDetail, workItemId)
     }
   }
 
@@ -242,18 +241,16 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
     logger.info(s"[workItemProcessedSuccessfully] Marking work item as complete and incrementing success count for reference ${reference.value}")
     deEnrolmentWorkItemRepository.markAsComplete(workItemId).flatMap {
       case true =>
-        fileRepository.incrementSuccessCount(reference).flatMap { uploadedDetailsOpt =>
-          uploadedDetailsOpt match {
-            case Some(uploadedDetails) =>
-              auditService.auditDeallocateEnrolmentEvent(
-                uploadedDetails = uploadedDetails,
-                enrolmentKey = enrolmentKey,
-                enrolmentAction = actionType
-              ).map(_ => ())
-            case None =>
-              logger.warn(s"[workItemProcessedSuccessfully] No UploadedDetails found for reference ${reference.value}, skipping audit")
-              Future.unit
-          }
+        fileRepository.incrementSuccessCount(reference).flatMap {
+          case Some(uploadedDetails) =>
+            auditService.auditDeallocateEnrolmentEvent(
+              uploadedDetails = uploadedDetails,
+              enrolmentKey = enrolmentKey,
+              enrolmentAction = actionType
+            ).map(_ => ())
+          case None =>
+            logger.warn(s"[workItemProcessedSuccessfully] No UploadedDetails found for reference ${reference.value}, skipping audit")
+            Future.unit
         }
       case false =>
         Future.failed(RuntimeException(s"[workItemProcessedSuccessfully] Failed to mark work item as complete for workItemId ${workItemId.toHexString} reference ${reference.value}"))

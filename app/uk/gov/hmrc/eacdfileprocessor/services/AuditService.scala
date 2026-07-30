@@ -92,16 +92,14 @@ class AuditService @Inject()(val auditConnector: AuditConnector)(implicit ec: Ex
                                      enrolmentKey: String,
                                      enrolmentAction: String
                                    )(implicit hc: HeaderCarrier): Future[AuditResult] = {
-    val approverDetails = uploadedDetails.approverDetails.getOrElse(
-      throw new RuntimeException(s"Approver details not found for file reference: ${uploadedDetails.reference.value}"))
     auditConnector.sendExtendedEvent(
       DeallocateEnrolmentEvent(
         fileReference = uploadedDetails.reference.value,
         fileName = uploadedDetails.details.map(Details.getFileName).getOrElse(""),
         requesterId = uploadedDetails.requestorPID,
         requesterName = uploadedDetails.requestorName.trim,
-        approvalId = approverDetails.approverPID.getOrElse(""),
-        approvalName = approverDetails.approverName.getOrElse("").trim,
+        approvalId = uploadedDetails.approverDetails.flatMap(_.approverPID).getOrElse(""),
+        approvalName = uploadedDetails.approverDetails.flatMap(_.approverName).map(_.trim).getOrElse(""),
         enrolmentKey = enrolmentKey,
         enrolmentAction = enrolmentAction,
         hc = hc
