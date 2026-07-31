@@ -85,7 +85,9 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
     val validator: DeEnrolmentWorkItemValidator = mock[DeEnrolmentWorkItemValidator]
     val lockRepository: JobLockRepository = mock[JobLockRepository]
     lazy val mockAuditConnector = mock[AuditConnector]
-    val auditService = AuditService(mockAuditConnector)(using summon [ExecutionContext])
+    val auditService: AuditService = mock[AuditService]
+    when(auditService.auditDeallocateEnrolmentEvent(any(), any(), any())(any()))
+      .thenReturn(Future.successful(AuditResult.Success))
 
     when(appConfig.DeEnrolmentWorkItemConcurrency).thenReturn(5)
     when(fileRepository.incrementSuccessCount(any())).thenReturn(Future.successful(None))
@@ -248,6 +250,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(fileRepository, times(1)).incrementSuccessCount(any())
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(auditService, times(1)).auditDeallocateEnrolmentEvent(any(), any(), any())(any())
       }
 
       "The action is principal and calls ES9" in new Setup {
@@ -317,6 +320,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, times(1)).incrementFailureCount(any())
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(auditService, never()).auditDeallocateEnrolmentEvent(any(), any(), any())(any())
       }
 
       "The action is principal and SE1 return multiple errors with a 400" in new Setup {
