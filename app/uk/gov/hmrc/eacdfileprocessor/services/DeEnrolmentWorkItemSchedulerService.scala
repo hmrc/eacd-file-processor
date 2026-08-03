@@ -245,7 +245,7 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
       case _ => actionType
     }
 
-  private def extractGroupIds(json: play.api.libs.json.JsValue): Seq[String] =
+  private[services] def extractGroupIds(json: play.api.libs.json.JsValue): Seq[String] =
     (json \ "principalGroupIds").asOpt[Seq[String]].getOrElse(Seq.empty) ++
       (json \ "delegatedGroupIds").asOpt[Seq[String]].getOrElse(Seq.empty)
 

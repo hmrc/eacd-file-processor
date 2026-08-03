@@ -25,6 +25,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK}
+import play.api.libs.json.Json
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
 import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, FileStatus, Reference, UploadedDetails}
@@ -273,7 +274,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
       }
@@ -363,7 +364,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(fileRepository, never()).incrementSuccessCount(any())
         verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
         verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(2000).times(1)).markAsComplete(any())
@@ -459,7 +460,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
         verify(fileRepository, times(1)).incrementSuccessCount(any())
@@ -613,7 +614,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
         verify(fileRepository, times(1)).incrementSuccessCount(any())
@@ -858,7 +859,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         Await.result(service.invoke, 5.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
         verify(fileRepository, times(1)).incrementFailureCount(any())
@@ -881,6 +882,22 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       "return all when action type is both" in new Setup {
         val actual = service.transformActionType("both")
         actual shouldBe "all"
+      }
+    }
+    "extractGroupIds" when {
+      "principalGroupIds should always be extracted first" in new Setup {
+        val responseBody: String =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
+            |    ],
+            |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7519"
+            |    ]
+            |}""".stripMargin
+
+        val actual = service.extractGroupIds(Json.parse(responseBody))
+        actual shouldBe List("c0506dd9-1feb-400a-bf70-6351e1ff7510", "c0506dd9-1feb-400a-bf70-6351e1ff7519")
       }
     }
   }
