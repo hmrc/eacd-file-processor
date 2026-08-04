@@ -143,9 +143,6 @@ class FileDetailsControllerISpec extends IntegrationSpec with TestData with Defa
       status(resultF) shouldBe 200
 
       val json = Json.parse(contentAsString(resultF))
-
-      println(Console.MAGENTA + Json.prettyPrint(json)+ Console.RESET)
-
       (json \ "id").asOpt[String] shouldBe Some(withApprover.id.toHexString)
       (json \ "reference").asOpt[String] shouldBe Some(reference)
 
