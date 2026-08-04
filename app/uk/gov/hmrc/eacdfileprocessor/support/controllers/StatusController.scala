@@ -42,7 +42,7 @@ class StatusController @Inject()(fileUploadRepo: FileRepository,
   )
 
   val fileStatus: Seq[FileStatus] = Seq(SCANNED, FAILED, STORED, UPLOADED, UPLOADREJECTED, REJECTED, APPROVED,
-    PROCESSING, PROCESSEDWITHERRORS, PROCESSEDSUCCESSFULLY)
+    PROCESSING, PROCESSEDWITHERRORS, PROCESSEDSUCCESSFULLY, PROCESSEDWITHCOUNTMISMATCH)
 
   def getAllStatusCounts: Action[AnyContent] = authorisedEntity(providedPermission, "getStatusCounts")
     .async { implicit request: Request[AnyContent] =>

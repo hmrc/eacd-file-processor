@@ -41,3 +41,4 @@ enum FileStatus(val value: String):
   case PROCESSING extends FileStatus("processing")
   case PROCESSEDWITHERRORS extends FileStatus("processedWithErrors")
   case PROCESSEDSUCCESSFULLY extends FileStatus("processedSuccessfully")
+  case PROCESSEDWITHCOUNTMISMATCH extends FileStatus("processedWithCountMismatch")
