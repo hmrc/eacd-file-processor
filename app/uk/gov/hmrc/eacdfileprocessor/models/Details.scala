@@ -20,6 +20,7 @@ import org.bson.types.ObjectId
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.{Format, JsNull, JsObject, JsString, JsValue, Json, OFormat, Reads, Writes, __}
 
+
 import java.net.URL
 import java.time.Instant
 
@@ -125,9 +126,9 @@ case class FileStatusCount(status: String, count: Int)
 object FileStatusCount {
   given Format[FileStatusCount] = {
     val read: Reads[FileStatusCount] =
-    ((__ \ "_id").format[String]
-      ~ (__ \ "count").format[Int]
-      )(FileStatusCount.apply, Tuple.fromProductTyped _)
+      ((__ \ "_id").format[String]
+        ~ (__ \ "count").format[Int]
+        )(FileStatusCount.apply, Tuple.fromProductTyped _)
 
     val write: Writes[FileStatusCount] = (statusCount: FileStatusCount) => Json.format[FileStatusCount].writes(statusCount)
 

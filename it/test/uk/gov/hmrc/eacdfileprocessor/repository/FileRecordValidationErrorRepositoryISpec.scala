@@ -44,10 +44,10 @@ class FileRecordValidationErrorRepositoryISpec extends IntegrationSpec {
 
       await(repository.create(error))
 
-      val stored = await(repository.collection.find().headOption())
-      stored.value.reference shouldBe Reference("ref-err-1")
-      stored.value.fileName shouldBe "bulk.csv"
-      stored.value.errorMessage shouldBe "Invalid action"
+      val stored = await(repository.findByReference(error.reference)).head
+      stored.reference shouldBe Reference("ref-err-1")
+      stored.fileName shouldBe "bulk.csv"
+      stored.errorMessage shouldBe "Invalid action"
     }
 
     "countByReference should return count of validation errors for a reference" in {

@@ -17,56 +17,97 @@
 package uk.gov.hmrc.eacdfileprocessor.repository
 
 import helper.IntegrationSpec
-import org.scalatest.matchers.should.Matchers.shouldBe
+import org.mongodb.scala.{Document, SingleObservableFuture}
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
+import uk.gov.hmrc.eacdfileprocessor.helper.AssertionHelpers
+import uk.gov.hmrc.eacdfileprocessor.models.JobLock
 import uk.gov.hmrc.mongo.MongoComponent
 
+import java.time.temporal.ChronoUnit
 import java.time.{Clock, Instant, ZoneId}
 
-class JobLockRepositoryISpec extends IntegrationSpec {
-
-  private final class MutableClock(var now: Instant, zone: ZoneId = ZoneId.of("UTC")) extends Clock {
-    override def getZone: ZoneId = zone
-    override def withZone(zone: ZoneId): Clock = MutableClock(now, zone)
-    override def instant(): Instant = now
-  }
-
-  private val mutableClock = MutableClock(Instant.parse("2026-01-01T00:00:00Z"))
-  private lazy val mongoComponent: MongoComponent = app.injector.instanceOf[MongoComponent]
-  lazy val repository: JobLockRepository = new JobLockRepository(mongoComponent, appConfig, mutableClock)
+class JobLockRepositoryISpec extends AssertionHelpers with IntegrationSpec {
 
   override def beforeEach(): Unit = {
-    await(repository.collection.drop().headOption())
-    await(repository.ensureIndexes())
+    await(lockingRepo.collection.deleteMany(filter = Document()).toFuture())
   }
 
-  "JobLockRepository" should {
+  "lockJob" should {
+    "lock a job" when {
+      "it is not currently locked" in {
+        awaitAndAssert(lockingRepo.lockJob("testJob")) {
+          _ mustBe true
+        }
+      }
+      "its lock has expired" in {
+        val expiredExpiration = Instant.now().minus(1, ChronoUnit.MINUTES)
+        await(lockingRepo.collection.insertOne(JobLock("testJob", expiredExpiration)).toFuture())
 
-    "acquire lock for a new job and reject immediate reacquire" in {
-      await(repository.lockJob("job-a")) shouldBe true
-      await(repository.lockJob("job-a")) shouldBe false
+        awaitAndAssert(lockingRepo.lockJob("testJob")) {
+          _ mustBe true
+        }
+      }
     }
 
-    "allow reacquire when lock has expired" in {
-      await(repository.lockJob("job-b")) shouldBe true
-      mutableClock.now = mutableClock.now.plusSeconds((appConfig.lockTimeoutMinutes.toLong * 60) + 60)
+    "not lock a job" when {
+      "its lock has not expired" in {
+        val futureExpiration = Instant.now().plus(lockingTestTimeout - 1, ChronoUnit.MINUTES)
+        await(lockingRepo.collection.insertOne(JobLock("testJob", futureExpiration)).toFuture())
 
-      await(repository.lockJob("job-b")) shouldBe true
+        awaitAndAssert(lockingRepo.lockJob("testJob")) {
+          _ mustBe false
+        }
+      }
+    }
+  }
 
-      val updated = await(repository.collection.find(org.mongodb.scala.model.Filters.equal("job", "job-b")).headOption()).value
-      updated.lockExpiration.isAfter(Instant.EPOCH) shouldBe true
+  "isJobLocked" should {
+    "state a job is not locked" when {
+      "it has no entries in the locking repo" in {
+        awaitAndAssert(lockingRepo.isJobLocked("testJob")) {
+          _ mustBe false
+        }
+      }
+
+      "its lock has expired" in {
+        val expiredExpiration = Instant.now().minus(1, ChronoUnit.MINUTES)
+        await(lockingRepo.collection.insertOne(JobLock("testJob", expiredExpiration)).toFuture())
+
+        awaitAndAssert(lockingRepo.isJobLocked("testJob")) {
+          _ mustBe false
+        }
+      }
     }
 
-    "release lock" in {
-      await(repository.lockJob("job-c")) shouldBe true
-      await(repository.releaseLock("job-c")) shouldBe true
+    "state a job is still locked" when {
+      "its lock has not expired" in {
+        val futureExpiration = Instant.now().plus(lockingTestTimeout - 1, ChronoUnit.MINUTES)
+        await(lockingRepo.collection.insertOne(JobLock("testJob", futureExpiration)).toFuture())
+
+        awaitAndAssert(lockingRepo.isJobLocked("testJob")) {
+          _ mustBe true
+        }
+      }
+    }
+  }
+
+  "releaseLock" should {
+    "release a job lock" when {
+      "it was locked" in {
+        await(lockingRepo.lockJob("testJob"))
+
+        awaitAndAssert(lockingRepo.releaseLock("testJob")) {
+          _ mustBe true
+        }
+      }
+    }
+
+    "do not release a job" when {
+      "the lock does not exist" in {
+        awaitAndAssert(lockingRepo.isJobLocked("testJob")) {
+          _ mustBe false
+        }
+      }
     }
   }
 }
-
-
-
-
-
-

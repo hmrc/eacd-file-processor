@@ -44,6 +44,7 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
   when(mockAppConfig.internalAuthService).thenReturn("http://localhost:8470")
   when(mockAppConfig.internalAuthToken).thenReturn("12345678")
   when(mockAppConfig.appName).thenReturn("eacd-file-processor")
+  when(mockAppConfig.emailEnabled).thenReturn(true)
 
   trait Setup {
     val repository: FileRepository = mock[FileRepository]

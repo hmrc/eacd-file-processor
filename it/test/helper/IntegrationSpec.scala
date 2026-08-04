@@ -27,7 +27,7 @@ import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test.Injecting
 import play.api.Application
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
-import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, LockingRepository}
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, JobLockRepository}
 import uk.gov.hmrc.eacdfileprocessor.services.{AuditService, EmailService}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.MongoComponent
@@ -50,7 +50,7 @@ trait IntegrationSpec extends PlaySpec
   lazy val lockingTestTimeout: Int = 25
 
   lazy val fileRepository = app.injector.instanceOf[FileRepository]
-  lazy val lockingRepo: LockingRepository = app.injector.instanceOf[LockingRepository]
+  lazy val lockingRepo: JobLockRepository = app.injector.instanceOf[JobLockRepository]
   lazy val metricRegistry = app.injector.instanceOf[MetricRegistry]
   lazy val counter = app.injector.instanceOf[Counter]
   lazy val mongoRepository: MongoComponent = app.injector.instanceOf[MongoComponent]
@@ -74,7 +74,8 @@ trait IntegrationSpec extends PlaySpec
     "work-item.retry-in-progress-after.seconds" -> 30,
     "work-item.ttlInHours" -> 720,
     "locking.timeoutMinutes" -> lockingTestTimeout,
-    "fileExpiryDays" -> 60
+    "fileExpiryDays" -> 60,
+    "email.enabled" -> true,
   )
 
   override lazy val app: Application = new GuiceApplicationBuilder()

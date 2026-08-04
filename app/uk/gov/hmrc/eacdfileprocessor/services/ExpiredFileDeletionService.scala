@@ -30,12 +30,12 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class ExpiredFileDeletionService @Inject()(
-                                          appConfig: AppConfig,
-                                          fileRepository: FileRepository,
-                                          osClient: PlayObjectStoreClient,
-                                          lockService: LockService,
-                                          emailService: EmailService
-                                        ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
+                                            appConfig: AppConfig,
+                                            fileRepository: FileRepository,
+                                            osClient: PlayObjectStoreClient,
+                                            lockService: LockService,
+                                            emailService: EmailService
+                                          ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
 
   private given HeaderCarrier = HeaderCarrier()
 

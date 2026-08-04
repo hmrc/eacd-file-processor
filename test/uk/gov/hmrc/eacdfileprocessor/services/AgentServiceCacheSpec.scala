@@ -16,7 +16,6 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
-import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{reset, times, verify, when}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
@@ -71,7 +70,7 @@ class AgentServiceCacheSpec extends TestSupport {
       when(appConfig.sec0CacheRefreshHours).thenReturn(24)
       val firstCall = Set("IR-SA", "VAT")
       val secondCall = Set("IR-SA", "VAT", "ITSA")
-      
+
       when(sec0Connector.getAgentServiceKeys())
         .thenReturn(Future.successful(firstCall))
         .thenReturn(Future.successful(secondCall))
@@ -79,7 +78,9 @@ class AgentServiceCacheSpec extends TestSupport {
       var currentTime = Instant.parse("2026-06-16T12:00:00Z")
       val advancingClock: Clock = new Clock {
         override def getZone: ZoneId = ZoneId.of("UTC")
+
         override def withZone(zone: ZoneId): Clock = this
+
         override def instant(): Instant = currentTime
       }
 

@@ -19,24 +19,22 @@ package uk.gov.hmrc.eacdfileprocessor.repository
 import helper.IntegrationSpec
 import org.mongodb.scala.SingleObservableFuture
 import org.mongodb.scala.model.{Filters, Updates}
+import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
-import uk.gov.hmrc.mongo.workitem.ProcessingStatus
-import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus.ToDo
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem, WorkItemFields}
 
+import java.time.Instant
+import java.time.Instant.now
+import java.time.temporal.ChronoUnit
 import scala.language.postfixOps
 
-class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
-  private val mockAppConfig = mock[AppConfig]
-
-  private val mongoRepository: MongoComponent = app.injector.instanceOf[MongoComponent]
-  private val repository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, mockAppConfig)
+class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec with Eventually{
+  private val repository = app.injector.instanceOf[DeEnrolmentWorkItemMongoRepository]
 
   override def beforeEach(): Unit = {
     await(repository.collection.deleteMany(Filters.exists("_id")).toFuture())
@@ -44,14 +42,14 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
 
   "repository" should {
     "update status of an item of work to Succeeded when successfully completed" in {
-      val result: Seq[WorkItem[DeEnrolmentWorkItem]] = await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+      val result: Seq[WorkItem[DeEnrolmentWorkItem]] = await(repository.saveRecordDetails(deEnrolmentWorkItems))
       result.size shouldBe 2
       result(0).status shouldBe ToDo
       result(1).status shouldBe ToDo
     }
 
     "delete work items by reference" in {
-      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
       await(repository.deleteWorkItemsByReference("ref1"))
       val count = await(repository.collection.countDocuments().toFuture())
@@ -59,8 +57,8 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
     }
 
     "return the count of incomplete work items" in {
-      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
-      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref2"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
       val count = await(repository.incompleteWorkItemsCountForRef("ref1"))
       count shouldBe 2
@@ -70,10 +68,10 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
       val allStatuses = ProcessingStatus.values.toSeq
       val incompleteStatuses = Set(ToDo, ProcessingStatus.InProgress)
 
-      await(repository.saveRecordDetails(Seq(deEnrolmentWorkItems.last), "ref2"))
+      await(repository.saveRecordDetails(Seq(deEnrolmentWorkItems.last)))
       allStatuses.foreach { status =>
         val workItem = deEnrolmentWorkItems.head.copy(recordDetail = s"IR-SA-UTR-${status.name.toLowerCase},principal")
-        await(repository.saveRecordDetails(Seq(workItem), workItem.reference))
+        await(repository.saveRecordDetails(Seq(workItem)))
         await(
           repository.collection
             .updateMany(
@@ -89,30 +87,60 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
     }
 
     "pull up to limit and not return already claimed items on subsequent calls" in {
-      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref-limit"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
       val firstPull = await(repository.pullOutstandingBatch(1))
       firstPull.size shouldBe 1
+      firstPull.head.item.reference shouldBe "ref1"
       firstPull.head.status shouldBe ProcessingStatus.InProgress
 
       val secondPull = await(repository.pullOutstandingBatch(10))
       secondPull.size shouldBe 1
+      secondPull.head.item.reference shouldBe "ref2"
       secondPull.head.status shouldBe ProcessingStatus.InProgress
 
       val thirdPull = await(repository.pullOutstandingBatch(10))
       thirdPull shouldBe Seq.empty
     }
 
-    "only allow markAsInProgress once for the same work item" in {
-      val result = await(repository.saveRecordDetails(Seq(deEnrolmentWorkItems.head), "ref-cas"))
-      val workItemId = result.head.id
+    "pull up stale workItems correctly" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
+      val updatedAt = now().minus(30, ChronoUnit.MINUTES)
+      val pull = await(repository.pullOutstandingBatch(5))
+      await(repository.updateById(pull.head.id, 1, updatedAt))
+      await(repository.updateById(pull.last.id, 1, updatedAt))
 
-      await(repository.markAsInProgress(workItemId)) shouldBe true
-      await(repository.markAsInProgress(workItemId)) shouldBe false
+      val secondPull = await(repository.pullOutstandingBatch(5))
+      secondPull.size shouldBe 2
+      val workItem = secondPull.head
+      workItem.status shouldBe ProcessingStatus.InProgress
+      workItem.failureCount shouldBe 2
+    }
+
+    "update status to succeeded when retried 3 times" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
+      val updatedAt = now().minus(30, ChronoUnit.MINUTES)
+      val pull = await(repository.pullOutstandingBatch(5))
+
+      eventually {
+        await(repository.updateById(pull.head.id, 3, updatedAt))
+        await(repository.updateById(pull.last.id, 3, updatedAt))
+
+        val thirdPull = await(repository.pullOutstandingBatch(5))
+        thirdPull.size shouldBe 0
+        
+        val workItem1 = await(repository.findByReference("ref1")).head
+        workItem1.status shouldBe ProcessingStatus.Succeeded
+        workItem1.failureCount shouldBe 3
+        val workItem2 = await(repository.findByReference("ref2")).head
+        workItem2.status shouldBe ProcessingStatus.Succeeded
+        workItem2.failureCount shouldBe 3
+      }
+
     }
 
     "return empty for non-positive pull limits" in {
-      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref-zero"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
       await(repository.pullOutstandingBatch(0)) shouldBe Seq.empty
       await(repository.pullOutstandingBatch(-1)) shouldBe Seq.empty
@@ -124,13 +152,13 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
         DeEnrolmentWorkItem("test-ref-123", "IR-SA-UTR-1234567890,principal", java.time.Instant.now()),
         DeEnrolmentWorkItem("test-ref-123", "IR-SA-UTR-1234567892,principal", java.time.Instant.now())
       )
-      await(repository.saveRecordDetails(itemsWithSameRef, "test-ref-123"))
+      await(repository.saveRecordDetails(itemsWithSameRef))
 
       // Create items with a different reference
       val itemsWithDifferentRef = Seq(
         DeEnrolmentWorkItem("other-ref-456", "IR-SA-UTR-9999999999,principal", java.time.Instant.now())
       )
-      await(repository.saveRecordDetails(itemsWithDifferentRef, "other-ref-456"))
+      await(repository.saveRecordDetails(itemsWithDifferentRef))
 
       // Query for items with reference "test-ref-123"
       val result: Seq[WorkItem[DeEnrolmentWorkItem]] = await(repository.findByReference("test-ref-123"))
@@ -149,7 +177,7 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
     }
 
     "return empty sequence when no WorkItems match the reference" in {
-      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
       val result: Seq[WorkItem[DeEnrolmentWorkItem]] = await(repository.findByReference("nonexistent-ref"))
 
@@ -160,15 +188,15 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
       val refCountItems = deEnrolmentWorkItems.map(_.copy(reference = "ref-count"))
       val refOtherItems = deEnrolmentWorkItems.map(_.copy(reference = "ref-other"))
 
-      await(repository.saveRecordDetails(refCountItems, "ref-count"))
-      await(repository.saveRecordDetails(refOtherItems, "ref-other"))
+      await(repository.saveRecordDetails(refCountItems))
+      await(repository.saveRecordDetails(refOtherItems))
 
       val count = await(repository.countRemainingNonCompleteByReference("ref-count"))
       count shouldBe 2
     }
 
     "countRemainingNonCompleteByReference should return 0 for non-existent reference" in {
-      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
       val count = await(repository.countRemainingNonCompleteByReference("nonexistent-ref-count"))
       count shouldBe 0
@@ -178,8 +206,8 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
       val deleteRefItems = deEnrolmentWorkItems.map(_.copy(reference = "ref-delete"))
       val otherRefItems = deEnrolmentWorkItems.map(_.copy(reference = "ref-other"))
 
-      await(repository.saveRecordDetails(deleteRefItems, "ref-delete"))
-      await(repository.saveRecordDetails(otherRefItems, "ref-other"))
+      await(repository.saveRecordDetails(deleteRefItems))
+      await(repository.saveRecordDetails(otherRefItems))
 
       await(repository.deleteByReference("ref-delete"))
       val countOther = await(repository.collection.countDocuments(Filters.eq("item.reference", "ref-other")).toFuture())
@@ -188,7 +216,7 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec {
     }
 
     "deleteByReference should not fail when reference does not exist" in {
-      await(repository.saveRecordDetails(deEnrolmentWorkItems, "ref1"))
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
       await(repository.deleteByReference("nonexistent-ref-delete")) shouldBe()
       val count = await(repository.collection.countDocuments().toFuture())

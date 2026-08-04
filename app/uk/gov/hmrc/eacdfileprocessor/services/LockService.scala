@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import play.api.Logging
-import uk.gov.hmrc.eacdfileprocessor.repository.LockingRepository
+import uk.gov.hmrc.eacdfileprocessor.repository.JobLockRepository
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -27,7 +27,7 @@ case object MongoLocked extends LockResponse
 case object UnlockingFailed extends LockResponse
 
 @Singleton
-class LockService @Inject()(lockRepository: LockingRepository) extends Logging {
+class LockService @Inject()(lockRepository: JobLockRepository) extends Logging {
 
   def lockAndRelease[T](job: String)(f: => Future[T])(using ExecutionContext): Future[Either[T, LockResponse]] =
     lockRepository.lockJob(job).flatMap {
