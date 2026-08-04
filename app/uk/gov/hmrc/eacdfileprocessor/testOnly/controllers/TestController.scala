@@ -22,7 +22,7 @@ import org.apache.pekko.util.ByteString
 import play.api.libs.streams.Accumulator
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, FileRecordValidationErrorRepository}
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.http.UpstreamErrorResponse
 import uk.gov.hmrc.internalauth.client.*
@@ -40,7 +40,8 @@ class TestController @Inject()(
                                 val configuration: Configuration,
                                 val auth: BackendAuthComponents,
                                 val objectStoreClient: PlayObjectStoreClient,
-                                repository: FileRepository
+                                fileRepository: FileRepository,
+                                fileRecordValidationErrorRepository: FileRecordValidationErrorRepository
                               )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
   val providedPermission = Predicate.or(
     Predicate.Permission(
@@ -73,9 +74,10 @@ class TestController @Inject()(
     }
 
   def deleteAllObjects(): Action[AnyContent] = Action.async {
-    repository.dropCollection()
-      .map{_ =>
-        Ok("All test records deleted.")
+    fileRepository.dropCollection().flatMap { _ =>
+        fileRecordValidationErrorRepository.dropCollection().map { _ =>
+          Ok("All test records deleted.")
+        }
       }
       .recover {
         case e: Exception =>

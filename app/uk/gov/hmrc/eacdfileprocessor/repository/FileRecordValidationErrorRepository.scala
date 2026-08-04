@@ -74,4 +74,7 @@ class FileRecordValidationErrorRepository @Inject()(mongoComponent: MongoCompone
       .toFuture()
       .map(_.toInt)
   }
+
+  def dropCollection(): Future[Unit] =
+    collection.drop().toFuture().map(_ => ())
 }
