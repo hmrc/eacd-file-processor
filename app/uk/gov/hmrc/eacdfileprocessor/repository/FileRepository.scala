@@ -23,7 +23,7 @@ import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.*
 import org.mongodb.scala.model.Aggregates.{`match`, group}
-import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.model.Filters.{equal, or, exists}
 import org.mongodb.scala.model.Updates.{combine, inc, set}
 import org.mongodb.scala.result.DeleteResult
 import org.mongodb.scala.{MongoWriteException, model}
@@ -208,9 +208,12 @@ class FileRepository @Inject()(
     ))
   }
 
-  def findByStatusAsUploadedDetails(status: FileStatus): Future[Seq[UploadedDetails]] = {
+  def findByStatusAsUploadedDetailsWithSuccessOrFailureCount(status: FileStatus): Future[Seq[UploadedDetails]] = {
     collection.find(
-      equal("status", status.value)
+      Filters.and(
+        equal("status", status.value),
+        or(exists("totalFailureCount"), exists("totalSuccessCount"))
+      )
     ).toFuture()
   }
 
