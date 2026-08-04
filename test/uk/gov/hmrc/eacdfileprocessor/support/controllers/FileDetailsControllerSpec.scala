@@ -55,7 +55,6 @@ class FileDetailsControllerSpec extends TestSupport with TestData with DefaultAw
     mockConfig,
     mockAuth,
     mockObjectStoreClient,
-    mockRepository,
     mockFileDetailService) {
     override def authorisedEntity(
                                    providedPermission: Predicate,
@@ -105,7 +104,7 @@ class FileDetailsControllerSpec extends TestSupport with TestData with DefaultAw
 
       status(result) shouldBe OK
       val body = contentAsJson(result)
-      (body \ "reference" \ "value").as[String] shouldBe "test-ref-123"
+      (body \ "reference").as[String] shouldBe "test-ref-123"
       (body \ "status").as[String] shouldBe successResponse.status.value
     }
 
@@ -116,7 +115,7 @@ class FileDetailsControllerSpec extends TestSupport with TestData with DefaultAw
 
       status(result) shouldBe OK
       val body = contentAsJson(result)
-      (body \ "reference" \ "value").as[String] shouldBe "test-ref-456"
+      (body \ "reference").as[String] shouldBe "test-ref-456"
       (body \ "status").as[String] shouldBe failedResponse.status.value
     }
 
@@ -127,7 +126,7 @@ class FileDetailsControllerSpec extends TestSupport with TestData with DefaultAw
 
       status(result) shouldBe OK
       val body = contentAsJson(result)
-      (body \ "reference" \ "value").as[String] shouldBe "test-ref-789"
+      (body \ "reference").as[String] shouldBe "test-ref-789"
       (body \ "status").as[String] shouldBe APPROVED.value
     }
 

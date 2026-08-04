@@ -22,8 +22,6 @@ import play.api.mvc.*
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.repository.FileUploadRepoFormat.mongoFormat
-import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, FileUploadRepoFormat}
 import uk.gov.hmrc.eacdfileprocessor.services.FileDetailService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.internalauth.client.*
@@ -39,7 +37,6 @@ class FileDetailsController @Inject()(
                                        val configuration: Configuration,
                                        val auth: BackendAuthComponents,
                                        val objectStoreClient: PlayObjectStoreClient,
-                                       repository: FileRepository,
                                        fileDetailService: FileDetailService
                                      )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
 
@@ -52,7 +49,7 @@ class FileDetailsController @Inject()(
     .async { implicit request: AuthRequest[AnyContent] =>
       fileDetailService.getFileDetail(reference)
         .map {
-          case Some(details) => Ok(Json.toJson(details)(mongoFormat))
+          case Some(details) => Ok(Json.toJson(details))
           case None => NoContent
         }
         .recover {

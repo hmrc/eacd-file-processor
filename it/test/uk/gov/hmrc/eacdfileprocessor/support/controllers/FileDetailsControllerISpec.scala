@@ -144,9 +144,11 @@ class FileDetailsControllerISpec extends IntegrationSpec with TestData with Defa
 
       val json = Json.parse(contentAsString(resultF))
 
-      (json \ "_id" \ "$oid").asOpt[String] shouldBe Some(withApprover.id.toHexString)
+      println(Console.MAGENTA + Json.prettyPrint(json)+ Console.RESET)
 
-      (json \ "reference" \ "value").asOpt[String] shouldBe Some(reference)
+      (json \ "id").asOpt[String] shouldBe Some(withApprover.id.toHexString)
+      (json \ "reference").asOpt[String] shouldBe Some(reference)
+
 
       (json \ "status").asOpt[String] shouldBe Some("approved")
       (json \ "requestorPID").asOpt[String] shouldBe Some("12345678")
@@ -171,8 +173,8 @@ class FileDetailsControllerISpec extends IntegrationSpec with TestData with Defa
 
       (json \ "uploadedDateTime").asOpt[String] shouldBe None
       (json \ "lastUpdatedDateTime").asOpt[String] shouldBe None
-      (json \ "approvedAtDateTime" \ "$date" \ "$numberLong").asOpt[String] shouldBe Some("1771418638342")
-      (json \ "creationDateTime" \ "$date" \ "$numberLong").asOpt[String] shouldBe Some("1771418638342")
+      (json \ "approvedAtDateTime").asOpt[String] shouldBe Some("2026-02-18T12:43:58.342Z")
+      (json \ "creationDateTime").asOpt[String] shouldBe Some("2026-02-18T12:43:58.342Z")
     }
   }
 }
