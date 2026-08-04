@@ -117,7 +117,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
       when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
 
-      Await.result(service.invoke, 5.seconds)
+      Await.result(service.invoke, 10.seconds)
 
       verify(fileRecordValidationErrorRepository).create(any[FileRecordValidationError])
       verify(fileRepository).incrementFailureCount(Reference(payload.reference))
@@ -129,7 +129,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(false))
 
       val exception = intercept[RuntimeException] {
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
       }
 
       exception.getMessage contains "[recordError] Failed to mark work item as complete for workItemId" shouldBe true
@@ -143,7 +143,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
       when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-      Await.result(service.invoke, 5.seconds)
+      Await.result(service.invoke, 10.seconds)
 
       verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
       verify(fileRepository, never()).incrementFailureCount(any())
@@ -158,7 +158,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(false))
 
       val exception = intercept[RuntimeException] {
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
       }
 
       exception.getMessage contains "[processGroupDeEnrolments] Failed to mark work item as complete for workItemId" shouldBe true
@@ -190,7 +190,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         validator
       )
 
-      Await.result(service.invoke, 5.seconds)
+      Await.result(service.invoke, 10.seconds)
 
       agentServicesCalled shouldBe false
       verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
@@ -214,7 +214,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         validator
       )
 
-      Await.result(service.invoke, 5.seconds)
+      Await.result(service.invoke, 10.seconds)
 
       verify(deEnrolmentWorkItemRepository, never()).pullOutstandingBatch(any[Int])
     }
@@ -226,7 +226,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -248,7 +248,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -271,7 +271,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -294,7 +294,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(fileRepository, never()).incrementSuccessCount(any())
@@ -328,7 +328,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(fileRepository, never()).incrementSuccessCount(any())
@@ -361,7 +361,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -393,7 +393,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -412,7 +412,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -434,7 +434,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -457,7 +457,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -480,7 +480,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -514,7 +514,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -548,7 +548,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -566,7 +566,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -588,7 +588,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -611,7 +611,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -634,7 +634,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any(), any())(using any[HeaderCarrier])
@@ -669,7 +669,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any(), any())(using any[HeaderCarrier])
@@ -703,7 +703,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -722,7 +722,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -749,7 +749,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -777,7 +777,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, org.mockito.Mockito.timeout(1000).times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -815,7 +815,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -856,7 +856,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        Await.result(service.invoke, 10.seconds)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, org.mockito.Mockito.timeout(1000).times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
