@@ -43,19 +43,24 @@ class DeEnrolmentWorkItemPullJobSpec extends TestSupport {
     "initialize with expected defaults and register stop hook" in {
       val lifecycle = StubLifecycle()
       val schedulerService = mock[DeEnrolmentWorkItemSchedulerService]
-      val config = Configuration.from(Map("schedules.DeEnrolmentWorkItemPullJob.enabled" -> false))
+      val config = Configuration.from(
+        Map(
+          "schedules.DeEnrolmentWorkItemPullJob.enabled"    -> false,
+          "schedules.DeEnrolmentWorkItemPullJob.expression" -> "0_*_*_?_*_*"
+        )
+      )
 
       val job = DeEnrolmentWorkItemPullJob(config, schedulerService, lifecycle)
 
       job.jobName shouldBe "DeEnrolmentWorkItemPullJob"
       job.deEnrolmentWorkItemSchedulerService shouldBe schedulerService
-      job.interval shouldBe None
+      job.enabled shouldBe false
+      job.description shouldBe None
       lifecycle.stopHookCalls shouldBe 1
 
       await(job.actorSystem.terminate())
     }
   }
 }
-
 
 

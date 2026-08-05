@@ -18,7 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.scheduler
 
 import org.apache.pekko.actor.ActorSystem
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{never, verify, when}
+import org.mockito.Mockito.{verify, when}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.{DeEnrolmentWorkItemPullMessage, ExpiredFileDeletionMessage, ProcessApprovedFileMessage}
 import uk.gov.hmrc.eacdfileprocessor.services.{ExpiredFileDeletionService, LockResponse, ProcessApprovedFileService}
@@ -50,46 +50,6 @@ class SchedulingActorSpec extends TestSupport {
 
       Await.result(invoked.future, 2.seconds)
       verify(service).invoke(using any[ExecutionContext])
-    }
-
-    "not invoke the service when the message canRun returns false" in withActorSystem { system =>
-      val actor           = system.actorOf(SchedulingActor.props)
-      val skippedService  = mock[ProcessApprovedFileService]
-      val allowedService  = mock[ProcessApprovedFileService]
-      val allowedInvoked  = Promise[Unit]()
-
-      when(allowedService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
-        allowedInvoked.success(())
-        Future.successful(Left(()): Either[Unit, LockResponse])
-      }
-
-      // The skipped message is sent first; because the actor processes messages in order, once the
-      // second (allowed) message has run we know the first was handled and deliberately not invoked.
-      actor ! ProcessApprovedFileMessage(skippedService, canRun = () => false, skipReason = Some("outside window"))
-      actor ! ProcessApprovedFileMessage(allowedService, canRun = () => true)
-
-      Await.result(allowedInvoked.future, 2.seconds)
-      verify(skippedService, never()).invoke(using any[ExecutionContext])
-      verify(allowedService).invoke(using any[ExecutionContext])
-    }
-
-    "not invoke a DeEnrolmentWorkItemPull service when canRun returns false" in withActorSystem { system =>
-      val actor          = system.actorOf(SchedulingActor.props)
-      val skippedService = mock[ScheduledService[Either[Unit, LockResponse]]]
-      val allowedService = mock[ScheduledService[Either[Unit, LockResponse]]]
-      val allowedInvoked = Promise[Unit]()
-
-      when(allowedService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
-        allowedInvoked.success(())
-        Future.successful(Left(()): Either[Unit, LockResponse])
-      }
-
-      actor ! DeEnrolmentWorkItemPullMessage(skippedService, canRun = () => false, skipReason = Some("outside window"))
-      actor ! DeEnrolmentWorkItemPullMessage(allowedService, canRun = () => true)
-
-      Await.result(allowedInvoked.future, 2.seconds)
-      verify(skippedService, never()).invoke(using any[ExecutionContext])
-      verify(allowedService).invoke(using any[ExecutionContext])
     }
 
     "invoke ScheduledService when DeEnrolmentWorkItemPullMessage is received" in withActorSystem { system =>
@@ -150,7 +110,7 @@ class SchedulingActorSpec extends TestSupport {
       verify(service).invoke(using any[ExecutionContext])
     }
 
-    "invoke ExpiredFileDeletionService when ExpiredFileDeleteMessage is received" in withActorSystem { system =>
+    "invoke ExpiredFileDeletionService when ExpiredFileDeletionMessage is received" in withActorSystem { system =>
       val actor = system.actorOf(SchedulingActor.props)
       val service = mock[ExpiredFileDeletionService]
       val invoked = Promise[Unit]()
@@ -166,7 +126,7 @@ class SchedulingActorSpec extends TestSupport {
       verify(service).invoke(using any[ExecutionContext])
     }
 
-    "continue handling later expired-file-delete messages when one invocation future fails" in withActorSystem { system =>
+    "continue handling later expired-file-deletion messages when one invocation future fails" in withActorSystem { system =>
       val actor = system.actorOf(SchedulingActor.props)
       val failingService = mock[ExpiredFileDeletionService]
       val succeedingService = mock[ExpiredFileDeletionService]

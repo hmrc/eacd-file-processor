@@ -27,9 +27,9 @@ import javax.inject.Inject
 class FileStatusUpdateJob @Inject()(val config: Configuration,
                                     val fileStatusUpdateService: FileStatusUpdateService) extends ScheduledJob {
 
-  val jobName: String           = "FileStatusUpdateJob"
-  val actorSystem: ActorSystem  = ActorSystem(jobName)
-  val scheduledMessage          = FileStatusUpdateMessage(fileStatusUpdateService, () => isWithinAllowedUtcWindow(), utcWindowSkipReason)
+  val jobName: String = "FileStatusUpdateJob"
+  val actorSystem: ActorSystem = ActorSystem(jobName)
+  val scheduledMessage = FileStatusUpdateMessage(fileStatusUpdateService)
 
   schedule
 }

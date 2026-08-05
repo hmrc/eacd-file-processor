@@ -27,9 +27,9 @@ import javax.inject.Inject
 class ExpiredFileDeletionJob @Inject()(val config: Configuration,
                                        val expiredFileDeletionService: ExpiredFileDeletionService) extends ScheduledJob {
 
-  val jobName: String           = "ExpiredFileDeletionJob"
-  val actorSystem: ActorSystem  = ActorSystem(jobName)
-  val scheduledMessage          = ExpiredFileDeletionMessage(expiredFileDeletionService, () => isWithinAllowedUtcWindow(), utcWindowSkipReason)
+  val jobName: String = "ExpiredFileDeletionJob"
+  val actorSystem: ActorSystem = ActorSystem(jobName)
+  val scheduledMessage = ExpiredFileDeletionMessage(expiredFileDeletionService)
 
   schedule
 }

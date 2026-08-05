@@ -27,9 +27,9 @@ import javax.inject.Inject
 class ProcessApprovedFileJob @Inject()(val config: Configuration,
                                        val processApprovedFilesService: ProcessApprovedFileService) extends ScheduledJob {
 
-  val jobName: String           = "ProcessApprovedFileJob"
-  val actorSystem: ActorSystem  = ActorSystem(jobName)
-  val scheduledMessage          = ProcessApprovedFileMessage(processApprovedFilesService, () => isWithinAllowedUtcWindow(), utcWindowSkipReason)
+  val jobName: String = "ProcessApprovedFileJob"
+  val actorSystem: ActorSystem = ActorSystem(jobName)
+  val scheduledMessage = ProcessApprovedFileMessage(processApprovedFilesService)
 
   schedule
 }

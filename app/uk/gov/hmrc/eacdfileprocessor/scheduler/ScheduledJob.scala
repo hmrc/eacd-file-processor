@@ -19,12 +19,14 @@ package uk.gov.hmrc.eacdfileprocessor.scheduler
 import org.apache.pekko.actor.{ActorRef, ActorSystem, Cancellable}
 import org.slf4j.{Logger, LoggerFactory}
 import play.api.Configuration
+import uk.gov.hmrc.eacdfileprocessor.config.{CronExpressionParser, CronSpec}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.ScheduledMessage
 
-import java.time.format.DateTimeParseException
-import java.time.{Clock, LocalTime}
+import java.time.{ZoneOffset, ZonedDateTime, Duration as JavaDuration}
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.concurrent.duration.{DurationLong, FiniteDuration}
+import scala.util.Try
+import scala.util.control.NonFatal
 
 trait ScheduledJob {
   private[scheduler] val logger: Logger = LoggerFactory.getLogger(getClass)
@@ -38,86 +40,71 @@ trait ScheduledJob {
 
   lazy val schedulingActorRef: ActorRef = actorSystem.actorOf(SchedulingActor.props)
 
-  lazy val enabled: Boolean = config.getOptional[Boolean](s"schedules.$jobName.enabled").getOrElse(false)
+  lazy val enabled: Boolean =
+    config.getOptional[Boolean](s"schedules.$jobName.enabled").getOrElse(false)
 
-  lazy val description: Option[String] = config.getOptional[String](s"schedules.$jobName.description")
+  lazy val description: Option[String] =
+    config.getOptional[String](s"schedules.$jobName.description")
 
-  lazy val interval: Option[FiniteDuration] = config.getOptional[FiniteDuration](s"schedules.$jobName.interval")
+  private[scheduler] lazy val expression: Option[String] =
+    config.getOptional[String](s"schedules.$jobName.expression")
+      .map(_.replace('_', ' ').trim)
+      .filter(_.nonEmpty)
 
-  lazy val startTimeUtc: Option[LocalTime] = readOptionalUtcTime("start-time-utc")
-
-  lazy val endTimeUtc: Option[LocalTime] = readOptionalUtcTime("end-time-utc")
-
-  private[scheduler] lazy val utcWindow: Option[(LocalTime, LocalTime)] =
-    (startTimeUtc, endTimeUtc) match {
-      case (Some(start), Some(end)) => Some((start, end))
-      case _                        => None
-    }
-
-  private[scheduler] lazy val hasPartialUtcWindowConfig: Boolean =
-    (startTimeUtc.isDefined && endTimeUtc.isEmpty) || (startTimeUtc.isEmpty && endTimeUtc.isDefined)
-
-  private[scheduler] def currentUtcTime: LocalTime = LocalTime.now(Clock.systemUTC())
-
-  private[scheduler] def isWithinAllowedUtcWindow(nowUtc: LocalTime = currentUtcTime): Boolean =
-    utcWindow match {
-      // No window configured: allow all runs.
-      case None =>
-        true
-      // Equal bounds means full-day window.
-      case Some((start, end)) if start == end =>
-        true
-      // Same-day window (for example 09:00 -> 17:00).
-      case Some((start, end)) if start.isBefore(end) =>
-        val isAtOrAfterStart = !nowUtc.isBefore(start)
-        val isBeforeEnd      = nowUtc.isBefore(end)
-        isAtOrAfterStart && isBeforeEnd
-      // Overnight window (for example 22:00 -> 05:00).
-      case Some((start, end)) =>
-        val isAtOrAfterStart = !nowUtc.isBefore(start)
-        val isBeforeEnd      = nowUtc.isBefore(end)
-        isAtOrAfterStart || isBeforeEnd
-    }
-
-  private[scheduler] lazy val utcWindowSkipReason: Option[String] =
-    utcWindow.map((start, end) => s"outside configured UTC run window [$start, $end)")
-
-  private def readOptionalUtcTime(configKey: String): Option[LocalTime] =
-    config
-      .getOptional[String](s"schedules.$jobName.$configKey")
-      .flatMap { value =>
-        try
-          Some(LocalTime.parse(value))
-        catch {
-          case _: DateTimeParseException =>
-            logger.warn(s"Ignoring invalid UTC time for schedules.$jobName.$configKey. Expected format like HH:mm, got '$value'")
-            None
-        }
+  private[scheduler] lazy val cronSpec: Option[CronSpec] =
+    expression.flatMap { expr =>
+      Try(CronExpressionParser.parse(expr)).toOption.orElse {
+        logger.warn(s"Invalid cron expression for schedules.$jobName.expression: '$expr'")
+        None
       }
+    }
 
-  private[scheduler] def scheduleAtFixedRate(every: FiniteDuration): Cancellable =
-    actorSystem.scheduler.scheduleAtFixedRate(
-      initialDelay = 0.seconds,
-      interval = every,
-      receiver = schedulingActorRef,
-      message = scheduledMessage
-    )
+  private[scheduler] def nowUtc: ZonedDateTime =
+    ZonedDateTime.now(ZoneOffset.UTC)
+
+  private[scheduler] def nextDelay(spec: CronSpec, from: ZonedDateTime): FiniteDuration = {
+    val nextRun = spec.nextAfter(from)
+    val millis = JavaDuration.between(from, nextRun).toMillis.max(0L)
+    millis.millis
+  }
+
+  private[scheduler] def triggerAndReschedule(spec: CronSpec): Unit = {
+    try {
+      logger.debug(s"Triggering scheduled job: $jobName")
+      schedulingActorRef ! scheduledMessage
+    } catch {
+      case NonFatal(e) =>
+        logger.error(s"Scheduled job $jobName failed while dispatching message", e)
+    } finally {
+      scheduleNext(spec)
+    }
+  }
+
+  private[scheduler] def scheduleNext(spec: CronSpec): Cancellable = {
+    val from = nowUtc
+
+    try {
+      val delay = nextDelay(spec, from)
+      logger.debug(s"Next run for $jobName scheduled in $delay from $from")
+      actorSystem.scheduler.scheduleOnce(delay) {
+        triggerAndReschedule(spec)
+      }
+    } catch {
+      case NonFatal(e) =>
+        logger.error(s"Failed to schedule next run for $jobName", e)
+        throw e
+    }
+  }
 
   lazy val schedule: Unit = {
-
-    (enabled, interval) match {
-      case (true, Some(duration)) =>
-        if (hasPartialUtcWindowConfig) {
-          logger.warn(s"Ignoring UTC run window for $jobName because both start-time-utc and end-time-utc must be configured together")
-        }
-        scheduleAtFixedRate(duration)
-        logger.info(s"Scheduler for $jobName has been started with interval: $duration")
+    (enabled, cronSpec) match {
+      case (true, Some(spec)) =>
+        scheduleNext(spec)
+        logger.info(s"Scheduler for $jobName started with expression: ${expression.getOrElse("")}")
       case (true, None) =>
-        logger.info(s"Scheduler for $jobName is disabled as there is no interval configured")
+        logger.info(s"Scheduler for $jobName is disabled as there is no valid expression configured")
       case (false, _) =>
         logger.info(s"Scheduler for $jobName is disabled by configuration")
     }
-
   }
-
 }
