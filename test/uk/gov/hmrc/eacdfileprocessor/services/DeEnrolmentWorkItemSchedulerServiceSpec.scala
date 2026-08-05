@@ -28,12 +28,14 @@ import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK}
 import play.api.libs.json.Json
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
+import uk.gov.hmrc.play.audit.http.connector.AuditResult
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
-import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, FileStatus, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.{ApproverDetails, DeEnrolmentWorkItem, Details, FileRecordValidationError, FileStatus, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository, JobLockRepository}
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse}
+import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 
 import java.net.URI
 import java.time.Instant
@@ -51,8 +53,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
     requestorEmail = "test@hmrc.gov.uk",
     requestorName = "Test User",
     creationDateTime = Instant.now(),
-    details = Some(Details.UploadedSuccessfully("abc.csv", "text/csv", URI("http://localhost/file").toURL, Some(10), "aa"))
+    details = Some(Details.UploadedSuccessfully("abc.csv", "text/csv", URI("http://localhost/file").toURL, Some(10), "aa")),
+    approverDetails = Some(ApproverDetails(
+      approverEmail = Some("approverTest@hmrc.gov.uk"),
+      approverPID = Some("12345678"),
+      approverName = Some("Approver1")
+    ))
   )
+
 
 
   val payload = DeEnrolmentWorkItem(
@@ -77,8 +85,16 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
     }
     val validator: DeEnrolmentWorkItemValidator = mock[DeEnrolmentWorkItemValidator]
     val lockRepository: JobLockRepository = mock[JobLockRepository]
+    lazy val mockAuditConnector = mock[AuditConnector]
+    val auditService: AuditService = mock[AuditService]
+    when(auditService.auditDeallocateEnrolmentEvent(any(), any(), any())(any()))
+      .thenReturn(Future.successful(AuditResult.Success))
 
     when(appConfig.DeEnrolmentWorkItemConcurrency).thenReturn(5)
+    when(fileRepository.incrementSuccessCount(any())).thenReturn(Future.successful(None))
+
+    when(mockAuditConnector.sendExtendedEvent(any())(any(), any()))
+      .thenReturn(Future.successful(AuditResult.Success))
 
     val lockService: LockService = new LockService(lockRepository) {
       override def lockAndRelease[T](job: String)(f: => Future[T])(using ExecutionContext): Future[Either[T, LockResponse]] =
@@ -93,7 +109,8 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       espConnector,
       lockService,
       agentServiceCache,
-      validator
+      validator,
+      auditService
     )
 
     val workItem: WorkItem[DeEnrolmentWorkItem] = WorkItem(
@@ -161,7 +178,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         await(service.invoke)
       }
 
-      exception.getMessage contains "[processGroupDeEnrolments] Failed to mark work item as complete for workItemId" shouldBe true
+      exception.getMessage should include("[workItemProcessedSuccessfully] Failed to mark work item as complete for workItemId")
     }
 
     "not call agentServiceCache when no work items are pulled" in new Setup {
@@ -187,7 +204,8 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         espConnector,
         lockService,
         agentServiceCache,
-        validator
+        validator,
+        auditService
       )
 
       await(service.invoke)
@@ -211,7 +229,8 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         espConnector,
         lockService,
         agentServiceCache,
-        validator
+        validator,
+        auditService
       )
 
       await(service.invoke)
@@ -232,6 +251,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(fileRepository, times(1)).incrementSuccessCount(any())
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(auditService, times(1)).auditDeallocateEnrolmentEvent(any(), any(), any())(any())
       }
 
       "The action is principal and calls ES9" in new Setup {
@@ -298,9 +318,10 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
-        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
-        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(auditService, never()).auditDeallocateEnrolmentEvent(any(), any(), any())(any())
       }
 
       "The action is principal and SE1 return multiple errors with a 400" in new Setup {
