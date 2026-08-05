@@ -619,6 +619,30 @@ class DeEnrolmentWorkItemSchedulerServiceISpec extends IntegrationSpec with Test
         }
       }
 
+      "The action is unknown" in {
+        val payload = DeEnrolmentWorkItem(
+          reference = scannedUploadedDetails.reference.value,
+          recordDetail = "IR-SA~UTR~1234567890,unknown",
+          creationDateTime = Instant.now()
+        )
+
+        when(mockValidator.validate(payload.recordDetail, Set("IR-SA", "VAT")))
+          .thenReturn(Left("Invalid action type"))
+
+        await(deEnrolmentWorkItemRepository.saveRecordDetails(Seq(payload)))
+        await(fileRepository.createFileRecord(scannedUploadedDetails))
+
+        await(deEnrolmentWorkItemSchedulerService.invoke)
+        eventually {
+          val uploadedDetails = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get
+          uploadedDetails.totalFailureCount shouldBe Some(1)
+          uploadedDetails.totalSuccessCount shouldBe None
+          val remainingNonCompleteCount = await(deEnrolmentWorkItemRepository.countRemainingNonCompleteByReference(scannedUploadedDetails.reference.value))
+          remainingNonCompleteCount shouldBe 0
+          val validationError = await(fileRecordValidationErrorRepository.findByReference(scannedUploadedDetails.reference)).head
+          validationError.errorMessage shouldBe "Invalid action type"
+        }
+      }
     }
 
   }

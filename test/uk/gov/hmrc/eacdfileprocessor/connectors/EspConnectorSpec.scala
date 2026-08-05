@@ -21,7 +21,6 @@ import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.{BAD_GATEWAY, BAD_REQUEST, NO_CONTENT, OK}
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
-import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
@@ -34,17 +33,17 @@ class EspConnectorSpec extends TestSupport {
   private given HeaderCarrier = HeaderCarrier()
 
   val servicesConfig: ServicesConfig = mock[ServicesConfig]
-  val appConfig: AppConfig = mock[AppConfig]
   val httpClient: HttpClientV2 = mock[HttpClientV2]
   val requestBuilder: RequestBuilder = mock[RequestBuilder]
   val connector = EspConnector(httpClient, servicesConfig)
+
+  when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
+  when(httpClient.get(any())(any())).thenReturn(requestBuilder)
 
   "EspConnector" should {
     "calling ES1 display correct behavior" when {
 
       "ES1 returns 204" in {
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
-        when(httpClient.get(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(NO_CONTENT)))
 
@@ -52,9 +51,6 @@ class EspConnectorSpec extends TestSupport {
       }
 
       "ES1 returns 400" in {
-
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
-        when(httpClient.get(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(BAD_REQUEST, body =
             """
@@ -67,13 +63,9 @@ class EspConnectorSpec extends TestSupport {
         val result = await(connector.callES1("Test-enrolement-key", "princpal"))
         result.status shouldBe BAD_REQUEST
         result.body.contains("The type parameter was invalid. Expected all, principal or delegated") shouldBe true
-
       }
 
       "ES1 returns 200" in {
-
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
-        when(httpClient.get(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(OK, body =
             """
@@ -94,7 +86,6 @@ class EspConnectorSpec extends TestSupport {
     "calling ES9 display correct behavior" when {
 
       "ES9 returns 500" in {
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
         when(httpClient.delete(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(BAD_GATEWAY, body =
@@ -110,7 +101,6 @@ class EspConnectorSpec extends TestSupport {
         result.body.contains("An unexpected error occurred") shouldBe true
       }
       "ES9 returns 204" in {
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
         when(httpClient.delete(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(NO_CONTENT)))
@@ -118,7 +108,6 @@ class EspConnectorSpec extends TestSupport {
         await(connector.callES9("Test-group-id", "Test-enrolement-key")).status shouldBe NO_CONTENT
       }
       "ES9 returns 400" in {
-        when(servicesConfig.baseUrl("enrolment-store-proxy")).thenReturn("http://localhost:7775")
         when(httpClient.delete(any())(any())).thenReturn(requestBuilder)
         when(requestBuilder.execute(any[HttpReads[HttpResponse]], any()))
           .thenReturn(Future.successful(HttpResponse(BAD_REQUEST, body =

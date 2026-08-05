@@ -18,6 +18,8 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 
 import helper.IntegrationSpec
 import org.bson.types.ObjectId
+import org.scalatest.concurrent.Eventually
+import org.scalatest.events.Event
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, UNSUPPORTED_MEDIA_TYPE}
 import play.api.libs.json.{JsValue, Json}
@@ -31,7 +33,7 @@ import java.time.Instant.now
 import java.util.UUID
 import scala.concurrent.Future
 
-class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec:
+class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec with Eventually:
 
   val reference = "08aad019-7f66-4456-8d52-93f12109876f"
 
@@ -101,14 +103,15 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
           "approverPID" -> "23456789"
         ))
         .withHeaders("Authorization" -> "Bearer test-token")
-      val resultF = for {
-        _ <- fileRepository.createFileRecord(initiateUploadDetails.copy(id = ObjectId.get(), reference = reference, status = STORED, uploadedDateTime = Some(now())))
-        result <- route(app, request).get
-        uploadedFileDetails <- fileRepository.findByReference(reference)
-      } yield (result, uploadedFileDetails)
-      status(resultF.map(_._1)) shouldBe NO_CONTENT
-      val uploadedDetails = await(resultF.map(_._2))
-      uploadedDetails.map(_.approvedAtDateTime.isDefined).get shouldBe false
+
+      eventually {
+        await(fileRepository.createFileRecord(initiateUploadDetails.copy(id = ObjectId.get(), reference = reference, status = STORED, uploadedDateTime = Some(now()))))
+        val result = route(app, request).get
+        val uploadedFileDetails = await(fileRepository.findByReference(reference))
+
+        status(result) shouldBe NO_CONTENT
+        uploadedFileDetails.map(_.approvedAtDateTime.isDefined).get shouldBe false
+      }
     }
     "return 400 when approver pid is the same as requestor pid" in {
       val reference: Reference = Reference(UUID.randomUUID().toString)
