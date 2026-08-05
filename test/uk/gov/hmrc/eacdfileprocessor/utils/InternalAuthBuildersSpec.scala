@@ -16,21 +16,14 @@
 
 package uk.gov.hmrc.eacdfileprocessor.utils
 
-import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
-import play.api.mvc.{ActionBuilder, AnyContent, ControllerComponents}
-import uk.gov.hmrc.internalauth.client.Retrieval.Username
-import uk.gov.hmrc.internalauth.client.{AuthenticatedRequest, BackendAuthComponents}
-import uk.gov.hmrc.internalauth.client.{Predicate, Retrieval}
-import play.api.mvc.Result
-import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
+import play.api.mvc.ControllerComponents
+import uk.gov.hmrc.internalauth.client.BackendAuthComponents
 
-import scala.compiletime.ops.double.*
-import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 
 
