@@ -30,7 +30,6 @@ import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import java.time.Instant.now
 import java.util.UUID
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.*
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
@@ -104,7 +103,7 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
         when(mockRequestBuilder.withBody[JsValue](any())(any(), any(), any()))
           .thenReturn(mockRequestBuilder)
 
-        when(mockRequestBuilder.execute)
+        when(mockRequestBuilder.execute[HttpResponse](any(), any()))
           .thenReturn(Future.failed(new Exception))
 
         whenReady(connector.sendEmail(params, to, templateId)(hc, ec)) {

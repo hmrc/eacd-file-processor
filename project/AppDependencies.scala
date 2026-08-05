@@ -4,7 +4,6 @@ object AppDependencies {
 
   private val bootstrapVersion = "10.8.0"
   private val hmrcMongoVersion = "2.13.0"
-  private val testcontainersVersion = "1.20.6"
 
   val compile: Seq[ModuleID] = Seq(
     "uk.gov.hmrc"             %% "bootstrap-backend-play-30"          % bootstrapVersion,
@@ -17,6 +16,4 @@ object AppDependencies {
     "uk.gov.hmrc"             %% "bootstrap-test-play-30"     % bootstrapVersion,
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-test-play-30"    % hmrcMongoVersion
   ).map(_ % Test)
-
-  val it: Seq[Nothing] = Seq.empty
 }
