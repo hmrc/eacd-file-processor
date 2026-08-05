@@ -42,7 +42,7 @@ class AuditService @Inject()(val auditConnector: AuditConnector)(implicit ec: Ex
       )
     )
   }
-  
+
   def auditFileScannedEvent(uploadedDetails: UploadedDetails, successfulDetails: UploadedSuccessfully)(implicit hc: HeaderCarrier): Future[AuditResult] = {
     auditConnector.sendExtendedEvent(
       FileScannedEvent(
@@ -82,6 +82,26 @@ class AuditService @Inject()(val auditConnector: AuditConnector)(implicit ec: Ex
         fileName = uploadDetails.details.map(Details.getFileName).getOrElse(""),
         isFileApproved = if uploadDetails.status == APPROVED then true else false,
         emailAlertSentTo = uploadDetails.requestorEmail,
+        hc = hc
+      )
+    )
+  }
+
+  def auditDeallocateEnrolmentEvent(
+                                     uploadedDetails: UploadedDetails,
+                                     enrolmentKey: String,
+                                     enrolmentAction: String
+                                   )(implicit hc: HeaderCarrier): Future[AuditResult] = {
+    auditConnector.sendExtendedEvent(
+      DeallocateEnrolmentEvent(
+        fileReference = uploadedDetails.reference.value,
+        fileName = uploadedDetails.details.map(Details.getFileName).getOrElse(""),
+        requesterId = uploadedDetails.requestorPID,
+        requesterName = uploadedDetails.requestorName.trim,
+        approvalId = uploadedDetails.approverDetails.flatMap(_.approverPID).getOrElse(""),
+        approvalName = uploadedDetails.approverDetails.flatMap(_.approverName).map(_.trim).getOrElse(""),
+        enrolmentKey = enrolmentKey,
+        enrolmentAction = enrolmentAction,
         hc = hc
       )
     )

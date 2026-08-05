@@ -31,9 +31,10 @@ import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, FileRecordValidationErrorRepository}
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse}
+import uk.gov.hmrc.play.audit.http.connector.{AuditConnector, AuditResult}
 
 import java.time.{Clock, Instant}
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 class DeEnrolmentWorkItemSchedulerServiceISpec extends IntegrationSpec with TestData with UnitSpec with Eventually:
   val materializer: Materializer = mock[Materializer]
@@ -56,6 +57,8 @@ class DeEnrolmentWorkItemSchedulerServiceISpec extends IntegrationSpec with Test
   }
 
   private val mockValidator = mock[DeEnrolmentWorkItemValidator]
+  private lazy val mockAuditConnector = mock[AuditConnector]
+  private val auditService = AuditService(mockAuditConnector)(using summon[ExecutionContext])
 
   private val deEnrolmentWorkItemSchedulerService = new DeEnrolmentWorkItemSchedulerService(
     appConfiguration,
@@ -65,11 +68,14 @@ class DeEnrolmentWorkItemSchedulerServiceISpec extends IntegrationSpec with Test
     mockEspConnector,
     mockLockService,
     mockAgentServiceCache,
-    mockValidator
+    mockValidator,
+    auditService
   )
 
   override def beforeEach(): Unit = {
-    reset(mockEspConnector, mockValidator)
+    reset(mockEspConnector, mockValidator, mockAuditConnector)
+    when(mockAuditConnector.sendExtendedEvent(any())(any(), any()))
+      .thenReturn(Future.successful(AuditResult.Success))
     await(fileRepository.collection.drop().headOption())
     await(fileRepository.ensureIndexes())
     await(fileRecordValidationErrorRepository.collection.drop().headOption())
@@ -78,7 +84,7 @@ class DeEnrolmentWorkItemSchedulerServiceISpec extends IntegrationSpec with Test
     await(lockingRepo.collection.deleteMany(filter = Document()).toFuture())
   }
 
-  "DeEnrolment work item scheduler invoking" must {
+    "DeEnrolment work item scheduler invoking" must {
     "return a correct total successful record" when {
       "The action is principal and ES1 returns a 204" in {
         val payload = DeEnrolmentWorkItem(
@@ -613,6 +619,30 @@ class DeEnrolmentWorkItemSchedulerServiceISpec extends IntegrationSpec with Test
         }
       }
 
+      "The action is unknown" in {
+        val payload = DeEnrolmentWorkItem(
+          reference = scannedUploadedDetails.reference.value,
+          recordDetail = "IR-SA~UTR~1234567890,unknown",
+          creationDateTime = Instant.now()
+        )
+
+        when(mockValidator.validate(payload.recordDetail, Set("IR-SA", "VAT")))
+          .thenReturn(Left("Invalid action type"))
+
+        await(deEnrolmentWorkItemRepository.saveRecordDetails(Seq(payload)))
+        await(fileRepository.createFileRecord(scannedUploadedDetails))
+
+        await(deEnrolmentWorkItemSchedulerService.invoke)
+        eventually {
+          val uploadedDetails = await(fileRepository.findByReference(scannedUploadedDetails.reference)).get
+          uploadedDetails.totalFailureCount shouldBe Some(1)
+          uploadedDetails.totalSuccessCount shouldBe None
+          val remainingNonCompleteCount = await(deEnrolmentWorkItemRepository.countRemainingNonCompleteByReference(scannedUploadedDetails.reference.value))
+          remainingNonCompleteCount shouldBe 0
+          val validationError = await(fileRecordValidationErrorRepository.findByReference(scannedUploadedDetails.reference)).head
+          validationError.errorMessage shouldBe "Invalid action type"
+        }
+      }
     }
 
   }

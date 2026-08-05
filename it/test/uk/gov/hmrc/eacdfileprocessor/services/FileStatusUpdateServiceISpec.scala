@@ -18,8 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.services
 
 import helper.IntegrationSpec
 import org.bson.types.ObjectId
-import org.mongodb.scala.ObservableFuture
-import org.mongodb.scala.SingleObservableFuture
+import org.mongodb.scala.{ObservableFuture, SingleObservableFuture}
 import org.mongodb.scala.model.Filters
 import org.scalatest.matchers.should.Matchers.{should, shouldBe}
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
@@ -40,7 +39,13 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
   lazy val fileRecordValidationErrorRepository: FileRecordValidationErrorRepository = app.injector.instanceOf[FileRecordValidationErrorRepository]
   lazy val lockService: LockService = app.injector.instanceOf[LockService]
 
-  lazy val fileStatusUpdateService = new FileStatusUpdateService(deEnrolmentWorkItemRepository = deEnrolmentWorkItemRepository, fileRecordValidationErrorRepository = fileRecordValidationErrorRepository, fileRepository = fileRepository, lockService = lockService)
+  lazy val fileStatusUpdateService = new FileStatusUpdateService(
+    deEnrolmentWorkItemRepository = deEnrolmentWorkItemRepository,
+    fileRecordValidationErrorRepository = fileRecordValidationErrorRepository,
+    fileRepository = fileRepository,
+    lockService = lockService,
+    emailService = emailService
+  )
 
   private def uniqueRef(prefix: String): Reference =
     Reference(s"$prefix-${UUID.randomUUID().toString}")
@@ -58,10 +63,12 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
       val reference = uniqueRef("ref-ispec-success")
       val file = initiateUploadDetails.copy(
         reference = reference,
+        details = Some(successfulUploadedDetails),
         status = PROCESSING,
         totalEntryCount = Some(3),
         totalSuccessCount = Some(3),
-        totalFailureCount = Some(0)
+        totalFailureCount = Some(0),
+        uploadedDateTime = Some(Instant.now())
       )
 
       await(fileRepository.createFileRecord(file))
@@ -101,9 +108,11 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
       val file = initiateUploadDetails.copy(
         reference = reference,
         status = PROCESSING,
+        details = Some(successfulUploadedDetails),
         totalEntryCount = Some(2),
         totalSuccessCount = Some(1),
-        totalFailureCount = Some(1)
+        totalFailureCount = Some(1),
+        uploadedDateTime = Some(Instant.now())
       )
 
       await(fileRepository.createFileRecord(file))
@@ -210,21 +219,25 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
       val file1 = initiateUploadDetails.copy(
         id = ObjectId.get(),
         reference = ref1,
+        details = Some(successfulUploadedDetails),
         status = PROCESSING,
         totalEntryCount = Some(2),
         totalSuccessCount = Some(2),
         totalFailureCount = Some(0),
-        creationDateTime = Instant.now()
+        creationDateTime = Instant.now(),
+        uploadedDateTime = Some(Instant.now())
       )
 
       val file2 = initiateUploadDetails.copy(
         id = ObjectId.get(),
         reference = ref2,
+        details = Some(successfulUploadedDetails),
         status = PROCESSING,
         totalEntryCount = Some(2),
         totalSuccessCount = Some(1),
         totalFailureCount = Some(1),
-        creationDateTime = Instant.now()
+        creationDateTime = Instant.now(),
+        uploadedDateTime = Some(Instant.now())
       )
 
       await(fileRepository.createFileRecord(file1))

@@ -20,8 +20,8 @@ import org.apache.pekko.actor.ActorSystem
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{verify, when}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
-import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.{DeEnrolmentWorkItemPullMessage, ExpiredFileDeletionMessage, ProcessApprovedFileMessage}
-import uk.gov.hmrc.eacdfileprocessor.services.{ExpiredFileDeletionService, LockResponse, ProcessApprovedFileService}
+import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.{DeEnrolmentWorkItemPullMessage, ExpiredFileDeletionMessage, FileStatusUpdateMessage, ProcessApprovedFileMessage}
+import uk.gov.hmrc.eacdfileprocessor.services.{ExpiredFileDeletionService, FileStatusUpdateService, LockResponse, ProcessApprovedFileService}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
@@ -150,5 +150,42 @@ class SchedulingActorSpec extends TestSupport {
       verify(failingService).invoke(using any[ExecutionContext])
       verify(succeedingService).invoke(using any[ExecutionContext])
     }
+  }
+  
+  "invoke FileStatusUpdateService when FileStatusUpdateMessage is received" in withActorSystem { system =>
+    val actor = system.actorOf(SchedulingActor.props)
+    val service = mock[FileStatusUpdateService]
+    val invoked = Promise[Unit]()
+
+    when(service.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+      invoked.success(())
+      Future.successful(Left(()): Either[Unit, LockResponse])
+    }
+
+    actor ! FileStatusUpdateMessage(service)
+
+    Await.result(invoked.future, 2.seconds)
+    verify(service).invoke(using any[ExecutionContext])
+  }
+
+  "not invoke FileStatusUpdateService when FileStatusUpdateMessage canRun returns false" in withActorSystem { system =>
+    val actor = system.actorOf(SchedulingActor.props)
+    val skippedService = mock[FileStatusUpdateService]
+    val allowedService = mock[FileStatusUpdateService]
+    val allowedInvoked = Promise[Unit]()
+
+    when(allowedService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+      allowedInvoked.success(())
+      Future.successful(Left(()): Either[Unit, LockResponse])
+    }
+
+    // The skipped message is sent first; because the actor processes messages in order, once the
+    // second (allowed) message has run we know the first was handled and deliberately not invoked.
+    actor ! FileStatusUpdateMessage(skippedService, canRun = () => false, skipReason = Some("outside window"))
+    actor ! FileStatusUpdateMessage(allowedService, canRun = () => true)
+
+    Await.result(allowedInvoked.future, 2.seconds)
+    verify(skippedService, never()).invoke(using any[ExecutionContext])
+    verify(allowedService).invoke(using any[ExecutionContext])
   }
 }
