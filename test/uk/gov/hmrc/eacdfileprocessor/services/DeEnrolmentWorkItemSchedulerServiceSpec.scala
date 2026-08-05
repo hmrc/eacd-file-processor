@@ -27,11 +27,11 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
-import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, FileStatus, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository, JobLockRepository}
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
-import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse}
+import uk.gov.hmrc.mongo.workitem.{ProcessingStatus, WorkItem}
 
 import java.net.URI
 import java.time.Instant
@@ -40,7 +40,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 
 class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with MockitoSugar with ScalaFutures {
 
-  private given ExecutionContext = ExecutionContext.global
+  private given ExecutionContext = ExecutionContext.fromExecutor(java.util.concurrent.Executors.newSingleThreadExecutor())
 
   private val uploadedDetails = UploadedDetails(
     id = ObjectId.get(),
@@ -150,13 +150,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
     }
 
-    "throw exception when fail to mark workItem complete and not increase total success count" in new Setup(){
+    "throw exception when fail to mark workItem complete and not increase total success count" in new Setup() {
       when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
         .thenReturn(Right("IR-SA~UTR~1234567890", "principal"))
       when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
       when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(false))
 
-      val exception = intercept[RuntimeException] {
+      val exception: RuntimeException = intercept[RuntimeException] {
         Await.result(service.invoke, 5.seconds)
       }
 
@@ -217,6 +217,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
 
       verify(deEnrolmentWorkItemRepository, never()).pullOutstandingBatch(any[Int])
     }
+
     "Action is principal" when {
       "The action is principal" in new Setup {
         when(validator.validate(payload.recordDetail, Set("HMRC-MTD-IT")))
@@ -234,7 +235,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       }
 
       "The action is principal and calls ES9" in new Setup {
-        val responseBody =
+        val responseBody: String =
           """{
             |    "principalGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
@@ -251,12 +252,12 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
-        verify(fileRepository, org.mockito.Mockito.timeout(2000).times(1)).incrementSuccessCount(any())
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
 
       "The action is principal and calls ES9 for multiple enrolments" in new Setup {
-        val responseBody =
+        val responseBody: String =
           """{
             |    "principalGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
@@ -279,7 +280,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       }
 
       "The action is principal and SE1 returns a 400 " in new Setup {
-        val responseBody =
+        val responseBody: String =
           """
             |{
             |    "code": "TYPE_PARAMETER_INVALID",
@@ -303,7 +304,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       }
 
       "The action is principal and SE1 return multiple errors with a 400" in new Setup {
-        val responseBody =
+        val responseBody: String =
           """
             |{
             |	"code":"MULTIPLE_ERRORS",
@@ -335,15 +336,16 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
+
       "The action is principal and multiple calls are made to ES9 and second call returns a 500" in new Setup {
-        val responseBodyES1 =
+        val responseBodyES1: String =
           """{
             |    "principalGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7511"
             |    ]
             |}""".stripMargin
-        val responseBodyES9Error =
+        val responseBodyES9Error: String =
           """
             |{
             |    "code": "INTERNAL_SERVER_ERROR",
@@ -365,19 +367,20 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
-        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(2000).times(1)).markAsComplete(any())
+        verify(fileRepository, times(1)).incrementFailureCount(any())
+        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
+
       "The action is principal and multiple calls are made to ES9 and first call returns a 500" in new Setup {
-        val responseBodyES1 =
+        val responseBodyES1: String =
           """{
             |    "principalGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7511"
             |    ]
             |}""".stripMargin
-        val responseBodyES9Error =
+        val responseBodyES9Error: String =
           """
             |{
             |    "code": "INTERNAL_SERVER_ERROR",
@@ -402,6 +405,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
     }
+
     "Action is agent" when {
 
       "The action is agent and ES1 return 204" in new Setup {
@@ -419,8 +423,9 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, never()).incrementFailureCount(any())
         verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
+
       "The action is agent and call ES9 return 204" in new Setup {
-        val responseBody =
+        val responseBody: String =
           """{
             |    "principalGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
@@ -441,8 +446,9 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, never()).incrementFailureCount(any())
         verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
+
       "The action is agent and calls ES9 for multiple enrolments and return 204" in new Setup {
-        val responseBody =
+        val responseBody: String =
           """{
             |    "principalGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
@@ -464,8 +470,9 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, never()).incrementFailureCount(any())
         verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
+
       "The action is agent and ES1 returns a 400 " in new Setup {
-        val responseBody =
+        val responseBody: String =
           """
             |{
             |    "code": "TYPE_PARAMETER_INVALID",
@@ -488,8 +495,9 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, times(1)).incrementFailureCount(any())
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
+
       "The action is agent and ES1 return multiple errors with a 400" in new Setup {
-        val responseBody =
+        val responseBody: String =
           """
             |{
             |	"code":"MULTIPLE_ERRORS",
@@ -520,17 +528,18 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
         verify(fileRepository, times(1)).incrementFailureCount(any())
-        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
+
       "The action is agent and multiple calls are made to ES9 and one returns a 400" in new Setup {
-        val responseBodyES1 =
+        val responseBodyES1: String =
           """{
             |    "principalGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7511"
             |    ]
             |}""".stripMargin
-        val responseBodyES9Error =
+        val responseBodyES9Error: String =
           """
             |{
             |    "code": "INTERNAL_SERVER_ERROR",
@@ -554,9 +563,10 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
         verify(fileRepository, times(1)).incrementFailureCount(any())
-        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
+        verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
     }
+
     "Action is delegated" when {
       "The action is delegated, ES1 returns 204" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,delegated")) {
         when(validator.validate("IR-SA~UTR~1234567890,delegated", Set("HMRC-MTD-IT")))
@@ -573,8 +583,9 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, never()).incrementFailureCount(any())
         verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
+
       "The action is delegated and calls ES9 returns 204" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567892,delegated")) {
-        val responseBody =
+        val responseBody: String =
           """{
             |    "delegatedGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7519"
@@ -594,9 +605,10 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
         verify(fileRepository, times(1)).incrementSuccessCount(any())
-    }
+      }
+
       "The action is delegated and calls ES9 for multiple enrolments" in new Setup {
-        val responseBody =
+        val responseBody: String =
           """{
             |    "delegatedGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
@@ -618,8 +630,9 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, never()).incrementFailureCount(any())
         verify(fileRepository, times(1)).incrementSuccessCount(any())
       }
+
       "The action is delegated and ES1 returns a 400 " in new Setup {
-        val responseBody =
+        val responseBody: String =
           """
             |{
             |    "code": "TYPE_PARAMETER_INVALID",
@@ -641,10 +654,10 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, never()).incrementSuccessCount(any())
         verify(fileRepository, times(1)).incrementFailureCount(any())
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
-
       }
+
       "The action is delegated and return ES1 multiple errors with a 400" in new Setup {
-        val responseBody =
+        val responseBody: String =
           """
             |{
             |	"code":"MULTIPLE_ERRORS",
@@ -677,15 +690,16 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, times(1)).incrementFailureCount(any())
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
+
       "The action is delegated and multiple calls are made to ES9 and last one returns a 500" in new Setup {
-        val responseBodyES1 =
+        val responseBodyES1: String =
           """{
             |    "delegatedGroupIds": [
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7510",
             |       "c0506dd9-1feb-400a-bf70-6351e1ff7511"
             |    ]
             |}""".stripMargin
-        val responseBodyES9Error =
+        val responseBodyES9Error: String =
           """
             |{
             |    "code": "INTERNAL_SERVER_ERROR",
@@ -711,8 +725,8 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRepository, times(1)).incrementFailureCount(any())
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
-
     }
+
     "Action is both" when {
       "The action is both and ES1 is called NO_CONTENT is returned" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,both")) {
         when(validator.validate("IR-SA~UTR~1234567890,both", Set("HMRC-MTD-IT")))
@@ -797,7 +811,6 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
             |    ]
             |}""".stripMargin
 
-
         val responseErrorBody: String =
           """
             |{
@@ -836,7 +849,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
             |    ]
             |}""".stripMargin
 
-        val responseBodyES9Error =
+        val responseBodyES9Error: String =
           """
             |{
             |    "code": "INTERNAL_SERVER_ERROR",
@@ -865,24 +878,24 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         verify(fileRecordValidationErrorRepository, times(1)).create(any())
       }
     }
+
     "transformActionType" when {
       "return principal when action type is principal" in new Setup {
-        val actual = service.transformActionType("principal")
+        val actual: String = service.transformActionType("principal")
         actual shouldBe "principal"
       }
       "return delegated when action type is delegated" in new Setup {
-        val actual = service.transformActionType("delegated")
+        val actual: String = service.transformActionType("delegated")
         actual shouldBe "delegated"
       }
       "return principal when action type is agent" in new Setup {
-        val actual = service.transformActionType("agent")
+        val actual: String = service.transformActionType("agent")
         actual shouldBe "principal"
       }
       "return all when action type is both" in new Setup {
-        val actual = service.transformActionType("both")
+        val actual: String = service.transformActionType("both")
         actual shouldBe "all"
       }
     }
   }
 }
-
