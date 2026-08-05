@@ -25,6 +25,8 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK}
+import play.api.libs.json.Json
+import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.connectors.EspConnector
 import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileRecordValidationError, FileStatus, Reference, UploadedDetails}
@@ -35,8 +37,7 @@ import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse}
 
 import java.net.URI
 import java.time.Instant
-import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 
 class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers with MockitoSugar with ScalaFutures {
 
@@ -116,7 +117,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
       when(fileRepository.incrementFailureCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
 
-      Await.result(service.invoke, 5.seconds)
+      await(service.invoke)
 
       verify(fileRecordValidationErrorRepository).create(any[FileRecordValidationError])
       verify(fileRepository).incrementFailureCount(Reference(payload.reference))
@@ -128,7 +129,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(false))
 
       val exception = intercept[RuntimeException] {
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
       }
 
       exception.getMessage contains "[recordError] Failed to mark work item as complete for workItemId" shouldBe true
@@ -142,7 +143,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       when(espConnector.callES1(any[String], any[String])(using any[HeaderCarrier])).thenReturn(Future.successful(HttpResponse(NO_CONTENT, "")))
       when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-      Await.result(service.invoke, 5.seconds)
+      await(service.invoke)
 
       verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
       verify(fileRepository, never()).incrementFailureCount(any())
@@ -157,7 +158,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(false))
 
       val exception = intercept[RuntimeException] {
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
       }
 
       exception.getMessage contains "[processGroupDeEnrolments] Failed to mark work item as complete for workItemId" shouldBe true
@@ -189,7 +190,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         validator
       )
 
-      Await.result(service.invoke, 5.seconds)
+      await(service.invoke)
 
       agentServicesCalled shouldBe false
       verify(fileRecordValidationErrorRepository, never()).create(any[FileRecordValidationError])
@@ -213,7 +214,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         validator
       )
 
-      Await.result(service.invoke, 5.seconds)
+      await(service.invoke)
 
       verify(deEnrolmentWorkItemRepository, never()).pullOutstandingBatch(any[Int])
     }
@@ -225,7 +226,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
@@ -247,12 +248,12 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
-        verify(fileRepository, org.mockito.Mockito.timeout(2000).times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
 
       "The action is principal and calls ES9 for multiple enrolments" in new Setup {
@@ -270,12 +271,12 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
       }
 
       "The action is principal and SE1 returns a 400 " in new Setup {
@@ -293,13 +294,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
       }
 
       "The action is principal and SE1 return multiple errors with a 400" in new Setup {
@@ -327,13 +328,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
       }
       "The action is principal and multiple calls are made to ES9 and second call returns a 500" in new Setup {
         val responseBodyES1 =
@@ -360,14 +361,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(fileRepository, never()).incrementSuccessCount(any())
         verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
-        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(2000).times(1)).markAsComplete(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
       }
       "The action is principal and multiple calls are made to ES9 and first call returns a 500" in new Setup {
         val responseBodyES1 =
@@ -392,14 +393,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
       }
     }
     "Action is agent" when {
@@ -411,13 +412,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
       "The action is agent and call ES9 return 204" in new Setup {
         val responseBody =
@@ -433,13 +434,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
       "The action is agent and calls ES9 for multiple enrolments and return 204" in new Setup {
         val responseBody =
@@ -456,13 +457,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
       "The action is agent and ES1 returns a 400 " in new Setup {
         val responseBody =
@@ -479,14 +480,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
       }
       "The action is agent and ES1 return multiple errors with a 400" in new Setup {
         val responseBody =
@@ -513,14 +514,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any[FileRecordValidationError])
       }
       "The action is agent and multiple calls are made to ES9 and one returns a 400" in new Setup {
         val responseBodyES1 =
@@ -547,14 +548,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any[FileRecordValidationError])
       }
     }
     "Action is delegated" when {
@@ -565,13 +566,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
       "The action is delegated and calls ES9 returns 204" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567892,delegated")) {
         val responseBody =
@@ -587,13 +588,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
     }
       "The action is delegated and calls ES9 for multiple enrolments" in new Setup {
         val responseBody =
@@ -610,13 +611,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
       "The action is delegated and ES1 returns a 400 " in new Setup {
         val responseBody =
@@ -633,14 +634,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any(), any())(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
 
       }
       "The action is delegated and return ES1 multiple errors with a 400" in new Setup {
@@ -668,14 +669,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any(), any())(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
       }
       "The action is delegated and multiple calls are made to ES9 and last one returns a 500" in new Setup {
         val responseBodyES1 =
@@ -702,14 +703,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
       }
 
     }
@@ -721,13 +722,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
         verify(espConnector, never()).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
 
       "The action is both and ES1 is called OK is returned with both principal and delegated group ids" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,both")) {
@@ -748,13 +749,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(2)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
 
       "The action is both and ES1 is called OK is returned with both principal and multiple delegated group ids" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,both")) {
@@ -776,13 +777,13 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(fileRepository.incrementSuccessCount(Reference(payload.reference))).thenReturn(Future.successful(Some(uploadedDetails)))
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementFailureCount(any())
-        verify(fileRepository, times(1)).incrementSuccessCount(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementSuccessCount(any())
       }
 
       "The action is both and ES1 is called OK is returned with both principal and delegated group ids and ES9 returns BAD_REQUEST" in new Setup(payload.copy(recordDetail = "IR-SA~UTR~1234567890,both")) {
@@ -814,14 +815,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(1)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
       }
 
       "The action is both and multiple calls are made to ES9 and last one returns a 500" in new Setup {
@@ -855,14 +856,14 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
         when(deEnrolmentWorkItemRepository.markAsComplete(any())).thenReturn(Future.successful(true))
         when(fileRecordValidationErrorRepository.create(any[FileRecordValidationError])).thenReturn(Future.unit)
 
-        Await.result(service.invoke, 5.seconds)
+        await(service.invoke)
 
         verify(espConnector).callES1(any(), any())(using any[HeaderCarrier])
-        verify(espConnector, times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
-        verify(deEnrolmentWorkItemRepository, times(1)).markAsComplete(any())
+        verify(espConnector, org.mockito.Mockito.timeout(1000).times(3)).callES9(any[String], any[String])(using any[HeaderCarrier])
+        verify(deEnrolmentWorkItemRepository, org.mockito.Mockito.timeout(1000).times(1)).markAsComplete(any())
         verify(fileRepository, never()).incrementSuccessCount(any())
-        verify(fileRepository, times(1)).incrementFailureCount(any())
-        verify(fileRecordValidationErrorRepository, times(1)).create(any())
+        verify(fileRepository, org.mockito.Mockito.timeout(1000).times(1)).incrementFailureCount(any())
+        verify(fileRecordValidationErrorRepository, org.mockito.Mockito.timeout(1000).times(1)).create(any())
       }
     }
     "transformActionType" when {
@@ -881,6 +882,22 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
       "return all when action type is both" in new Setup {
         val actual = service.transformActionType("both")
         actual shouldBe "all"
+      }
+    }
+    "extractGroupIds" when {
+      "principalGroupIds should always be extracted first" in new Setup {
+        val responseBody: String =
+          """{
+            |    "principalGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7510"
+            |    ],
+            |    "delegatedGroupIds": [
+            |       "c0506dd9-1feb-400a-bf70-6351e1ff7519"
+            |    ]
+            |}""".stripMargin
+
+        val actual = service.extractGroupIds(Json.parse(responseBody))
+        actual shouldBe List("c0506dd9-1feb-400a-bf70-6351e1ff7510", "c0506dd9-1feb-400a-bf70-6351e1ff7519")
       }
     }
   }
