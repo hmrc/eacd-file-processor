@@ -21,7 +21,6 @@ import org.bson.types.ObjectId
 import org.mockito.ArgumentMatchers.{any, eq as eqTo}
 import org.mockito.Mockito.{times, verify, when}
 import org.scalatest.matchers.should.Matchers.shouldBe
-import play.api.libs.json.Json
 import play.api.mvc.*
 import play.api.test.Helpers.{GET, INTERNAL_SERVER_ERROR, NO_CONTENT, OK, contentAsJson, contentAsString, status}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
@@ -39,7 +38,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 class FileDetailsControllerSpec extends TestSupport with TestData with DefaultAwaitTimeout {
-  private val mockRepository = mock[FileRepository]
   private val mockFileDetailService = mock[FileDetailService]
   private val mockCC: ControllerComponents = Helpers.stubControllerComponents()
   private val mockConfig: play.api.Configuration = mock[play.api.Configuration]
