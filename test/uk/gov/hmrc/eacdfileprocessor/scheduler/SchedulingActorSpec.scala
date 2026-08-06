@@ -151,7 +151,7 @@ class SchedulingActorSpec extends TestSupport {
       verify(succeedingService).invoke(using any[ExecutionContext])
     }
   }
-  
+
   "invoke FileStatusUpdateService when FileStatusUpdateMessage is received" in withActorSystem { system =>
     val actor = system.actorOf(SchedulingActor.props)
     val service = mock[FileStatusUpdateService]
@@ -168,24 +168,98 @@ class SchedulingActorSpec extends TestSupport {
     verify(service).invoke(using any[ExecutionContext])
   }
 
-  "not invoke FileStatusUpdateService when FileStatusUpdateMessage canRun returns false" in withActorSystem { system =>
+  "ignore unsupported messages and still process supported file-status-update messages" in withActorSystem { system =>
     val actor = system.actorOf(SchedulingActor.props)
-    val skippedService = mock[FileStatusUpdateService]
-    val allowedService = mock[FileStatusUpdateService]
-    val allowedInvoked = Promise[Unit]()
+    val service = mock[ScheduledService[Either[Unit, LockResponse]]]
+    val invoked = Promise[Unit]()
 
-    when(allowedService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
-      allowedInvoked.success(())
+    when(service.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+      invoked.success(())
       Future.successful(Left(()): Either[Unit, LockResponse])
     }
 
-    // The skipped message is sent first; because the actor processes messages in order, once the
-    // second (allowed) message has run we know the first was handled and deliberately not invoked.
-    actor ! FileStatusUpdateMessage(skippedService, canRun = () => false, skipReason = Some("outside window"))
-    actor ! FileStatusUpdateMessage(allowedService, canRun = () => true)
+    actor ! 12345 // unsupported message
+    actor ! FileStatusUpdateMessage(service)
 
-    Await.result(allowedInvoked.future, 2.seconds)
-    verify(skippedService, never()).invoke(using any[ExecutionContext])
-    verify(allowedService).invoke(using any[ExecutionContext])
+    Await.result(invoked.future, 2.seconds)
+    verify(service).invoke(using any[ExecutionContext])
   }
+
+  "continue handling later file-status-update messages when one invocation future fails" in withActorSystem { system =>
+    val actor = system.actorOf(SchedulingActor.props)
+    val failingService = mock[ScheduledService[Either[Unit, LockResponse]]]
+    val succeedingService = mock[ScheduledService[Either[Unit, LockResponse]]]
+    val failingInvoked = Promise[Unit]()
+    val succeedingInvoked = Promise[Unit]()
+
+    when(failingService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+      failingInvoked.success(())
+      Future.failed(new RuntimeException("boom"))
+    }
+
+    when(succeedingService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+      succeedingInvoked.success(())
+      Future.successful(Left(()): Either[Unit, LockResponse])
+    }
+
+    actor ! FileStatusUpdateMessage(failingService)
+    actor ! FileStatusUpdateMessage(succeedingService)
+
+    Await.result(failingInvoked.future, 2.seconds)
+    Await.result(succeedingInvoked.future, 2.seconds)
+
+    verify(failingService).invoke(using any[ExecutionContext])
+    verify(succeedingService).invoke(using any[ExecutionContext])
+  }
+
+  "invoke file-status-update service for each received message" in withActorSystem { system =>
+    val actor = system.actorOf(SchedulingActor.props)
+    val service = mock[ScheduledService[Either[Unit, LockResponse]]]
+    val first = Promise[Unit]()
+    val second = Promise[Unit]()
+    var count = 0
+
+    when(service.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+      count += 1
+      if (count == 1) first.success(())
+      if (count == 2) second.success(())
+      Future.successful(Left(()): Either[Unit, LockResponse])
+    }
+
+    actor ! FileStatusUpdateMessage(service)
+    actor ! FileStatusUpdateMessage(service)
+
+    Await.result(first.future, 2.seconds)
+    Await.result(second.future, 2.seconds)
+    verify(service, org.mockito.Mockito.times(2)).invoke(using any[ExecutionContext])
+  }
+
+  "handle mixed scheduled message types in one actor instance" in withActorSystem { system =>
+    val actor = system.actorOf(SchedulingActor.props)
+
+    val deEnrolService = mock[ScheduledService[Either[Unit, LockResponse]]]
+    val fileStatusService = mock[ScheduledService[Either[Unit, LockResponse]]]
+    val deEnrolInvoked = Promise[Unit]()
+    val fileStatusInvoked = Promise[Unit]()
+
+    when(deEnrolService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+      deEnrolInvoked.success(())
+      Future.successful(Left(()): Either[Unit, LockResponse])
+    }
+
+    when(fileStatusService.invoke(using any[ExecutionContext])).thenAnswer { _ =>
+      fileStatusInvoked.success(())
+      Future.successful(Left(()): Either[Unit, LockResponse])
+    }
+
+    actor ! DeEnrolmentWorkItemPullMessage(deEnrolService)
+    actor ! FileStatusUpdateMessage(fileStatusService)
+
+    Await.result(deEnrolInvoked.future, 2.seconds)
+    Await.result(fileStatusInvoked.future, 2.seconds)
+
+    verify(deEnrolService).invoke(using any[ExecutionContext])
+    verify(fileStatusService).invoke(using any[ExecutionContext])
+  }
+
 }
