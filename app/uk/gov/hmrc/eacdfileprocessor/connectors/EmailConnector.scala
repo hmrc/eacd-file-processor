@@ -38,6 +38,9 @@ trait EmailConnector {
 
   def sendEmail(params: Map[String, String], to: String, templateId: String)
                (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
+
+  def sendEmails(params: Map[String, String], recipients: Seq[String], templateId: String)
+                (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean]
 }
 
 @Singleton
@@ -48,10 +51,14 @@ class EmailConnectorImpl @Inject()(http: HttpClientV2,
   lazy val serviceUrl: String = s"${servicesConfig.baseUrl("email")}/hmrc/email"
 
   def sendEmail(params: Map[String, String], to: String, templateId: String)
+                (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] =
+    sendEmails(params, Seq(to), templateId)
+  
+  def sendEmails(params: Map[String, String], recipients: Seq[String], templateId: String)
                (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Boolean] = {
 
     http.post(url"$serviceUrl")
-      .withBody(Json.toJson(SendEmailRequest(Seq(to), templateId, params)))
+      .withBody(Json.toJson(SendEmailRequest(recipients, templateId, params)))
       .execute[HttpResponse]
       .map { resp =>
         resp.status match {

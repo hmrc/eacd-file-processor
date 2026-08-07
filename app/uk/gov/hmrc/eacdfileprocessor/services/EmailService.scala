@@ -104,10 +104,10 @@ class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)
     }
   }
 
-  def sendFileProcessedEmail(uploadedDetails: UploadedDetails)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    if !appConfig.emailEnabled then
+  def sendFileProcessedEmails(uploadedDetails: UploadedDetails)(implicit hc: HeaderCarrier): Future[Boolean] = {
+    if !appConfig.emailEnabled then {
       Future(true)
-    else
+    } else
       val params = Map(
         "requestorName" -> uploadedDetails.requestorName,
         "fileName" -> getFileName(uploadedDetails),
@@ -118,12 +118,19 @@ class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)
         "failedRecordCount" -> uploadedDetails.totalFailureCount.getOrElse(0).toString
       )
       
-      emailConnector.sendEmail(params, uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_processed")
+      emailConnector.sendEmails(params,
+        Seq(uploadedDetails.requestorEmail,
+          uploadedDetails.approverDetails
+            .flatMap(_.approverEmail)
+            .getOrElse(throw new RuntimeException(s"Approver email is missing for reference: ${uploadedDetails.reference.value}"))
+        ),
+        "emac_helpdesk_bulk_deenrolment_file_processed")
   }
 
-  private def getFileName(uploadedDetails: UploadedDetails): String =
+  private def getFileName(uploadedDetails: UploadedDetails): String = {
     uploadedDetails.details.map(Details.getFileName).filterNot(_.isBlank).getOrElse(
       throw new RuntimeException(s"File name is missing for reference: ${uploadedDetails.reference.value}"))
+  }
 
   private def getUploadedDateTime(uploadedDetails: UploadedDetails): String =
     uploadedDetails.uploadedDateTime.map(formatDateTime).getOrElse(
