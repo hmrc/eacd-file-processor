@@ -150,31 +150,43 @@ class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
     }
     "sendFileProcessedEmail" must {
       "return true for sending file processed email successfully" in new SetUp {
-        when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
+        when(mockEmailConnector.sendEmails(any(), any(), any())(any(), any()))
           .thenReturn(Future.successful(true))
 
-        val result = await(emailService.sendFileProcessedEmail(initiateUploadDetails.copy(uploadedDateTime = Some(now()), details = Some(successfulUploadedDetails))))
+        val result = await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(
+          uploadedDateTime = Some(now()),
+          details = Some(successfulUploadedDetails),
+          approverDetails = Some(approverDetails)
+        )))
 
         result shouldBe true
       }
       "throw exception when uploadedDateTime is missing" in new SetUp {
         val exception = intercept[RuntimeException] {
-          await(emailService.sendFileProcessedEmail(initiateUploadDetails.copy(details = Some(successfulUploadedDetails))))
+          await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(details = Some(successfulUploadedDetails))))
         }
 
         exception.getMessage contains "Uploaded date time not found for reference" shouldBe true
       }
       "throw exception when file name is missing" in new SetUp {
         val exception = intercept[RuntimeException] {
-          await(emailService.sendFileProcessedEmail(initiateUploadDetails.copy(details = Some(failedFileDetails))))
+          await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(details = Some(failedFileDetails))))
         }
 
         exception.getMessage contains "File name is missing for reference" shouldBe true
       }
+      "throw exception when approver email is missing" in new SetUp {
+        val exception = intercept[RuntimeException] {
+          await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(uploadedDateTime = Some(now()),
+            details = Some(successfulUploadedDetails))))
+        }
+
+        exception.getMessage contains "Approver email is missing for reference" shouldBe true
+      }
       "sendFileProcessedEmail must not be sent when email is disabled" in new SetUp {
         when(mockAppConfig.emailEnabled).thenReturn(false)
-        await(emailService.sendFileProcessedEmail(initiateUploadDetails.copy(details = Some(failedFileDetails))))
-        verify(mockEmailConnector, never()).sendEmail(any(), any(), any())(any(), any())
+        await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(details = Some(failedFileDetails))))
+        verify(mockEmailConnector, never()).sendEmails(any(), any(), any())(any(), any())
       }
     }
     "formatDateTime" must {

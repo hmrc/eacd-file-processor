@@ -57,7 +57,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
         when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(file)))
 
         fileStatusUpdateService.processProcessingFiles()
-        verify(mockEmailService, org.mockito.Mockito.timeout(1000).times(1)).sendFileProcessedEmail(any())(any())
+        verify(mockEmailService, org.mockito.Mockito.timeout(1000).times(1)).sendFileProcessedEmails(any())(any())
       }
       "transition file from PROCESSING to PROCESSEDWITHERRORS when validation errors exist" in new Setup {
         val file = initiateUploadDetails.copy(
@@ -73,7 +73,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
         when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(file)))
 
         fileStatusUpdateService.processProcessingFiles()
-        verify(mockEmailService, org.mockito.Mockito.timeout(1000).times(1)).sendFileProcessedEmail(any())(any())
+        verify(mockEmailService, org.mockito.Mockito.timeout(1000).times(1)).sendFileProcessedEmails(any())(any())
       }
       "not transition file when work items still remain incomplete" in new Setup {
         val file = initiateUploadDetails.copy(
@@ -86,7 +86,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
 
         fileStatusUpdateService.processProcessingFiles()
         verify(repository, times(0)).updateStatus(any(), any())
-        verify(mockEmailService, times(0)).sendFileProcessedEmail(any())(any())
+        verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
       }
       "handle reconciliation error when counts don't match" in new Setup {
         val file = initiateUploadDetails.copy(
@@ -101,7 +101,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
 
         fileStatusUpdateService.processProcessingFiles()
         verify(repository, times(0)).updateStatus(any(), any())
-        verify(mockEmailService, times(0)).sendFileProcessedEmail(any())(any())
+        verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
       }
       "throw exception when fail to update status" in new Setup {
         val file = initiateUploadDetails.copy(
@@ -121,7 +121,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
         }
 
         exception.getMessage contains "Failed to update file status for reference" shouldBe true
-        verify(mockEmailService, times(0)).sendFileProcessedEmail(any())(any())
+        verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
       }
     }
   }
