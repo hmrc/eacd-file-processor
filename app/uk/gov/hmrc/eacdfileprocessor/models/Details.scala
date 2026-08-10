@@ -18,7 +18,8 @@ package uk.gov.hmrc.eacdfileprocessor.models
 
 import org.bson.types.ObjectId
 import play.api.libs.functional.syntax.*
-import play.api.libs.json.*
+import play.api.libs.json.{Format, JsNull, JsObject, JsString, JsValue, Json, OFormat, Reads, Writes, __}
+
 
 import java.net.URL
 import java.time.Instant
@@ -63,6 +64,35 @@ case class UploadedDetails(
                             totalFailureCount: Option[Int] = None,
                             totalSuccessCount: Option[Int] = None
                           )
+
+object UploadedDetails {
+  given Writes[UploadedDetails] = (d: UploadedDetails) => {
+    given Writes[URL] = Writes(url => JsString(url.toString))
+    given Writes[Details.UploadedSuccessfully] = Json.writes[Details.UploadedSuccessfully]
+    given Writes[Details.UploadedFailed] = Json.writes[Details.UploadedFailed]
+    given Writes[Details] = Writes {
+      case f: Details.UploadedFailed       => Json.toJson(f).as[JsObject]
+      case s: Details.UploadedSuccessfully => Json.toJson(s).as[JsObject]
+    }
+    Json.obj(
+      "id"                  -> d.id.toHexString,
+      "reference"           -> d.reference.value,
+      "status"              -> d.status.value,
+      "requestorPID"        -> d.requestorPID,
+      "requestorEmail"      -> d.requestorEmail,
+      "requestorName"       -> d.requestorName,
+      "details"             -> d.details,
+      "approverDetails"     -> d.approverDetails,
+      "totalEntryCount"     -> d.totalEntryCount,
+      "uploadedDateTime"    -> d.uploadedDateTime.fold[JsValue](JsNull)(i => JsString(i.toString)),
+      "lastUpdatedDateTime" -> d.lastUpdatedDateTime.fold[JsValue](JsNull)(i => JsString(i.toString)),
+      "approvedAtDateTime"  -> d.approvedAtDateTime.map(_.toString),
+      "creationDateTime"    -> d.creationDateTime.toString,
+      "totalFailureCount"   -> d.totalFailureCount,
+      "totalSuccessCount"   -> d.totalSuccessCount
+    )
+  }
+}
 
 case class FileStatusCount(status: String, count: Int)
 

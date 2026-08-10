@@ -29,6 +29,7 @@ import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
 import uk.gov.hmrc.objectstore.client.*
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.play.audit.http.connector.AuditResult
 
 import java.net.URL
 import java.time.Instant
@@ -85,8 +86,6 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
           )
         )
       )
-      when(progressTracker.transferToObjectStore(successfulUploadedDetails.downloadUrl, successfulUploadedDetails.mimeType,
-        successfulUploadedDetails.checksum, successfulUploadedDetails.name, reference)).thenReturn(Future.unit)
 
       await(progressTracker.registerUploadResult(reference, successfulUploadedDetails))
       verify(repository, org.mockito.Mockito.timeout(1000).times(1)).updateStatus(any(), any())
@@ -96,6 +95,8 @@ class UploadProgressTrackerSpec extends TestSupport with TestData:
 
     "update failed upload file details" in new Setup {
       when(repository.updateStatusAndDetails(any(), any(), any())).thenReturn(Future.successful(Some(initiateUploadDetails)))
+      when(mockAuditService.auditFileFailEvent(any(), any())(any())).thenReturn(Future.successful(AuditResult.Success))
+      when(mockEmailService.sendFileFailEmail(any(), any())(any())).thenReturn(Future.successful(true))
 
       await(progressTracker.registerUploadResult(reference, failedFileDetails))
       verify(repository, times(0)).updateStatus(any(), any())

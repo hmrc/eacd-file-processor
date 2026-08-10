@@ -45,27 +45,28 @@ class UploadProgressTracker @Inject()(repository: FileRepository,
   def registerUploadResult(fileReference: Reference, details: Details)(implicit hc: HeaderCarrier): Future[Unit] =
     for {
       status <- details match {
-        case f: Details.UploadedFailed => Future(FAILED)
+        case f: Details.UploadedFailed      => Future(FAILED)
         case s: Details.UploadedSuccessfully => Future(SCANNED)
       }
-      _ <- repository.updateStatusAndDetails(fileReference, status, details).map {
+      _ <- repository.updateStatusAndDetails(fileReference, status, details).flatMap {
         case Some(uploadedDetails) if status == SCANNED =>
           val successfulDetails = details.asInstanceOf[UploadedSuccessfully]
           auditService.auditFileScannedEvent(uploadedDetails, successfulDetails)
           emailService.sendFileScannedEmail(uploadedDetails, successfulDetails, appConfig.fileExpiryDays.toString)
-          transferToObjectStore(downloadUrl = successfulDetails.downloadUrl,
-            mimeType = successfulDetails.mimeType,
-            checksum = successfulDetails.checksum,
-            fileName = successfulDetails.name,
-            fileReference = fileReference)
+          transferToObjectStore(
+            downloadUrl = successfulDetails.downloadUrl,
+            mimeType    = successfulDetails.mimeType,
+            checksum    = successfulDetails.checksum,
+            fileName    = successfulDetails.name,
+            fileReference = fileReference
+          )
         case Some(uploadedDetails) if status == FAILED =>
           auditService.auditFileFailEvent(uploadedDetails, details.asInstanceOf[UploadedFailed])
           emailService.sendFileFailEmail(uploadedDetails, details.asInstanceOf[UploadedFailed])
         case _ =>
           Future.unit
       }
-    } yield
-      ()
+    } yield ()
 
   private[services] def transferToObjectStore(
                                                downloadUrl: URL,
