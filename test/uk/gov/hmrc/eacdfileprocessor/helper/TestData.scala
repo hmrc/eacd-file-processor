@@ -129,7 +129,8 @@ trait TestData:
     FileStatusCount(APPROVED.value, 3),
     FileStatusCount(PROCESSING.value, 1),
     FileStatusCount(PROCESSEDWITHERRORS.value, 0),
-    FileStatusCount(PROCESSEDSUCCESSFULLY.value, 6)
+    FileStatusCount(PROCESSEDSUCCESSFULLY.value, 6),
+    FileStatusCount(PROCESSEDWITHCOUNTMISMATCH.value, 0)
   )
 
   val missingFieldUploadedDetails: JsValue = Json.parse(
@@ -318,6 +319,10 @@ trait TestData:
       |  },
       |  {
       |    "status": "processedSuccessfully",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "processedWithCountMismatch",
       |    "count": 0
       |  }
       |]

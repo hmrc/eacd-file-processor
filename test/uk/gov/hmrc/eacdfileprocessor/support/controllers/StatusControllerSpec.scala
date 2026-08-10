@@ -100,7 +100,8 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
           FileStatusCount(APPROVED.value, 3),
           FileStatusCount(PROCESSING.value, 0),
           FileStatusCount(PROCESSEDWITHERRORS.value, 0),
-          FileStatusCount(PROCESSEDSUCCESSFULLY.value, 0)
+          FileStatusCount(PROCESSEDSUCCESSFULLY.value, 0),
+          FileStatusCount(PROCESSEDWITHCOUNTMISMATCH.value, 0)
         )
         val actual = TestStatusController.generateAllStatusCount(statusCounts)
         actual shouldBe expected
