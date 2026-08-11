@@ -57,12 +57,10 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
         _ <- fileRepository.createFileRecord(failedUploadedDetails.copy(reference = Reference("ref1"), lastUpdatedDateTime = Some(now().minus(5, DAYS))))
         _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref3"), status = PROCESSING, lastUpdatedDateTime = Some(now().minus(90, DAYS))))
         _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref4"), status = PROCESSEDWITHCOUNTMISMATCH, lastUpdatedDateTime = Some(now().minus(10, DAYS))))
-        result <- route(app, request).get
-      } yield {
-        val resultF = Future(result)
-        status(resultF) shouldBe OK
-        contentAsJson(resultF) shouldBe expectedFileStatusCounts
-      }
+      } yield {}
+      val result = route(app, request).get
+      status(result) shouldBe OK
+      contentAsJson(result) shouldBe expectedFileStatusCounts
     }
   }
 
