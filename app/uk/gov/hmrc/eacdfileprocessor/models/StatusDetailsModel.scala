@@ -27,7 +27,8 @@ case class StatusDetailsModel(
                                requestorName: String,
                                fileName: Option[String],
                                fileStatus: String,
-                               creationDateTime: Option[Instant]
+                               creationDateTime: Option[Instant],
+                               approverDetails: Option[ApproverDetails] = None
                              )
 
 object StatusDetailsModel {
