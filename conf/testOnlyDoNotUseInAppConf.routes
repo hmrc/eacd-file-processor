@@ -11,5 +11,7 @@
 
 # Add all the application routes to the prod.routes file
 ->         /                          prod.Routes
+->         /                          support.Routes
+
 PUT        /test-only/eacd-file-processor/document/:reference/:fileName        uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController.putObject(reference, fileName)
 DELETE     /test-only/eacd-file-processor/drop                                 uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController.deleteAllObjects()

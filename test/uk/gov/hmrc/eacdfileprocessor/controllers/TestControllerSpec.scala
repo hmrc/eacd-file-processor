@@ -22,11 +22,13 @@ import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.CREATED
 import play.api.mvc.*
-import play.api.test.Helpers.{DELETE, INTERNAL_SERVER_ERROR, OK, POST, contentAsString, status}
+import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
+import uk.gov.hmrc.objectstore.client.Md5Hash
+import play.api.test.Helpers.{DELETE, GET, INTERNAL_SERVER_ERROR, NO_CONTENT, OK, POST, contentAsString, status}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate, Retrieval}
@@ -39,6 +41,7 @@ import scala.concurrent.Future
 class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTimeout {
 
   private val mockRepository = mock[FileRepository]
+  private val mockFileRecordValidationErrorRepository = mock[FileRecordValidationErrorRepository]
   private val mockCC: ControllerComponents = Helpers.stubControllerComponents()
   private val mockConfig: play.api.Configuration = mock[play.api.Configuration]
   private val mockAuth: BackendAuthComponents = mock[BackendAuthComponents]
@@ -53,7 +56,8 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
     mockConfig,
     mockAuth,
     mockObjectStoreClient,
-    mockRepository) {
+    mockRepository,
+    mockFileRecordValidationErrorRepository) {
     override def authorisedEntity(
                                    providedPermission: Predicate,
                                    apiName: String

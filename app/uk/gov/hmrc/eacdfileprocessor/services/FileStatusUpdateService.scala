@@ -41,7 +41,7 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
 
   private[services] def processProcessingFiles()(using ExecutionContext): Future[Unit] =
     for {
-      processingFiles <- fileRepository.findByStatusAsUploadedDetails(PROCESSING)
+      processingFiles <- fileRepository.findByStatusAsUploadedDetailsWithSuccessOrFailureCount(PROCESSING)
       _ <- Future.traverse(processingFiles)(processSingleFile)
     } yield ()
 
