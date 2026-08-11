@@ -18,6 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.support.controllers
 
 import helper.IntegrationSpec
 import org.bson.types.ObjectId
+import org.scalatest.concurrent.Eventually
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.{NO_CONTENT, OK}
 import play.api.libs.json.{JsValue, Json}
@@ -31,7 +32,7 @@ import java.time.Instant.now
 import java.time.temporal.ChronoUnit.DAYS
 import scala.concurrent.Future
 
-class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec:
+class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec with Eventually:
 
   val reference = "08aad019-7f66-4456-8d52-93f12109876f"
 
@@ -52,15 +53,15 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       val request = FakeRequest(GET, routes.StatusController.getAllStatusCounts.url)
         .withJsonBody(Json.obj())
         .withHeaders("Authorization" -> "Bearer test-token")
-      for {
-        _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(lastUpdatedDateTime = Some(now().minus(20, DAYS))))
-        _ <- fileRepository.createFileRecord(failedUploadedDetails.copy(reference = Reference("ref1"), lastUpdatedDateTime = Some(now().minus(5, DAYS))))
-        _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref3"), status = PROCESSING, lastUpdatedDateTime = Some(now().minus(90, DAYS))))
-        _ <- fileRepository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref4"), status = PROCESSEDWITHCOUNTMISMATCH, lastUpdatedDateTime = Some(now().minus(10, DAYS))))
-      } yield {}
-      val result = route(app, request).get
-      status(result) shouldBe OK
-      contentAsJson(result) shouldBe expectedFileStatusCounts
+      eventually {
+        await(fileRepository.createFileRecord(scannedUploadedDetails.copy(lastUpdatedDateTime = Some(now().minus(20, DAYS)))))
+        await(fileRepository.createFileRecord(failedUploadedDetails.copy(reference = Reference("ref1"), lastUpdatedDateTime = Some(now().minus(5, DAYS)))))
+        await(fileRepository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref3"), status = PROCESSING, lastUpdatedDateTime = Some(now().minus(90, DAYS)))))
+        await(fileRepository.createFileRecord(scannedUploadedDetails.copy(id = ObjectId.get(), reference = Reference("ref4"), status = PROCESSEDWITHCOUNTMISMATCH, lastUpdatedDateTime = Some(now().minus(10, DAYS)))))
+        val result = route(app, request).get
+        status(result) shouldBe OK
+        contentAsJson(result) shouldBe expectedFileStatusCounts
+      }
     }
   }
 
