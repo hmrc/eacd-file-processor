@@ -87,6 +87,7 @@ object FileUploadRepoFormat {
       case JsString(PROCESSING.value) => JsSuccess(PROCESSING)
       case JsString(PROCESSEDWITHERRORS.value) => JsSuccess(PROCESSEDWITHERRORS)
       case JsString(PROCESSEDSUCCESSFULLY.value) => JsSuccess(PROCESSEDSUCCESSFULLY)
+      case JsString(PROCESSEDWITHCOUNTMISMATCH.value) => JsSuccess(PROCESSEDWITHCOUNTMISMATCH)
       case _ => JsError("Unknown file status")
     }
 

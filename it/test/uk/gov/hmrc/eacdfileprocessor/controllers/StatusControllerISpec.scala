@@ -19,7 +19,6 @@ package uk.gov.hmrc.eacdfileprocessor.controllers
 import helper.IntegrationSpec
 import org.bson.types.ObjectId
 import org.scalatest.concurrent.Eventually
-import org.scalatest.events.Event
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.{BAD_REQUEST, NO_CONTENT, OK, UNSUPPORTED_MEDIA_TYPE}
 import play.api.libs.json.{JsValue, Json}

@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import play.api.Logging
-import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{PROCESSEDSUCCESSFULLY, PROCESSEDWITHERRORS, PROCESSING}
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{PROCESSEDSUCCESSFULLY, PROCESSEDWITHCOUNTMISMATCH, PROCESSEDWITHERRORS, PROCESSING}
 import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
@@ -60,6 +60,7 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
 
     if (totalSuccessCount + totalFailureCount != totalEntryCount) {
       logger.error(s"FILE_RECONCILIATION_ERROR for file reference ${file.reference.value}")
+      fileRepository.updateStatus(file.reference, PROCESSEDWITHCOUNTMISMATCH)
       Future.unit
     } else {
       for {

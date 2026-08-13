@@ -16,7 +16,6 @@
 
 package uk.gov.hmrc.eacdfileprocessor.support.controllers
 
-import org.apache.pekko.actor.ActorSystem
 import play.api.libs.json.Json
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
@@ -38,12 +37,12 @@ class FileDetailsController @Inject()(
                                        val auth: BackendAuthComponents,
                                        val objectStoreClient: PlayObjectStoreClient,
                                        fileDetailService: FileDetailService
-                                     )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
+                                     )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
 
   val providedPermission = Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("file-detail")),
-      IAAction("ADMIN")
-    )
+    Resource(ResourceType("eacd-file-processor"), ResourceLocation("file-detail")),
+    IAAction("ADMIN")
+  )
 
   def getFileDetail(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "file-detail")
     .async { implicit request: AuthRequest[AnyContent] =>

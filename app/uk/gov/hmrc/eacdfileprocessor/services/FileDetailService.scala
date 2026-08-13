@@ -21,10 +21,10 @@ import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 @Singleton
-class FileDetailService @Inject()(fileUploadRepo: FileRepository)(implicit ec: ExecutionContext) extends Logging {
+class FileDetailService @Inject()(fileUploadRepo: FileRepository) extends Logging {
 
   def getFileDetail(reference: String): Future[Option[UploadedDetails]] =
     fileUploadRepo.findByReference(Reference(reference))

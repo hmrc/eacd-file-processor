@@ -28,7 +28,6 @@ import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.*
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.APPROVED
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
 import uk.gov.hmrc.eacdfileprocessor.services.FileDetailService
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate, Retrieval}
