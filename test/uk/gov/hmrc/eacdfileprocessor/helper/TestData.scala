@@ -120,11 +120,11 @@ trait TestData:
   )
 
   val allStatusCounts = Seq(
-    FileStatusCount(SCANNED.value, 2),
-    FileStatusCount(FAILED.value, 1),
-    FileStatusCount(STORED.value, 4),
-    FileStatusCount(UPLOADED.value, 5),
     FileStatusCount(UPLOADREJECTED.value, 0),
+    FileStatusCount(UPLOADED.value, 5),
+    FileStatusCount(FAILED.value, 1),
+    FileStatusCount(SCANNED.value, 2),
+    FileStatusCount(STORED.value, 4),
     FileStatusCount(REJECTED.value, 3),
     FileStatusCount(APPROVED.value, 3),
     FileStatusCount(PROCESSING.value, 1),
@@ -282,15 +282,7 @@ trait TestData:
     """
       |[
       |  {
-      |    "status": "scanned",
-      |    "count": 0
-      |  },
-      |  {
-      |    "status": "failed",
-      |    "count": 0
-      |  },
-      |  {
-      |    "status": "stored",
+      |    "status": "uploadRejected",
       |    "count": 0
       |  },
       |  {
@@ -298,7 +290,15 @@ trait TestData:
       |    "count": 5
       |  },
       |  {
-      |    "status": "uploadRejected",
+      |    "status": "failed",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "scanned",
+      |    "count": 0
+      |  },
+      |  {
+      |    "status": "stored",
       |    "count": 0
       |  },
       |  {

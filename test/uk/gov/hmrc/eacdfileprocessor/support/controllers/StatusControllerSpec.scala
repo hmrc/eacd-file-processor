@@ -91,11 +91,11 @@ class StatusControllerSpec extends TestSupport with TestData with DefaultAwaitTi
     "generateAllStatusCount" should {
       "return a complete list of status counts when there are missing status counts" in {
         val expected = Seq(
-          FileStatusCount(SCANNED.value, 0),
-          FileStatusCount(FAILED.value, 0),
-          FileStatusCount(STORED.value, 0),
-          FileStatusCount(UPLOADED.value, 5),
           FileStatusCount(UPLOADREJECTED.value, 0),
+          FileStatusCount(UPLOADED.value, 5),
+          FileStatusCount(FAILED.value, 0),
+          FileStatusCount(SCANNED.value, 0),
+          FileStatusCount(STORED.value, 0),
           FileStatusCount(REJECTED.value, 0),
           FileStatusCount(APPROVED.value, 3),
           FileStatusCount(PROCESSING.value, 0),

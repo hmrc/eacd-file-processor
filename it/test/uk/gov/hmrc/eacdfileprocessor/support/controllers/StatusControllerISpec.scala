@@ -69,15 +69,7 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
     """
       |[
       |  {
-      |    "status": "scanned",
-      |    "count": 1
-      |  },
-      |  {
-      |    "status": "failed",
-      |    "count": 1
-      |  },
-      |  {
-      |    "status": "stored",
+      |    "status": "uploadRejected",
       |    "count": 0
       |  },
       |  {
@@ -85,7 +77,15 @@ class StatusControllerISpec extends TestData with DefaultAwaitTimeout with Integ
       |    "count": 0
       |  },
       |  {
-      |    "status": "uploadRejected",
+      |    "status": "failed",
+      |    "count": 1
+      |  },
+      |  {
+      |    "status": "scanned",
+      |    "count": 1
+      |  },
+      |  {
+      |    "status": "stored",
       |    "count": 0
       |  },
       |  {
