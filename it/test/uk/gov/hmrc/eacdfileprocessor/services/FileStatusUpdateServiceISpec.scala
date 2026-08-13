@@ -204,7 +204,7 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
       await(fileStatusUpdateService.invoke(using ExecutionContext.global))
 
       val unchangedFile = await(fileRepository.findByReference(reference))
-      unchangedFile.value.status shouldBe PROCESSING
+      unchangedFile.value.status shouldBe PROCESSEDWITHCOUNTMISMATCH
 
       val remainingWorkItems = await(deEnrolmentWorkItemRepository.findByReference(reference.value))
       remainingWorkItems.size should be > 0
