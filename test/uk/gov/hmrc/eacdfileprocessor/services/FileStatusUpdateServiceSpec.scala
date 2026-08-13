@@ -56,7 +56,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
         when(validationErrorRepository.countByReference(any())).thenReturn(Future.successful(0))
         when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(file)))
 
-        fileStatusUpdateService.processProcessingFiles()
+        await(fileStatusUpdateService.processProcessingFiles())
         verify(mockEmailService, org.mockito.Mockito.timeout(1000).times(1)).sendFileProcessedEmails(any())(any())
       }
       "transition file from PROCESSING to PROCESSEDWITHERRORS when validation errors exist" in new Setup {
@@ -72,7 +72,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
         when(validationErrorRepository.countByReference(any())).thenReturn(Future.successful(1))
         when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(file)))
 
-        fileStatusUpdateService.processProcessingFiles()
+        await(fileStatusUpdateService.processProcessingFiles())
         verify(mockEmailService, org.mockito.Mockito.timeout(1000).times(1)).sendFileProcessedEmails(any())(any())
       }
       "not transition file when work items still remain incomplete" in new Setup {
@@ -84,7 +84,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
         when(repository.findByStatusAsUploadedDetails(any())).thenReturn(Future.successful(Seq(file)))
         when(workItemRepository.countRemainingNonCompleteByReference(any())).thenReturn(Future.successful(3))
 
-        fileStatusUpdateService.processProcessingFiles()
+        await(fileStatusUpdateService.processProcessingFiles())
         verify(repository, times(0)).updateStatus(any(), any())
         verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
       }
@@ -97,10 +97,11 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
           totalFailureCount = Some(3)
         )
         when(repository.findByStatusAsUploadedDetails(any())).thenReturn(Future.successful(Seq(file)))
+        when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(file)))
         when(workItemRepository.countRemainingNonCompleteByReference(any())).thenReturn(Future.successful(0))
 
-        fileStatusUpdateService.processProcessingFiles()
-        verify(repository, times(0)).updateStatus(any(), any())
+        await(fileStatusUpdateService.processProcessingFiles())
+        verify(repository, times(1)).updateStatus(any(), any())
         verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
       }
       "throw exception when fail to update status" in new Setup {
