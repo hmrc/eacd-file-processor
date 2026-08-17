@@ -37,7 +37,7 @@ class StatusController @Inject()(fileUploadRepo: FileRepository,
                                  val auth: BackendAuthComponents
                                 )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
   val providedPermission: Predicate = Predicate.Permission(
-    Resource(ResourceType("eacd-file-processor"), ResourceLocation("getStatusCounts")),
+    Resource(ResourceType("emac-support-frontend"), ResourceLocation("getStatusCounts")),
     IAAction("ADMIN")
   )
 
