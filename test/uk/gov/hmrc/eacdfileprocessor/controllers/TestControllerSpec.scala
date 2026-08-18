@@ -112,6 +112,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
 
     "return 200 OK when all objects are successfully deleted" in {
       when(mockRepository.dropCollection()).thenReturn(Future.successful(()))
+      when(mockFileRecordValidationErrorRepository.dropCollection()).thenReturn(Future.successful(()))
 
       val result = controller.deleteAllObjects()(FakeRequest(DELETE, "/test-only/delete-all"))
 
