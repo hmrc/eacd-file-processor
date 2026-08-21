@@ -26,6 +26,7 @@ import play.api.test.Helpers
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, UnitSpec}
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, SessionId}
+import uk.gov.hmrc.http.HttpReads.Implicits.readRaw
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import java.time.Instant.now
