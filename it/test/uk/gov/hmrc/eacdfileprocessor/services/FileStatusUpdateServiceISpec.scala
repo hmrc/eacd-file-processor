@@ -296,5 +296,29 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
       remainingWorkItems1.size shouldBe 0
       remainingWorkItems2.size shouldBe 0
     }
+
+    "transition file to PROCESSEDWITHCOUNTMISMATCH when no remaining work items and totalEntryCount is 0" in {
+      val reference = uniqueRef("ref-ispec-file-object-not-found")
+      val file = initiateUploadDetails.copy(
+        reference = reference,
+        status = PROCESSING,
+        details = Some(successfulUploadedDetails),
+        approverDetails = Some(approverDetails),
+        totalEntryCount = Some(0),
+        totalSuccessCount = Some(0),
+        totalFailureCount = Some(0),
+        uploadedDateTime = Some(Instant.now())
+      )
+
+      await(fileRepository.createFileRecord(file))
+
+      val incompleteCount = await(deEnrolmentWorkItemRepository.countRemainingNonCompleteByReference(reference.value))
+      incompleteCount shouldBe 0
+
+      await(fileStatusUpdateService.invoke(using ExecutionContext.global))
+
+      val updatedFile = await(fileRepository.findByReference(reference))
+      updatedFile.value.status shouldBe PROCESSEDWITHCOUNTMISMATCH
+    }
   }
 
