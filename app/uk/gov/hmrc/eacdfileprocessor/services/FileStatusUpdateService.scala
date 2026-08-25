@@ -58,10 +58,12 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
     val totalFailureCount = file.totalFailureCount.getOrElse(0)
     val totalEntryCount = file.totalEntryCount.getOrElse(0)
 
-    if (totalSuccessCount + totalFailureCount != totalEntryCount) {
+    if(totalEntryCount == 0){
+      logger.error(s"FILE_OBJECT_NOT_FOUND for file reference ${file.reference.value}")
+      fileRepository.updateStatus(file.reference, PROCESSEDWITHCOUNTMISMATCH).map(_ => ())
+    } else if (totalSuccessCount + totalFailureCount != totalEntryCount) {
       logger.error(s"FILE_RECONCILIATION_ERROR for file reference ${file.reference.value}")
-      fileRepository.updateStatus(file.reference, PROCESSEDWITHCOUNTMISMATCH)
-      Future.unit
+      fileRepository.updateStatus(file.reference, PROCESSEDWITHCOUNTMISMATCH).map(_ => ())
     } else {
       for {
         errorCount <- fileRecordValidationErrorRepository.countByReference(file.reference)

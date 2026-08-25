@@ -30,7 +30,6 @@ import uk.gov.hmrc.eacdfileprocessor.models.Reference
 
 import java.time.Instant.now
 import java.time.temporal.ChronoUnit.DAYS
-import scala.concurrent.Future
 
 class StatusControllerISpec extends TestData with DefaultAwaitTimeout with IntegrationSpec with Eventually:
 
