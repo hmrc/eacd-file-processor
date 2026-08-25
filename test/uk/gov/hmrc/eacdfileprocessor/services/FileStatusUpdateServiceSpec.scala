@@ -124,6 +124,25 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
         exception.getMessage contains "Failed to update file status for reference" shouldBe true
         verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
       }
+
+      "transition file to PROCESSEDWITHCOUNTMISMATCH when no remaining work items and totalEntryCount is 0" in new Setup {
+        val file = initiateUploadDetails.copy(
+          reference = Reference("ref1"),
+          status = PROCESSING,
+          totalEntryCount = Some(0),
+          totalSuccessCount = Some(0),
+          totalFailureCount = Some(0)
+        )
+
+        when(repository.findByStatusAsUploadedDetails(any())).thenReturn(Future.successful(Seq(file)))
+        when(workItemRepository.countRemainingNonCompleteByReference(any())).thenReturn(Future.successful(0))
+        when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(file)))
+
+        await(fileStatusUpdateService.processProcessingFiles())
+
+        verify(repository, times(1)).updateStatus(file.reference, PROCESSEDWITHCOUNTMISMATCH)
+        verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
+      }
     }
   }
 
