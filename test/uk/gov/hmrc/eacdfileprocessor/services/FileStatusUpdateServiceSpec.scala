@@ -134,7 +134,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
           totalFailureCount = Some(0)
         )
 
-        when(repository.findByStatusAsUploadedDetails(any())).thenReturn(Future.successful(Seq(file)))
+        when(repository.findByStatusAsUploadedDetailsWithSuccessOrFailureCount(any())).thenReturn(Future.successful(Seq(file)))
         when(workItemRepository.countRemainingNonCompleteByReference(any())).thenReturn(Future.successful(0))
         when(repository.updateStatus(any(), any())).thenReturn(Future.successful(Some(file)))
 
