@@ -23,6 +23,7 @@ import play.api.libs.streams.Accumulator
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, FileRecordValidationErrorRepository}
+import uk.gov.hmrc.eacdfileprocessor.services.{DeEnrolmentWorkItemSchedulerService, FileStatusUpdateService, ProcessApprovedFileService}
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.http.UpstreamErrorResponse
 import uk.gov.hmrc.internalauth.client.*
@@ -41,26 +42,18 @@ class TestController @Inject()(
                                 val auth: BackendAuthComponents,
                                 val objectStoreClient: PlayObjectStoreClient,
                                 repository: FileRepository,
-                                fileRecordValidationErrorRepository: FileRecordValidationErrorRepository
+                                fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
+                                processApprovedFileService: ProcessApprovedFileService,
+                                deEnrolmentWorkItemSchedulerService: DeEnrolmentWorkItemSchedulerService,
+                                fileStatusUpdateService: FileStatusUpdateService
                               )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
-  val providedPermission = Predicate.or(
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("services-enrolments-helpdesk-frontend")),
-      IAAction("ADMIN")
-    ),
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("emac-support-frontend")),
-      IAAction("ADMIN")
-    )
-  )
-
   private val streaming: BodyParser[Source[ByteString, _]] =
     BodyParser: _ =>
       Accumulator.source[ByteString].map(Right.apply)
 
   def putObject(reference: String, fileName: String): Action[Source[ByteString, _]] =
     Action.async(streaming) { implicit request =>
-      val fileLocation = Path.Directory(s"$reference/$fileName").file(fileName)
+      val fileLocation = Path.Directory(s"$reference").file(fileName)
       objectStoreClient
         .putObject(fileLocation, request.body)
         .map(_ => Created("Document stored."))
@@ -82,6 +75,39 @@ class TestController @Inject()(
       case e: Exception =>
         logger.error("Error deleting test records", e)
         InternalServerError("Error deleting documents")
+    }
+  }
+
+  def processApprovedFile: Action[AnyContent] = Action.async {
+    processApprovedFileService.invoke.map {
+      case Left(_) => Ok("ProcessApprovedFileService invoked successfully.")
+      case _ => InternalServerError("Error invoking ProcessApprovedFileService")
+    }.recover {
+      case e: Exception =>
+        logger.error("Error invoking ProcessApprovedFileService", e)
+        InternalServerError("Error invoking ProcessApprovedFileService")
+    }
+  }
+
+  def processDeEnrolmentWorkItems: Action[AnyContent] = Action.async {
+    deEnrolmentWorkItemSchedulerService.invoke.map {
+      case Left(_) => Ok("DeEnrolmentWorkItemSchedulerService invoked successfully.")
+      case _ => InternalServerError("Error invoking DeEnrolmentWorkItemSchedulerService")
+    }.recover {
+      case e: Exception =>
+        logger.error("Error invoking DeEnrolmentWorkItemSchedulerService", e)
+        InternalServerError("Error invoking DeEnrolmentWorkItemSchedulerService")
+    }
+  }
+
+  def updateFileStatus: Action[AnyContent] = Action.async {
+    fileStatusUpdateService.invoke.map {
+      case Left(_) => Ok("FileStatusUpdateService invoked successfully.")
+      case _ => InternalServerError("Error invoking FileStatusUpdateService")
+    }.recover {
+      case e: Exception =>
+        logger.error("Error invoking FileStatusUpdateService", e)
+        InternalServerError("Error invoking FileStatusUpdateService")
     }
   }
 }
