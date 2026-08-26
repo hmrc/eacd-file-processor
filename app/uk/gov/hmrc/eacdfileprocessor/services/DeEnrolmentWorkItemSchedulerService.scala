@@ -26,8 +26,9 @@ import uk.gov.hmrc.eacdfileprocessor.models.{DeEnrolmentWorkItem, Details, FileR
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
-import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.http.{HeaderCarrier, RequestId}
 import uk.gov.hmrc.mongo.workitem.WorkItem
+import java.util.UUID
 
 import javax.inject.{Inject, Singleton}
 import scala.annotation.tailrec
@@ -45,8 +46,9 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
                                                      validator: DeEnrolmentWorkItemValidator,
                                                      auditService: AuditService
                                                    ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
-
-  private given HeaderCarrier = HeaderCarrier()
+  private given HeaderCarrier = HeaderCarrier(
+    requestId = Some(RequestId(UUID.randomUUID().toString))
+  )
 
   override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] = {
     lockService.lockAndRelease("DeEnrolmentWorkItemPullJob") {
