@@ -106,6 +106,27 @@ trait TestData:
     creationDateTime = createdAt
   )
 
+  val uploadedDetailsProcessedWithErrors = UploadedDetails(
+    id = ObjectId("6994a038d540b44c4403aee3"),
+    reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
+    status = PROCESSEDWITHERRORS,
+    requestorPID = "12345678",
+    requestorEmail = "test@hmrc.gov.uk",
+    requestorName = "Test User",
+    creationDateTime = createdAt,
+    totalFailureCount = Some(1)
+  )
+  val uploadedDetailsProcessedSuccessfully = UploadedDetails(
+    id = ObjectId("6994a038d540b44c4403aee3"),
+    reference = Reference("08aad019-7f66-4456-8d52-93f12109876f"),
+    status = PROCESSEDSUCCESSFULLY,
+    requestorPID = "12345678",
+    requestorEmail = "test@hmrc.gov.uk",
+    requestorName = "Test User",
+    creationDateTime = createdAt,
+    totalSuccessCount = Some(1)
+  )
+
   val approverDetails = ApproverDetails(
     approverEmail = Some("approverTest@hmrc.gov.uk"),
     approverPID = Some("12345678"),

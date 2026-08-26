@@ -165,10 +165,10 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
 
     "find file by status as UploadedDetails" when {
       "there is a file matching the file status" in {
-        val status: FileStatus = initiateUploadDetails.status
-        await(repository.createFileRecord(initiateUploadDetails.copy(reference = Reference("ref-ud1"))))
+        val status: FileStatus = uploadedDetailsProcessedSuccessfully.status
+        await(repository.createFileRecord(uploadedDetailsProcessedSuccessfully.copy(reference = Reference("ref-ud1"))))
 
-        val actual = await(repository.findByStatusAsUploadedDetails(status))
+        val actual = await(repository.findByStatusAsUploadedDetailsWithSuccessOrFailureCount(status))
         actual.size shouldBe 1
         actual.head.reference shouldBe Reference("ref-ud1")
         actual.head.status shouldBe status
@@ -177,19 +177,19 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
       "there is no file matching the file status" in {
         await(repository.createFileRecord(initiateUploadDetails.copy(reference = Reference("ref-ud2"))))
 
-        val actual = await(repository.findByStatusAsUploadedDetails(FileStatus.STORED))
+        val actual = await(repository.findByStatusAsUploadedDetailsWithSuccessOrFailureCount(FileStatus.STORED))
         actual shouldBe Seq.empty[UploadedDetails]
       }
 
       "there are multiple files matching the file status" in {
-        val status: FileStatus = initiateUploadDetails.status
+        val status: FileStatus = uploadedDetailsProcessedSuccessfully.status
         val ref3 = Reference(s"ref3-${java.util.UUID.randomUUID()}")
         val ref4 = Reference(s"ref4-${java.util.UUID.randomUUID()}")
 
-        await(repository.createFileRecord(initiateUploadDetails.copy(reference = ref3, id = ObjectId("6974a038d540b44c4403aee3"))))
-        await(repository.createFileRecord(initiateUploadDetails.copy(reference = ref4, id = ObjectId("6984a038d540b44c4403aee3"))))
+        await(repository.createFileRecord(uploadedDetailsProcessedSuccessfully.copy(reference = ref3, id = ObjectId("6974a038d540b44c4403aee3"))))
+        await(repository.createFileRecord(uploadedDetailsProcessedSuccessfully.copy(reference = ref4, id = ObjectId("6984a038d540b44c4403aee3"))))
 
-        val actual = await(repository.findByStatusAsUploadedDetails(status))
+        val actual = await(repository.findByStatusAsUploadedDetailsWithSuccessOrFailureCount(status))
         actual.size shouldBe 2
         actual.map(_.reference) should contain(ref3)
         actual.map(_.reference) should contain(ref4)
@@ -207,7 +207,7 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
         )
         await(repository.createFileRecord(testDetails))
 
-        val actual = await(repository.findByStatusAsUploadedDetails(status))
+        val actual = await(repository.findByStatusAsUploadedDetailsWithSuccessOrFailureCount(status))
         actual.size shouldBe 1
         actual.head.reference shouldBe Reference("ref-ud5")
         actual.head.status shouldBe status
@@ -234,10 +234,10 @@ class FileRepositoryISpec extends TestData with IntegrationSpec:
             case _: DuplicateReferenceException => ()
           }
 
-        createIgnoreDuplicate(initiateUploadDetails.copy(reference = refud6, status = processingStatus))
-        createIgnoreDuplicate(initiateUploadDetails.copy(reference = refud7, status = storedStatus))
+        createIgnoreDuplicate(uploadedDetailsProcessedSuccessfully.copy(reference = refud6, status = processingStatus))
+        createIgnoreDuplicate(uploadedDetailsProcessedSuccessfully.copy(reference = refud7, status = storedStatus))
 
-        val actual = await(repository.findByStatusAsUploadedDetails(processingStatus))
+        val actual = await(repository.findByStatusAsUploadedDetailsWithSuccessOrFailureCount(processingStatus))
         actual.map(_.reference) should contain(refud6)
         actual.forall(_.status == processingStatus) shouldBe true
       }
