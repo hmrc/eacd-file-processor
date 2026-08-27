@@ -106,10 +106,7 @@ trait AuditEvents {
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "UpdateFileStatus",
-        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(
-          transactionName = "deallocate-enrolment-scheduler",
-          path = "scheduler/DeEnrolmentWorkItemPullJob"
-        ),
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
         detail = getDetails(
           fileReference,
           requesterId,
@@ -141,7 +138,10 @@ trait AuditEvents {
       ExtendedDataEvent(
         auditSource = auditSource,
         auditType = "DeallocateEnrolment",
-        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(),
+        tags = AuditExtensions.auditHeaderCarrier(hc).toAuditTags(
+          transactionName = "deallocate-enrolment-scheduler",
+          path = "scheduler/DeEnrolmentWorkItemPullJob"
+        ),
         detail = getDetails(
           fileReference,
           requesterId,
