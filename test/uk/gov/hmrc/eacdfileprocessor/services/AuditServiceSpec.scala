@@ -16,13 +16,15 @@
 
 package uk.gov.hmrc.eacdfileprocessor.services
 
+import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{reset, verify, when}
 import org.scalactic.Prettifier.default
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport, UnitSpec}
 import uk.gov.hmrc.play.audit.http.connector.{AuditConnector, AuditResult}
+import uk.gov.hmrc.play.audit.model.ExtendedDataEvent
 
 import scala.concurrent.Future
 
@@ -63,6 +65,28 @@ class AuditServiceSpec extends TestSupport with TestData with UnitSpec:
         }
 
         exception.getMessage contains "Approver details not found for file reference" shouldBe true
+      }
+    }
+    "auditDeallocateEnrolmentEvent" must {
+      "return correct AuditResult for deallocate enrolment event" in {
+        when(mockAuditConnector.sendExtendedEvent(any())(any(), any())).thenReturn(Future.successful(AuditResult.Success))
+
+        val result = await(auditService.auditDeallocateEnrolmentEvent(initiateUploadDetails, "IR-SA~UTR~1234567890", "principal"))
+
+        result shouldBe AuditResult.Success
+      }
+
+      "populate tags with a fixed transactionName and path since there is no inbound request context" in {
+        reset(mockAuditConnector)
+        when(mockAuditConnector.sendExtendedEvent(any())(any(), any())).thenReturn(Future.successful(AuditResult.Success))
+        val captor = ArgumentCaptor.forClass(classOf[ExtendedDataEvent])
+
+        await(auditService.auditDeallocateEnrolmentEvent(initiateUploadDetails, "IR-SA~UTR~1234567890", "principal"))
+
+        verify(mockAuditConnector).sendExtendedEvent(captor.capture())(any(), any())
+        val tags = captor.getValue.tags
+        tags.get("transactionName") shouldBe Some("deallocate-enrolment-scheduler")
+        tags.get("path") shouldBe Some("scheduler/DeEnrolmentWorkItemPullJob")
       }
     }
   }
