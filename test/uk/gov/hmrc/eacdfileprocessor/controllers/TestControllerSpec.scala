@@ -138,7 +138,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
   "TestController#processApprovedFile" should {
 
     "return 200 OK when all objects are successfully deleted" in {
-      when(mockProcessApprovedFileService.invoke).thenReturn(Future.successful(Left(())))
+      when(mockProcessApprovedFileService.createWorkItemsFromOldestFile).thenReturn(Future.successful(()))
 
       val result = controller.processApprovedFile(FakeRequest(GET, "/test-only/eacd-file-processor/processApprovedFile"))
 
@@ -147,7 +147,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
     }
 
     "return 500 InternalServerError when the repository throws an exception" in {
-      when(mockProcessApprovedFileService.invoke).thenReturn(Future.successful(Right(UnlockingFailed)))
+      when(mockProcessApprovedFileService.createWorkItemsFromOldestFile).thenReturn(Future.failed(new RuntimeException("Unexpected error")))
 
       val result = controller.processApprovedFile(FakeRequest(GET, "/test-only/eacd-file-processor/processApprovedFile"))
 
@@ -159,7 +159,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
   "TestController#processDeEnrolmentWorkItems" should {
 
     "return 200 OK when all objects are successfully deleted" in {
-      when(mockDeEnrolmentWorkItemSchedulerService.invoke).thenReturn(Future.successful(Left(())))
+      when(mockDeEnrolmentWorkItemSchedulerService.processBatch).thenReturn(Future.successful(()))
 
       val result = controller.processDeEnrolmentWorkItems(FakeRequest(GET, "/test-only/eacd-file-processor/processDeEnrolmentWorkItems"))
 
@@ -168,7 +168,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
     }
 
     "return 500 InternalServerError when the repository throws an exception" in {
-      when(mockDeEnrolmentWorkItemSchedulerService.invoke).thenReturn(Future.successful(Right(UnlockingFailed)))
+      when(mockDeEnrolmentWorkItemSchedulerService.processBatch).thenReturn(Future.failed(new RuntimeException("Unexpected error")))
 
       val result = controller.processDeEnrolmentWorkItems(FakeRequest(GET, "/test-only/eacd-file-processor/processDeEnrolmentWorkItems"))
 
@@ -180,7 +180,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
   "TestController#updateFileStatus" should {
 
     "return 200 OK when all objects are successfully deleted" in {
-      when(mockFileStatusUpdateService.invoke).thenReturn(Future.successful(Left(())))
+      when(mockFileStatusUpdateService.processProcessingFiles).thenReturn(Future.successful(()))
 
       val result = controller.updateFileStatus(FakeRequest(GET, "/test-only/eacd-file-processor/updateFileStatus"))
 
@@ -189,7 +189,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
     }
 
     "return 500 InternalServerError when the repository throws an exception" in {
-      when(mockFileStatusUpdateService.invoke).thenReturn(Future.successful(Right(UnlockingFailed)))
+      when(mockFileStatusUpdateService.processProcessingFiles).thenReturn(Future.failed(new RuntimeException("Unexpected error")))
 
       val result = controller.updateFileStatus(FakeRequest(GET, "/test-only/eacd-file-processor/updateFileStatus"))
 

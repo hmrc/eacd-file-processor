@@ -22,7 +22,7 @@ import org.apache.pekko.util.ByteString
 import play.api.libs.streams.Accumulator
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, FileRecordValidationErrorRepository}
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.services.{DeEnrolmentWorkItemSchedulerService, FileStatusUpdateService, ProcessApprovedFileService}
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.http.UpstreamErrorResponse
@@ -33,7 +33,7 @@ import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class TestController @Inject()(
@@ -79,9 +79,8 @@ class TestController @Inject()(
   }
 
   def processApprovedFile: Action[AnyContent] = Action.async {
-    processApprovedFileService.invoke.map {
-      case Left(_) => Ok("ProcessApprovedFileService invoked successfully.")
-      case _ => InternalServerError("Error invoking ProcessApprovedFileService")
+    processApprovedFileService.createWorkItemsFromOldestFile.map { _ =>
+      Ok("ProcessApprovedFileService invoked successfully.")
     }.recover {
       case e: Exception =>
         logger.error("Error invoking ProcessApprovedFileService", e)
@@ -90,9 +89,8 @@ class TestController @Inject()(
   }
 
   def processDeEnrolmentWorkItems: Action[AnyContent] = Action.async {
-    deEnrolmentWorkItemSchedulerService.invoke.map {
-      case Left(_) => Ok("DeEnrolmentWorkItemSchedulerService invoked successfully.")
-      case _ => InternalServerError("Error invoking DeEnrolmentWorkItemSchedulerService")
+    deEnrolmentWorkItemSchedulerService.processBatch.map { _ =>
+      Ok("DeEnrolmentWorkItemSchedulerService invoked successfully.")
     }.recover {
       case e: Exception =>
         logger.error("Error invoking DeEnrolmentWorkItemSchedulerService", e)
@@ -101,9 +99,8 @@ class TestController @Inject()(
   }
 
   def updateFileStatus: Action[AnyContent] = Action.async {
-    fileStatusUpdateService.invoke.map {
-      case Left(_) => Ok("FileStatusUpdateService invoked successfully.")
-      case _ => InternalServerError("Error invoking FileStatusUpdateService")
+    fileStatusUpdateService.processProcessingFiles.map { _ =>
+      Ok("FileStatusUpdateService invoked successfully.")
     }.recover {
       case e: Exception =>
         logger.error("Error invoking FileStatusUpdateService", e)
