@@ -22,7 +22,8 @@ import org.apache.pekko.util.ByteString
 import play.api.libs.streams.Accumulator
 import play.api.mvc.*
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.eacdfileprocessor.repository.{FileRepository, FileRecordValidationErrorRepository}
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository}
+import uk.gov.hmrc.eacdfileprocessor.services.{DeEnrolmentWorkItemSchedulerService, FileStatusUpdateService, ProcessApprovedFileService}
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.http.UpstreamErrorResponse
 import uk.gov.hmrc.internalauth.client.*
@@ -32,7 +33,7 @@ import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class TestController @Inject()(
@@ -41,26 +42,18 @@ class TestController @Inject()(
                                 val auth: BackendAuthComponents,
                                 val objectStoreClient: PlayObjectStoreClient,
                                 repository: FileRepository,
-                                fileRecordValidationErrorRepository: FileRecordValidationErrorRepository
+                                fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
+                                processApprovedFileService: ProcessApprovedFileService,
+                                deEnrolmentWorkItemSchedulerService: DeEnrolmentWorkItemSchedulerService,
+                                fileStatusUpdateService: FileStatusUpdateService
                               )(implicit ec: ExecutionContext, actor: ActorSystem) extends BackendController(cc) with InternalAuthBuilders with Logging {
-  val providedPermission = Predicate.or(
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("services-enrolments-helpdesk-frontend")),
-      IAAction("ADMIN")
-    ),
-    Predicate.Permission(
-      Resource(ResourceType("eacd-file-processor"), ResourceLocation("emac-support-frontend")),
-      IAAction("ADMIN")
-    )
-  )
-
   private val streaming: BodyParser[Source[ByteString, _]] =
     BodyParser: _ =>
       Accumulator.source[ByteString].map(Right.apply)
 
   def putObject(reference: String, fileName: String): Action[Source[ByteString, _]] =
     Action.async(streaming) { implicit request =>
-      val fileLocation = Path.Directory(s"$reference/$fileName").file(fileName)
+      val fileLocation = Path.Directory(s"$reference").file(fileName)
       objectStoreClient
         .putObject(fileLocation, request.body)
         .map(_ => Created("Document stored."))
@@ -82,6 +75,36 @@ class TestController @Inject()(
       case e: Exception =>
         logger.error("Error deleting test records", e)
         InternalServerError("Error deleting documents")
+    }
+  }
+
+  def processApprovedFile: Action[AnyContent] = Action.async {
+    processApprovedFileService.createWorkItemsFromOldestFile.map { _ =>
+      Ok("ProcessApprovedFileService invoked successfully.")
+    }.recover {
+      case e: Exception =>
+        logger.error("Error invoking ProcessApprovedFileService", e)
+        InternalServerError("Error invoking ProcessApprovedFileService")
+    }
+  }
+
+  def processDeEnrolmentWorkItems: Action[AnyContent] = Action.async {
+    deEnrolmentWorkItemSchedulerService.processBatch.map { _ =>
+      Ok("DeEnrolmentWorkItemSchedulerService invoked successfully.")
+    }.recover {
+      case e: Exception =>
+        logger.error("Error invoking DeEnrolmentWorkItemSchedulerService", e)
+        InternalServerError("Error invoking DeEnrolmentWorkItemSchedulerService")
+    }
+  }
+
+  def updateFileStatus: Action[AnyContent] = Action.async {
+    fileStatusUpdateService.processProcessingFiles.map { _ =>
+      Ok("FileStatusUpdateService invoked successfully.")
+    }.recover {
+      case e: Exception =>
+        logger.error("Error invoking FileStatusUpdateService", e)
+        InternalServerError("Error invoking FileStatusUpdateService")
     }
   }
 }

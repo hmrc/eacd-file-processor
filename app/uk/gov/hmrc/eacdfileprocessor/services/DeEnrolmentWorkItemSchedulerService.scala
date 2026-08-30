@@ -50,11 +50,11 @@ class DeEnrolmentWorkItemSchedulerService @Inject()(
 
   override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] = {
     lockService.lockAndRelease("DeEnrolmentWorkItemPullJob") {
-      processBatch()
+      processBatch
     }
   }
 
-  private def processBatch()(using ExecutionContext): Future[Unit] =
+  def processBatch(using ExecutionContext): Future[Unit] =
     (for {
       pulled <- deEnrolmentWorkItemRepository.pullOutstandingBatch(appConfig.DeEnrolmentWorkItemConcurrency)
       _ = logger.info(s"[processBatch] Pulled ${pulled.size} outstanding de-enrolment work item(s)")
