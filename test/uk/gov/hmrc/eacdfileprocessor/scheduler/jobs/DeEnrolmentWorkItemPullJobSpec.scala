@@ -69,13 +69,13 @@ class DeEnrolmentWorkItemPullJobSpec extends TestSupport {
       val config = Configuration.from(
         Map(
           "schedules.DeEnrolmentWorkItemPullJob.enabled" -> false,
-          "schedules.DeEnrolmentWorkItemPullJob.expression" -> "0 */15 * ? * *"
+          "schedules.DeEnrolmentWorkItemPullJob.expression" -> "0_*/15_*_?_*_*"
         )
       )
 
       val job = DeEnrolmentWorkItemPullJob(config, schedulerService, actorSystem, lifecycle)
 
-      job.expression shouldBe Some("0 */15 * ? * *")
+      job.expression shouldBe Some("0_*/15_*_?_*_*")
 
       await(CoordinatedShutdown(actorSystem).run(CoordinatedShutdown.UnknownReason))
     }

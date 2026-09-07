@@ -49,7 +49,7 @@ trait ScheduledJob {
     config.getOptional[String](s"schedules.$jobName.expression")
 
   private[scheduler] def parseCron(expr: String): Option[CronExpression] =
-    Try(new CronExpression(expr)).toOption
+    Try(new CronExpression(expr.replace('_', ' '))).toOption
 
   private[scheduler] def scheduleNext(cron: CronExpression): Cancellable = {
     val now = new Date()

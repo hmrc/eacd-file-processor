@@ -68,9 +68,10 @@ class ScheduledJobSpec extends TestSupport {
       job.description shouldBe Some("Runs test schedule")
     }
 
-    "read expression when configured" in {
-      val job = new TestScheduledJob(Map("schedules.TestScheduledJob.expression" -> "0 */15 * ? * *"))
-      job.expression shouldBe Some("0 */15 * ? * *")
+    "parse cron with underscores correctly" in {
+      val job = new TestScheduledJob(Map("schedules.TestScheduledJob.expression" -> "0_*/15_*_?_*_*"))
+      job.expression shouldBe Some("0_*/15_*_?_*_*")
+      job.parseCron(job.expression.get).isDefined shouldBe true
     }
 
     "return None when expression is not configured" in {
@@ -93,14 +94,14 @@ class ScheduledJobSpec extends TestSupport {
         Map(
           "schedules.TestScheduledJob.enabled" -> true,
           "schedules.TestScheduledJob.description" -> "My job",
-          "schedules.TestScheduledJob.expression" -> "0 */15 * ? * *"
+          "schedules.TestScheduledJob.expression" -> "0_*/15_*_?_*_*"
         )
       )
 
       job.schedule
 
       job.scheduleNextCalled shouldBe true
-      job.parsedCron shouldBe Some("0 */15 * ? * *")
+      job.parsedCron shouldBe Some("0_*/15_*_?_*_*")
     }
 
     "not create or register schedule when enabled but expression is missing" in {
@@ -116,7 +117,7 @@ class ScheduledJobSpec extends TestSupport {
       val job = new TestScheduledJob(
         Map(
           "schedules.TestScheduledJob.enabled" -> false,
-          "schedules.TestScheduledJob.expression" -> "0 */15 * ? * *"
+          "schedules.TestScheduledJob.expression" -> "0_*/15_*_?_*_*"
         )
       )
 
