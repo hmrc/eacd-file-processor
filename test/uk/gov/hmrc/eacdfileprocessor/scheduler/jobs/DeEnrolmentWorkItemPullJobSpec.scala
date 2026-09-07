@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.eacdfileprocessor.scheduler.jobs
 
+import org.apache.pekko.actor.{ActorSystem, CoordinatedShutdown}
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
@@ -41,21 +42,42 @@ class DeEnrolmentWorkItemPullJobSpec extends TestSupport {
   "DeEnrolmentWorkItemPullJob" should {
 
     "initialize with expected defaults and register stop hook" in {
-      val lifecycle = StubLifecycle()
+      val lifecycle = new StubLifecycle
       val schedulerService = mock[DeEnrolmentWorkItemSchedulerService]
-      val config = Configuration.from(Map("schedules.DeEnrolmentWorkItemPullJob.enabled" -> false))
+      val actorSystem = ActorSystem("DeEnrolmentWorkItemPullJobSpec-1")
+      val config = Configuration.from(
+        Map(
+          "schedules.DeEnrolmentWorkItemPullJob.enabled" -> false
+        )
+      )
 
-      val job = DeEnrolmentWorkItemPullJob(config, schedulerService, lifecycle)
+      val job = DeEnrolmentWorkItemPullJob(config, schedulerService, actorSystem, lifecycle)
 
       job.jobName shouldBe "DeEnrolmentWorkItemPullJob"
       job.deEnrolmentWorkItemSchedulerService shouldBe schedulerService
-      job.interval shouldBe None
+      job.actorSystem shouldBe actorSystem
+      job.expression shouldBe None
       lifecycle.stopHookCalls shouldBe 1
 
-      await(job.actorSystem.terminate())
+      await(CoordinatedShutdown(actorSystem).run(CoordinatedShutdown.UnknownReason))
+    }
+
+    "read expression when configured" in {
+      val lifecycle = new StubLifecycle
+      val schedulerService = mock[DeEnrolmentWorkItemSchedulerService]
+      val actorSystem = ActorSystem("DeEnrolmentWorkItemPullJobSpec-2")
+      val config = Configuration.from(
+        Map(
+          "schedules.DeEnrolmentWorkItemPullJob.enabled" -> false,
+          "schedules.DeEnrolmentWorkItemPullJob.expression" -> "0_*/15_*_?_*_*"
+        )
+      )
+
+      val job = DeEnrolmentWorkItemPullJob(config, schedulerService, actorSystem, lifecycle)
+
+      job.expression shouldBe Some("0_*/15_*_?_*_*")
+
+      await(CoordinatedShutdown(actorSystem).run(CoordinatedShutdown.UnknownReason))
     }
   }
 }
-
-
-
