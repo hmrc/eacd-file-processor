@@ -9,6 +9,7 @@ object AppDependencies {
   val compile = Seq(
     "uk.gov.hmrc"             %% "bootstrap-backend-play-30"          % bootstrapVersion,
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-work-item-repo-play-30"  % hmrcMongoVersion,
+    "org.quartz-scheduler"    %  "quartz"                             % "2.5.2",
     "uk.gov.hmrc.objectstore" %% "object-store-client-play-30"        % "2.6.0",
     "uk.gov.hmrc"             %% "internal-auth-client-play-30"       % "4.4.0"
   )
