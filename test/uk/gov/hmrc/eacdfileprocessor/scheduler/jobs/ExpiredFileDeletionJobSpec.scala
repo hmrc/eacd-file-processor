@@ -48,13 +48,13 @@ class ExpiredFileDeletionJobSpec extends TestSupport {
       val config = Configuration.from(
         Map(
           "schedules.ExpiredFileDeletionJob.enabled" -> false,
-          "schedules.ExpiredFileDeletionJob.expression" -> "0 0 2 ? * *"
+          "schedules.ExpiredFileDeletionJob.expression" -> "0_0_2_?_*_*"
         )
       )
 
       val job = ExpiredFileDeletionJob(config, service, actorSystem)
 
-      job.expression shouldBe Some("0 0 2 ? * *")
+      job.expression shouldBe Some("0_0_2_?_*_*")
 
       await(CoordinatedShutdown(actorSystem).run(CoordinatedShutdown.UnknownReason))
     }

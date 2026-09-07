@@ -48,13 +48,13 @@ class FileStatusUpdateJobSpec extends TestSupport {
       val config = Configuration.from(
         Map(
           "schedules.FileStatusUpdateJob.enabled" -> false,
-          "schedules.FileStatusUpdateJob.expression" -> "0 */15 * ? * *"
+          "schedules.FileStatusUpdateJob.expression" -> "0_*/15_*_?_*_*"
         )
       )
 
       val job = FileStatusUpdateJob(config, service, actorSystem)
 
-      job.expression shouldBe Some("0 */15 * ? * *")
+      job.expression shouldBe Some("0_*/15_*_?_*_*")
 
       await(CoordinatedShutdown(actorSystem).run(CoordinatedShutdown.UnknownReason))
     }

@@ -48,13 +48,13 @@ class ProcessApprovedFileJobSpec extends TestSupport {
       val config = Configuration.from(
         Map(
           "schedules.ProcessApprovedFileJob.enabled" -> false,
-          "schedules.ProcessApprovedFileJob.expression" -> "0 */15 * ? * *"
+          "schedules.ProcessApprovedFileJob.expression" -> "0_*/15_*_?_*_*"
         )
       )
 
       val job = ProcessApprovedFileJob(config, service, actorSystem)
 
-      job.expression shouldBe Some("0 */15 * ? * *")
+      job.expression shouldBe Some("0_*/15_*_?_*_*")
 
       await(CoordinatedShutdown(actorSystem).run(CoordinatedShutdown.UnknownReason))
     }
