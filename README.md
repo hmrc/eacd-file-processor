@@ -44,16 +44,21 @@ Base paths:
 
 ## API Table
 
-| Method              | Path                                                           | Purpose                                                            |
-|---------------------|----------------------------------------------------------------|--------------------------------------------------------------------|
-| POST                | `/eacd-file-processor/callback`                                | Receive Upscan callback (`READY` / `FAILED`) and update file state |
-| POST                | `/eacd-file-processor/initiate`                                | Create initial file record for helpdesk request                    |
-| PUT                 | `/eacd-file-processor/status/:reference`                       | Update file status and optional approver/error details             |
-| GET                 | `/eacd-file-processor/files/:status`                           | List file records by status                                        |
-| GET                 | `/eacd-file-processor/file/:reference`                         | Download file content by reference                                 |
-| GET *(support)*     | `/eacd-file-processor/support-tool/file-status-count`          | Return aggregate counts across statuses                            |
-| PUT *(testOnly)*    | `/test-only/eacd-file-processor/document/:reference/:fileName` | Seed object store content for tests                                |
-| DELETE *(testOnly)* | `/test-only/eacd-file-processor/drop`                          | Clear test object store content                                    |
+| Method              | Path                                                           | Purpose                                                                                                                                 |
+|---------------------|----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| POST                | `/eacd-file-processor/callback`                                | Receive Upscan callback (`READY` / `FAILED`) and update file state                                                                      |
+| POST                | `/eacd-file-processor/initiate`                                | Create initial file record for helpdesk request                                                                                         |
+| PUT                 | `/eacd-file-processor/status/:reference`                       | Update file status and optional approver/error details                                                                                  |
+| GET                 | `/eacd-file-processor/files/:status`                           | List file records by status                                                                                                             |
+| GET                 | `/eacd-file-processor/file/:reference`                         | Download file content by reference                                                                                                      |
+| GET *(support)*     | `/eacd-file-processor/support-tool/file-status-count`          | Return aggregate counts across statuses                                                                                                 |
+| GET *(support)*     | `/eacd-file-processor/support-tool/file-detail/:reference`     | Return file detail by reference                                                                                                         |
+| GET *(support)*     | `/eacd-file-processor/support-tool/file-errors/:reference`     | Return file error records by reference in csv format                                                                                    |
+| PUT *(testOnly)*    | `/test-only/eacd-file-processor/document/:reference/:fileName` | Seed object store content for tests                                                                                                     |
+| DELETE *(testOnly)* | `/test-only/eacd-file-processor/drop`                          | Clear test object store content                                                                                                         |
+| GET *(testOnly)*    | `/test-only/eacd-file-processor/processApprovedFile`           | Process oldest approved file                                                                                                            |
+| GET *(testOnly)*    | `/test-only/eacd-file-processor/processDeEnrolmentWorkItems`   | Process uncompleted de-enrolment workItems                                                                                              |
+| GET *(testOnly)*    | `/test-only/eacd-file-processor/updateFileStatus`              | Update file status to processedWithErrors, processedSuccessfully or processedWithCountMismatch only if the current status is processing |
 
 ## API reference
 
@@ -189,6 +194,7 @@ Valid statuses include:
 - `processing`
 - `processedWithErrors`
 - `processedSuccessfully`
+- `processedWithCountMismatch`
 
 Example response (`200 OK`):
 
@@ -272,6 +278,10 @@ Example response (`200 OK`):
   {
     "status": "processedSuccessfully",
     "count": 0
+  },
+  {
+    "status": "processedWithCountMismatch",
+    "count": 0
   }
 ]
 ```
@@ -298,6 +308,19 @@ Defined in `conf/testOnlyDoNotUseInAppConf.routes` and only available when test 
 
 - `PUT /test-only/eacd-file-processor/document/:reference/:fileName`
 - `DELETE /test-only/eacd-file-processor/drop`
+- `GET /test-only/eacd-file-processor/processApprovedFile`
+- `GET /test-only/eacd-file-processor/processDeEnrolmentWorkItems`
+- `GET /test-only/eacd-file-processor/updateFileStatus`
+
+## Scheduled Jobs
+### ApprovedFileProcessingJob
+Processes the oldest approved file from mongoDB and retrieves the file from Object Store then creates de-enrolment work items.
+### DeEnrolmentWorkItemPullJob
+Pulls uncompleted de-enrolment work items from mongoDB. The ones pass validation will be de-enrolled by calling ES1 and ES9.
+### FileStatusUpdateJob
+Updates file status to processedWithErrors, processedSuccessfully or processedWithCountMismatch only if the current status is processing.
+### ExpiredFileDeletionJob
+Deletes file from mongoDB that are older than 60 days(depends on fileExpiryDays value in application.conf). Files are deleted from Object Store only if the stage is beyond initial.
 
 ## License
 

@@ -83,7 +83,7 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
     ).map(_.map(obj => obj.content))
   }
 
-  private[services] def createWorkItemsFromOldestFile: Future[Unit] = {
+  def createWorkItemsFromOldestFile: Future[Unit] = {
     fileRepository.findOldestApprovedFile.flatMap {
       case Some(uploadedDetail) =>
         val reference = uploadedDetail.reference

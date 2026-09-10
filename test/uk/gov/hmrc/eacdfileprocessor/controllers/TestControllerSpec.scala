@@ -22,17 +22,17 @@ import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.http.Status.CREATED
 import play.api.mvc.*
-import uk.gov.hmrc.objectstore.client.{ObjectSummaryWithMd5, Path}
-import uk.gov.hmrc.objectstore.client.Md5Hash
-import play.api.test.Helpers.{DELETE, INTERNAL_SERVER_ERROR, OK, POST, contentAsString, status}
+import play.api.test.Helpers.{DELETE, GET, INTERNAL_SERVER_ERROR, OK, POST, contentAsString, status}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
 import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository}
+import uk.gov.hmrc.eacdfileprocessor.services.{DeEnrolmentWorkItemSchedulerService, FileStatusUpdateService, ProcessApprovedFileService, UnlockingFailed}
 import uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate, Retrieval}
 import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
+import uk.gov.hmrc.objectstore.client.{Md5Hash, ObjectSummaryWithMd5, Path}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -45,6 +45,9 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
   private val mockConfig: play.api.Configuration = mock[play.api.Configuration]
   private val mockAuth: BackendAuthComponents = mock[BackendAuthComponents]
   private val mockObjectStoreClient = mock[PlayObjectStoreClient]
+  private val mockProcessApprovedFileService = mock[ProcessApprovedFileService]
+  private val mockDeEnrolmentWorkItemSchedulerService = mock[DeEnrolmentWorkItemSchedulerService]
+  private val mockFileStatusUpdateService = mock[FileStatusUpdateService]
 
   implicit lazy val actorSystem: ActorSystem = ActorSystem()
 
@@ -56,7 +59,10 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
     mockAuth,
     mockObjectStoreClient,
     mockRepository,
-    mockFileRecordValidationErrorRepository) {
+    mockFileRecordValidationErrorRepository,
+    mockProcessApprovedFileService,
+    mockDeEnrolmentWorkItemSchedulerService,
+    mockFileStatusUpdateService) {
     override def authorisedEntity(
                                    providedPermission: Predicate,
                                    apiName: String
@@ -84,7 +90,7 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
     "return 201 Created when the object is successfully stored" in {
       when(mockObjectStoreClient.putObject(any(), any(), any(), any(), any(), any())(any(), any()))
         .thenReturn(Future.successful(ObjectSummaryWithMd5(
-          location = Path.File("test-ref-123/test-file.csv/test-file.csv"),
+          location = Path.File("test-ref-123/test-file.csv"),
           contentLength = 0,
           contentMd5 = Md5Hash("md5hash"),
           lastModified = java.time.Instant.now()
@@ -126,6 +132,69 @@ class TestControllerSpec extends TestSupport with TestData with DefaultAwaitTime
 
       status(result) shouldBe INTERNAL_SERVER_ERROR
       contentAsString(result) shouldBe "Error deleting documents"
+    }
+  }
+
+  "TestController#processApprovedFile" should {
+
+    "return 200 OK when all objects are successfully deleted" in {
+      when(mockProcessApprovedFileService.createWorkItemsFromOldestFile).thenReturn(Future.successful(()))
+
+      val result = controller.processApprovedFile(FakeRequest(GET, "/test-only/eacd-file-processor/processApprovedFile"))
+
+      status(result) shouldBe OK
+      contentAsString(result) shouldBe "ProcessApprovedFileService invoked successfully."
+    }
+
+    "return 500 InternalServerError when the repository throws an exception" in {
+      when(mockProcessApprovedFileService.createWorkItemsFromOldestFile).thenReturn(Future.failed(new RuntimeException("Unexpected error")))
+
+      val result = controller.processApprovedFile(FakeRequest(GET, "/test-only/eacd-file-processor/processApprovedFile"))
+
+      status(result) shouldBe INTERNAL_SERVER_ERROR
+      contentAsString(result) shouldBe "Error invoking ProcessApprovedFileService"
+    }
+  }
+
+  "TestController#processDeEnrolmentWorkItems" should {
+
+    "return 200 OK when all objects are successfully deleted" in {
+      when(mockDeEnrolmentWorkItemSchedulerService.processBatch).thenReturn(Future.successful(()))
+
+      val result = controller.processDeEnrolmentWorkItems(FakeRequest(GET, "/test-only/eacd-file-processor/processDeEnrolmentWorkItems"))
+
+      status(result) shouldBe OK
+      contentAsString(result) shouldBe "DeEnrolmentWorkItemSchedulerService invoked successfully."
+    }
+
+    "return 500 InternalServerError when the repository throws an exception" in {
+      when(mockDeEnrolmentWorkItemSchedulerService.processBatch).thenReturn(Future.failed(new RuntimeException("Unexpected error")))
+
+      val result = controller.processDeEnrolmentWorkItems(FakeRequest(GET, "/test-only/eacd-file-processor/processDeEnrolmentWorkItems"))
+
+      status(result) shouldBe INTERNAL_SERVER_ERROR
+      contentAsString(result) shouldBe "Error invoking DeEnrolmentWorkItemSchedulerService"
+    }
+  }
+
+  "TestController#updateFileStatus" should {
+
+    "return 200 OK when all objects are successfully deleted" in {
+      when(mockFileStatusUpdateService.processProcessingFiles).thenReturn(Future.successful(()))
+
+      val result = controller.updateFileStatus(FakeRequest(GET, "/test-only/eacd-file-processor/updateFileStatus"))
+
+      status(result) shouldBe OK
+      contentAsString(result) shouldBe "FileStatusUpdateService invoked successfully."
+    }
+
+    "return 500 InternalServerError when the repository throws an exception" in {
+      when(mockFileStatusUpdateService.processProcessingFiles).thenReturn(Future.failed(new RuntimeException("Unexpected error")))
+
+      val result = controller.updateFileStatus(FakeRequest(GET, "/test-only/eacd-file-processor/updateFileStatus"))
+
+      status(result) shouldBe INTERNAL_SERVER_ERROR
+      contentAsString(result) shouldBe "Error invoking FileStatusUpdateService"
     }
   }
 }

@@ -26,12 +26,10 @@ import play.api.test.Helpers
 import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, UnitSpec}
 import uk.gov.hmrc.http.client.{HttpClientV2, RequestBuilder}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, SessionId}
-import uk.gov.hmrc.http.HttpReads.Implicits.readRaw
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import java.time.Instant.now
 import java.util.UUID
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.*
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
@@ -105,7 +103,7 @@ class EmailConnectorSpec extends TestData with UnitSpec with ScalaFutures {
         when(mockRequestBuilder.withBody[JsValue](any())(any(), any(), any()))
           .thenReturn(mockRequestBuilder)
 
-        when(mockRequestBuilder.execute)
+        when(mockRequestBuilder.execute[HttpResponse](any(), any()))
           .thenReturn(Future.failed(new Exception))
 
         whenReady(connector.sendEmail(params, to, templateId)(hc, ec)) {
