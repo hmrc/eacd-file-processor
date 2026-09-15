@@ -15,3 +15,6 @@
 
 PUT        /test-only/eacd-file-processor/document/:reference/:fileName        uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController.putObject(reference, fileName)
 DELETE     /test-only/eacd-file-processor/drop                                 uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController.deleteAllObjects()
+GET        /test-only/eacd-file-processor/processApprovedFile                  uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController.processApprovedFile
+GET        /test-only/eacd-file-processor/processDeEnrolmentWorkItems          uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController.processDeEnrolmentWorkItems
+GET        /test-only/eacd-file-processor/updateFileStatus                     uk.gov.hmrc.eacdfileprocessor.testOnly.controllers.TestController.updateFileStatus
