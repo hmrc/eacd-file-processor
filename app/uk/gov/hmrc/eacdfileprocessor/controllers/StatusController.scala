@@ -45,8 +45,6 @@ class StatusController @Inject()(
   def updateStatus(reference: String): Action[JsValue] = authorisedEntity(providedPermission, "status")
     .async(parse.json) { implicit request: Request[JsValue] =>
 
-      logger.info(s"Received update status notification [${Json.stringify(request.body)}]")
-
       withJsonBody[StatusApproverDetails] { statusApproverDetails =>
         fileUploadRepo.findByReference(Reference(reference)).flatMap {
           case Some(uploadDetails) =>
