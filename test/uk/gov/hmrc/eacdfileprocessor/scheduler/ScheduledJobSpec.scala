@@ -17,34 +17,41 @@
 package uk.gov.hmrc.eacdfileprocessor.scheduler
 
 import org.apache.pekko.actor.{ActorRef, ActorSystem, Cancellable}
+import org.quartz.CronExpression
 import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.Configuration
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.DeEnrolmentWorkItemPullMessage
 import uk.gov.hmrc.eacdfileprocessor.services.LockResponse
 
-import java.time.LocalTime
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.concurrent.{ExecutionContext, Future}
 
 class ScheduledJobSpec extends TestSupport {
 
   private val scheduledService = new ScheduledService[Either[Unit, LockResponse]] {
-    override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] = Future.successful(Left(()))
+    override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] =
+      Future.successful(Left(()))
   }
 
   private class TestScheduledJob(configMap: Map[String, Any]) extends ScheduledJob {
-    override val scheduledMessage          = DeEnrolmentWorkItemPullMessage(scheduledService)
-    override val config: Configuration     = Configuration.from(configMap)
-    override val actorSystem: ActorSystem  = mock[ActorSystem]
-    override val jobName: String           = "TestScheduledJob"
-    override lazy val schedulingActorRef: ActorRef = null
+    override val scheduledMessage: DeEnrolmentWorkItemPullMessage =
+      DeEnrolmentWorkItemPullMessage(scheduledService)
+    override val config: Configuration = Configuration.from(configMap)
+    override val actorSystem: ActorSystem = mock[ActorSystem]
+    override val jobName: String = "TestScheduledJob"
+    override lazy val schedulingActorRef: ActorRef = mock[ActorRef]
 
-    // Capture whether (and with what interval) a schedule was registered, without touching a real scheduler.
-    val cancellable: Cancellable            = mock[Cancellable]
-    var scheduledAt: Option[FiniteDuration] = None
-    override private[scheduler] def scheduleAtFixedRate(every: FiniteDuration): Cancellable = {
-      scheduledAt = Some(every)
+    val cancellable: Cancellable = mock[Cancellable]
+    var scheduleNextCalled: Boolean = false
+    var parsedCron: Option[String] = None
+
+    override private[scheduler] def parseCron(expr: String): Option[CronExpression] = {
+      parsedCron = Some(expr)
+      super.parseCron(expr)
+    }
+
+    override private[scheduler] def scheduleNext(cron: CronExpression): Cancellable = {
+      scheduleNextCalled = true
       cancellable
     }
   }
@@ -52,147 +59,86 @@ class ScheduledJobSpec extends TestSupport {
   "ScheduledJob" should {
 
     "read enabled as false when no enabled configuration is provided" in {
-      val job = TestScheduledJob(Map.empty)
-
+      val job = new TestScheduledJob(Map.empty)
       job.enabled shouldBe false
     }
 
     "read optional description when configured" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.description" -> "Runs test schedule"))
-
+      val job = new TestScheduledJob(Map("schedules.TestScheduledJob.description" -> "Runs test schedule"))
       job.description shouldBe Some("Runs test schedule")
     }
 
-    "parse interval duration when configured" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.interval" -> "1 second"))
-
-      job.interval shouldBe Some(1.second)
+    "parse cron with underscores correctly" in {
+      val job = new TestScheduledJob(Map("schedules.TestScheduledJob.expression" -> "0_*/15_*_?_*_*"))
+      job.expression shouldBe Some("0_*/15_*_?_*_*")
+      job.parseCron(job.expression.get).isDefined shouldBe true
     }
 
-    "parse millisecond interval when configured" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.interval" -> "100 milliseconds"))
-
-      job.interval shouldBe Some(100.milliseconds)
+    "return None when expression is not configured" in {
+      val job = new TestScheduledJob(Map.empty)
+      job.expression shouldBe None
     }
 
-    "parse minute interval when configured" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.interval" -> "15 minutes"))
-
-      job.interval shouldBe Some(15.minutes)
+    "parse valid cron expression" in {
+      val job = new TestScheduledJob(Map.empty)
+      job.parseCron("0 */15 * ? * *").isDefined shouldBe true
     }
 
-    "return None when interval is not configured" in {
-      val job = TestScheduledJob(Map.empty)
-
-      job.interval shouldBe None
+    "not parse invalid cron expression" in {
+      val job = new TestScheduledJob(Map.empty)
+      job.parseCron("not-a-cron").isDefined shouldBe false
     }
 
-    "read configured UTC start and end times when both are present" in {
-      val job = TestScheduledJob(
+    "create and register schedule when enabled and expression is valid" in {
+      val job = new TestScheduledJob(
         Map(
-          "schedules.TestScheduledJob.start-time-utc" -> "09:00",
-          "schedules.TestScheduledJob.end-time-utc"   -> "17:00"
-        )
-      )
-
-      job.startTimeUtc shouldBe Some(LocalTime.of(9, 0))
-      job.endTimeUtc shouldBe Some(LocalTime.of(17, 0))
-    }
-
-    "ignore an invalid UTC time and treat the window as unconfigured" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.start-time-utc" -> "not-a-time"))
-
-      job.startTimeUtc shouldBe None
-    }
-
-    "allow runs at any time when no UTC window is configured" in {
-      val job = TestScheduledJob(Map.empty)
-
-      job.isWithinAllowedUtcWindow(LocalTime.of(3, 0)) shouldBe true
-      job.isWithinAllowedUtcWindow(LocalTime.of(13, 0)) shouldBe true
-      job.isWithinAllowedUtcWindow(LocalTime.of(23, 0)) shouldBe true
-    }
-
-    "allow runs at any time when the window bounds are equal" in {
-      val job = TestScheduledJob(
-        Map(
-          "schedules.TestScheduledJob.start-time-utc" -> "02:00",
-          "schedules.TestScheduledJob.end-time-utc"   -> "02:00"
-        )
-      )
-
-      job.isWithinAllowedUtcWindow(LocalTime.of(2, 0)) shouldBe true
-      job.isWithinAllowedUtcWindow(LocalTime.of(14, 0)) shouldBe true
-    }
-
-    "allow runs only between start and end for a same-day UTC window" in {
-      val job = TestScheduledJob(
-        Map(
-          "schedules.TestScheduledJob.start-time-utc" -> "09:00",
-          "schedules.TestScheduledJob.end-time-utc"   -> "17:00"
-        )
-      )
-
-      job.isWithinAllowedUtcWindow(LocalTime.of(8, 59)) shouldBe false
-      job.isWithinAllowedUtcWindow(LocalTime.of(9, 0)) shouldBe true
-      job.isWithinAllowedUtcWindow(LocalTime.of(16, 59)) shouldBe true
-      job.isWithinAllowedUtcWindow(LocalTime.of(17, 0)) shouldBe false
-    }
-
-    "allow runs correctly for an overnight UTC window" in {
-      val job = TestScheduledJob(
-        Map(
-          "schedules.TestScheduledJob.start-time-utc" -> "22:00",
-          "schedules.TestScheduledJob.end-time-utc"   -> "05:00"
-        )
-      )
-
-      job.isWithinAllowedUtcWindow(LocalTime.of(23, 0)) shouldBe true
-      job.isWithinAllowedUtcWindow(LocalTime.of(4, 30)) shouldBe true
-      job.isWithinAllowedUtcWindow(LocalTime.of(12, 0)) shouldBe false
-    }
-
-    "treat partial UTC window configuration as unrestricted" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.start-time-utc" -> "09:00"))
-
-      job.hasPartialUtcWindowConfig shouldBe true
-      job.isWithinAllowedUtcWindow(LocalTime.of(2, 0)) shouldBe true
-      job.isWithinAllowedUtcWindow(LocalTime.of(18, 0)) shouldBe true
-    }
-
-    "create and register schedule when enabled and interval is present" in {
-      val job = TestScheduledJob(
-        Map(
-          "schedules.TestScheduledJob.enabled"     -> true,
+          "schedules.TestScheduledJob.enabled" -> true,
           "schedules.TestScheduledJob.description" -> "My job",
-          "schedules.TestScheduledJob.interval"    -> "1 second"
+          "schedules.TestScheduledJob.expression" -> "0_*/15_*_?_*_*"
         )
       )
 
       job.schedule
 
-      job.scheduledAt shouldBe Some(1.second)
+      job.scheduleNextCalled shouldBe true
+      job.parsedCron shouldBe Some("0_*/15_*_?_*_*")
     }
 
-    "not create or register schedule when enabled but interval is missing" in {
-      val job = TestScheduledJob(Map("schedules.TestScheduledJob.enabled" -> true))
+    "not create or register schedule when enabled but expression is missing" in {
+      val job = new TestScheduledJob(Map("schedules.TestScheduledJob.enabled" -> true))
 
       job.schedule
 
-      job.scheduledAt shouldBe None
+      job.scheduleNextCalled shouldBe false
+      job.parsedCron shouldBe None
     }
 
     "not create or register schedule when job is disabled" in {
-      val job = TestScheduledJob(
+      val job = new TestScheduledJob(
         Map(
-          "schedules.TestScheduledJob.enabled"  -> false,
-          "schedules.TestScheduledJob.interval" -> "1 second"
+          "schedules.TestScheduledJob.enabled" -> false,
+          "schedules.TestScheduledJob.expression" -> "0_*/15_*_?_*_*"
         )
       )
 
       job.schedule
 
-      job.scheduledAt shouldBe None
+      job.scheduleNextCalled shouldBe false
+      job.parsedCron shouldBe None
+    }
+
+    "not create schedule when expression is invalid" in {
+      val job = new TestScheduledJob(
+        Map(
+          "schedules.TestScheduledJob.enabled" -> true,
+          "schedules.TestScheduledJob.expression" -> "bad expression"
+        )
+      )
+
+      job.schedule
+
+      job.scheduleNextCalled shouldBe false
+      job.parsedCron shouldBe Some("bad expression")
     }
   }
 }

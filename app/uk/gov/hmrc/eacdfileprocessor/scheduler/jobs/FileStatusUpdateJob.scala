@@ -24,12 +24,14 @@ import uk.gov.hmrc.eacdfileprocessor.services.FileStatusUpdateService
 
 import javax.inject.Inject
 
-class FileStatusUpdateJob @Inject()(val config: Configuration,
-                                    val fileStatusUpdateService: FileStatusUpdateService) extends ScheduledJob {
+class FileStatusUpdateJob @Inject()(
+                                     val config: Configuration,
+                                     val fileStatusUpdateService: FileStatusUpdateService,
+                                     val actorSystem: ActorSystem
+                                   ) extends ScheduledJob {
 
-  val jobName: String           = "FileStatusUpdateJob"
-  val actorSystem: ActorSystem  = ActorSystem(jobName)
-  val scheduledMessage          = FileStatusUpdateMessage(fileStatusUpdateService, () => isWithinAllowedUtcWindow(), utcWindowSkipReason)
+  val jobName: String = "FileStatusUpdateJob"
+  val scheduledMessage = FileStatusUpdateMessage(fileStatusUpdateService)
 
   schedule
 }
