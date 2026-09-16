@@ -79,5 +79,26 @@ class DeEnrolmentWorkItemPullJobSpec extends TestSupport {
 
       await(CoordinatedShutdown(actorSystem).run(CoordinatedShutdown.UnknownReason))
     }
+
+    "initialize and schedule when enabled is true" in {
+      val lifecycle = new StubLifecycle
+      val schedulerService = mock[DeEnrolmentWorkItemSchedulerService]
+      val actorSystem = ActorSystem("DeEnrolmentWorkItemPullJobSpec-3")
+      val config = Configuration.from(
+        Map(
+          "schedules.DeEnrolmentWorkItemPullJob.enabled" -> true,
+          "schedules.DeEnrolmentWorkItemPullJob.expression" -> "0_*/15_*_?_*_*"
+        )
+      )
+
+      val job = DeEnrolmentWorkItemPullJob(config, schedulerService, actorSystem, lifecycle)
+
+      job.jobName shouldBe "DeEnrolmentWorkItemPullJob"
+      job.enabled shouldBe true
+      job.expression shouldBe Some("0_*/15_*_?_*_*")
+      lifecycle.stopHookCalls shouldBe 1
+
+      await(CoordinatedShutdown(actorSystem).run(CoordinatedShutdown.UnknownReason))
+    }
   }
 }
