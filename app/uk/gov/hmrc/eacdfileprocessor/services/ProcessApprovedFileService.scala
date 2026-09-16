@@ -57,7 +57,7 @@ trait ProcessApprovedFileService extends Logging with ScheduledService[Either[Un
 
   override def invoke(implicit ec: ExecutionContext): Future[Either[Unit, LockResponse]] =
     logger.info("ProcessApprovedFileService.invoke - Starting scheduled job")
-    lockService.lockAndRelease(this.getClass.getSimpleName) {
+    lockService.lockAndRelease("ProcessApprovedFileJob") {
       for {
         _ <- checkRecordsWithStaleFileStatus
         _ <- createWorkItemsFromOldestFile
