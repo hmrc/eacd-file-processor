@@ -33,7 +33,8 @@ import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, Try}
 
 
 @Singleton
@@ -106,6 +107,27 @@ class TestController @Inject()(
       case e: Exception =>
         logger.error("Error invoking FileStatusUpdateService", e)
         InternalServerError("Error invoking FileStatusUpdateService")
+    }
+  }
+
+  def invokeJob(jobName: String): Action[AnyContent] = Action.async {
+    println(s"[invokeJob] Invoking $jobName")
+    val job = jobName match {
+      case "processApprovedFile" =>
+        processApprovedFileService.createWorkItemsFromOldestFile
+      case "processDeEnrolmentWorkItems" =>
+        deEnrolmentWorkItemSchedulerService.processBatch
+      case "updateFileStatus" =>
+        fileStatusUpdateService.processProcessingFiles
+      case _ =>
+        Future.failed(new Exception("Job not found"))
+    }
+    job.map { _ =>
+      Ok(s"$jobName invoked successfully")
+    }.recover {
+      case e =>
+        logger.error(s"Error invoking $jobName", e)
+        InternalServerError(s"Error invoking $jobName")
     }
   }
 }
