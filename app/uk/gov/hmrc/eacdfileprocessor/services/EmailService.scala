@@ -108,8 +108,9 @@ class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)
     if !appConfig.emailEnabled then {
       Future(true)
     } else
-      val params = Map(
-        "requestorName" -> uploadedDetails.requestorName,
+
+      def params(name: String) = Map(
+        "requestorName" -> name,
         "fileName" -> getFileName(uploadedDetails),
         "uploadedDateTime" -> getUploadedDateTime(uploadedDetails),
         "reference" -> uploadedDetails.reference.value,
@@ -117,14 +118,20 @@ class EmailService @Inject(appConfig: AppConfig)(emailConnector: EmailConnector)
         "successfulRecordCount" -> uploadedDetails.totalSuccessCount.getOrElse(0).toString,
         "failedRecordCount" -> uploadedDetails.totalFailureCount.getOrElse(0).toString
       )
-      
-      emailConnector.sendEmails(params,
-        Seq(uploadedDetails.requestorEmail,
-          uploadedDetails.approverDetails
-            .flatMap(_.approverEmail)
-            .getOrElse(throw new RuntimeException(s"Approver email is missing for reference: ${uploadedDetails.reference.value}"))
-        ),
-        "emac_helpdesk_bulk_deenrolment_file_processed")
+
+      val approverEmail = uploadedDetails.approverDetails
+        .flatMap(_.approverEmail)
+        .getOrElse(throw new RuntimeException(s"Approver email is missing for reference: ${uploadedDetails.reference.value}"))
+
+      val approverName = uploadedDetails.approverDetails
+        .flatMap(_.approverName)
+        .getOrElse(throw new RuntimeException(s"Approver name is missing for reference: ${uploadedDetails.reference.value}"))
+
+      for  {
+        emailApprover <- emailConnector.sendEmail(params(approverName), approverEmail, "emac_helpdesk_bulk_deenrolment_file_processed")
+        emailRequestor <- emailConnector.sendEmail(params(uploadedDetails.requestorName), uploadedDetails.requestorEmail, "emac_helpdesk_bulk_deenrolment_file_processed")
+      } yield emailApprover && emailRequestor
+
   }
 
   private def getFileName(uploadedDetails: UploadedDetails): String = {
