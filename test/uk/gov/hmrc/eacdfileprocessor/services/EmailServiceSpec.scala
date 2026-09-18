@@ -32,11 +32,13 @@ import scala.concurrent.Future
 
 class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
   private val mockAppConfig = mock[AppConfig]
+
   trait SetUp() {
     val mockEmailConnector = mock[EmailConnector]
     val emailService = EmailService(appConfig = mockAppConfig)(mockEmailConnector)
     when(mockAppConfig.emailEnabled).thenReturn(true)
   }
+
   "EmailConnector" must {
     "sendFileFailEmail" must {
       "return true for sending file fail email successfully" in new SetUp {
@@ -150,7 +152,7 @@ class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
     }
     "sendFileProcessedEmail" must {
       "return true for sending file processed email successfully" in new SetUp {
-        when(mockEmailConnector.sendEmails(any(), any(), any())(any(), any()))
+        when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
           .thenReturn(Future.successful(true))
 
         val result = await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(
@@ -163,14 +165,18 @@ class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
       }
       "throw exception when uploadedDateTime is missing" in new SetUp {
         val exception = intercept[RuntimeException] {
-          await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(details = Some(successfulUploadedDetails))))
+          await(emailService.sendFileProcessedEmails(
+            initiateUploadDetails.copy(
+              details = Some(successfulUploadedDetails),
+              approverDetails = Some(approverDetails)))
+          )
         }
 
         exception.getMessage contains "Uploaded date time not found for reference" shouldBe true
       }
       "throw exception when file name is missing" in new SetUp {
         val exception = intercept[RuntimeException] {
-          await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(details = Some(failedFileDetails))))
+          await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(details = Some(failedFileDetails), approverDetails = Some(approverDetails))))
         }
 
         exception.getMessage contains "File name is missing for reference" shouldBe true
@@ -187,6 +193,29 @@ class EmailServiceSpec extends TestSupport with TestData with UnitSpec:
         when(mockAppConfig.emailEnabled).thenReturn(false)
         await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(details = Some(failedFileDetails))))
         verify(mockEmailConnector, never()).sendEmails(any(), any(), any())(any(), any())
+      }
+
+      "throw exception when approver name is missing" in new SetUp {
+        val exception = intercept[RuntimeException] {
+          await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(uploadedDateTime = Some(now()),
+            details = Some(successfulUploadedDetails), approverDetails = Some(approverDetails.copy(approverName = None)))))
+        }
+
+        exception.getMessage contains "Approver name is missing for reference" shouldBe true
+      }
+
+      "return false when one of the email sending fails and the other succeeds" in new SetUp {
+        when(mockEmailConnector.sendEmail(any(), any(), any())(any(), any()))
+          .thenReturn(Future.successful(true))
+          .thenReturn(Future.successful(false))
+
+        val result = await(emailService.sendFileProcessedEmails(initiateUploadDetails.copy(
+          uploadedDateTime = Some(now()),
+          details = Some(successfulUploadedDetails),
+          approverDetails = Some(approverDetails)
+        )))
+
+        result shouldBe false
       }
     }
     "formatDateTime" must {
