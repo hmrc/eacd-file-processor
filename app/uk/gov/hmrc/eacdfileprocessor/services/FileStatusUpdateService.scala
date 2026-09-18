@@ -36,10 +36,10 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
 
   override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] =
     lockService.lockAndRelease("FileStatusUpdateJob") {
-      processProcessingFiles()
+      processProcessingFiles
     }
 
-  private[services] def processProcessingFiles()(using ExecutionContext): Future[Unit] =
+  def processProcessingFiles(using ExecutionContext): Future[Unit] =
     for {
       processingFiles <- fileRepository.findByStatusAsUploadedDetailsWithSuccessOrFailureCount(PROCESSING)
       _ <- Future.traverse(processingFiles)(processSingleFile)
