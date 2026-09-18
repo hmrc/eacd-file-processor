@@ -109,7 +109,7 @@ class TestController @Inject()(
   }
 
   def invokeJob(jobName: String): Action[AnyContent] = Action.async {
-    println(s"[invokeJob] Invoking $jobName")
+    logger.info(s"[invokeJob] Invoking $jobName")
     val job = jobName match {
       case "processApprovedFile" =>
         processApprovedFileService.createWorkItemsFromOldestFile
