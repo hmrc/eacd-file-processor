@@ -56,9 +56,7 @@ Base paths:
 | GET *(support)*     | `/eacd-file-processor/support-tool/file-errors/:reference`     | Return file error records by reference in csv format                                                                                    |
 | PUT *(testOnly)*    | `/test-only/eacd-file-processor/document/:reference/:fileName` | Seed object store content for tests                                                                                                     |
 | DELETE *(testOnly)* | `/test-only/eacd-file-processor/drop`                          | Clear test object store content                                                                                                         |
-| GET *(testOnly)*    | `/test-only/eacd-file-processor/processApprovedFile`           | Process oldest approved file                                                                                                            |
-| GET *(testOnly)*    | `/test-only/eacd-file-processor/processDeEnrolmentWorkItems`   | Process uncompleted de-enrolment workItems                                                                                              |
-| GET *(testOnly)*    | `/test-only/eacd-file-processor/updateFileStatus`              | Update file status to processedWithErrors, processedSuccessfully or processedWithCountMismatch only if the current status is processing |
+| GET *(testOnly)*    | `/test-only/eacd-file-processor/invoke/:jobName`               | Manually invokes the scheduled job                                                                                                      |
 
 ## API reference
 
@@ -308,9 +306,7 @@ Defined in `conf/testOnlyDoNotUseInAppConf.routes` and only available when test 
 
 - `PUT /test-only/eacd-file-processor/document/:reference/:fileName`
 - `DELETE /test-only/eacd-file-processor/drop`
-- `GET /test-only/eacd-file-processor/processApprovedFile`
-- `GET /test-only/eacd-file-processor/processDeEnrolmentWorkItems`
-- `GET /test-only/eacd-file-processor/updateFileStatus`
+- `GET /test-only/eacd-file-processor/invoke/:jobname`
 
 ## Scheduled Jobs
 ### ApprovedFileProcessingJob
