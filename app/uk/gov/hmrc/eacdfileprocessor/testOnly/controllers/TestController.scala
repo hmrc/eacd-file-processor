@@ -78,36 +78,6 @@ class TestController @Inject()(
     }
   }
 
-  def processApprovedFile: Action[AnyContent] = Action.async {
-    processApprovedFileService.createWorkItemsFromOldestFile.map { _ =>
-      Ok("ProcessApprovedFileService invoked successfully.")
-    }.recover {
-      case e: Exception =>
-        logger.error("Error invoking ProcessApprovedFileService", e)
-        InternalServerError("Error invoking ProcessApprovedFileService")
-    }
-  }
-
-  def processDeEnrolmentWorkItems: Action[AnyContent] = Action.async {
-    deEnrolmentWorkItemSchedulerService.processBatch.map { _ =>
-      Ok("DeEnrolmentWorkItemSchedulerService invoked successfully.")
-    }.recover {
-      case e: Exception =>
-        logger.error("Error invoking DeEnrolmentWorkItemSchedulerService", e)
-        InternalServerError("Error invoking DeEnrolmentWorkItemSchedulerService")
-    }
-  }
-
-  def updateFileStatus: Action[AnyContent] = Action.async {
-    fileStatusUpdateService.processProcessingFiles.map { _ =>
-      Ok("FileStatusUpdateService invoked successfully.")
-    }.recover {
-      case e: Exception =>
-        logger.error("Error invoking FileStatusUpdateService", e)
-        InternalServerError("Error invoking FileStatusUpdateService")
-    }
-  }
-
   def invokeJob(jobName: String): Action[AnyContent] = Action.async {
     logger.info(s"[invokeJob] Invoking $jobName")
     val job = jobName match {
