@@ -16,14 +16,24 @@
 
 package uk.gov.hmrc.eacdfileprocessor.config
 
+import java.net.InetAddress
 import javax.inject.{Inject, Singleton}
 import play.api.Configuration
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
+
+import scala.util.Try
 
 @Singleton
 class AppConfig @Inject()(config: Configuration, servicesConfig: ServicesConfig) {
 
   val appName: String = getString("appName")
+  val instanceId: String =
+    config.getOptional[String]("instance.id").filter(!_.isBlank)
+      .orElse(sys.env.get("INSTANCE_ID").filter(!_.isBlank))
+      .orElse(sys.env.get("POD_NAME").filter(!_.isBlank))
+      .orElse(sys.env.get("HOSTNAME").filter(!_.isBlank))
+      .orElse(Try(InetAddress.getLocalHost.getHostName).toOption.filter(!_.isBlank))
+      .getOrElse(appName)
   val timeToLive: String = getString("time-to-live.time")
   val internalAuthService: String = servicesConfig.baseUrl("internal-auth")
   val internalAuthToken: String = getString("internal-auth.token")

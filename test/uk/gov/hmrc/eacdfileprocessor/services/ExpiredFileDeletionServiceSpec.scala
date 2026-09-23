@@ -41,7 +41,7 @@ class ExpiredFileDeletionServiceSpec extends TestSupport with TestData with Unit
 
     when(appConfig.appName).thenReturn("eacd-file-processor")
 
-    val lockService: LockService = new LockService(null) {
+    val lockService: LockService = new LockService(null, appConfig) {
       override def lockAndRelease[T](job: String)(f: => Future[T])(using ExecutionContext): Future[Either[T, LockResponse]] =
         f.map(Left(_))
     }
@@ -58,7 +58,7 @@ class ExpiredFileDeletionServiceSpec extends TestSupport with TestData with Unit
   "ExpiredFileDeletionService" should {
 
     "skip processing when lock is already held" in new Setup {
-      val lockedLockService: LockService = new LockService(null) {
+      val lockedLockService: LockService = new LockService(null, appConfig) {
         override def lockAndRelease[T](job: String)(f: => Future[T])(using ExecutionContext): Future[Either[T, LockResponse]] =
           Future.successful(Right(MongoLocked))
       }
