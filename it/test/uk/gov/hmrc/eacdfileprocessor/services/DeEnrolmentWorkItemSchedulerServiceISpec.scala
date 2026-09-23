@@ -42,7 +42,7 @@ class DeEnrolmentWorkItemSchedulerServiceISpec extends IntegrationSpec with Test
   val executionContext: scala.concurrent.ExecutionContext = ec
   val fileRepo: uk.gov.hmrc.eacdfileprocessor.repository.FileRepository = fileRepository
   val fileRecordValidationErrorRepository: FileRecordValidationErrorRepository = app.injector.instanceOf[FileRecordValidationErrorRepository]
-  val mockLockService = new LockService(lockingRepo)
+  val mockLockService = new LockService(lockingRepo, appConfiguration)
 
   private val deEnrolmentWorkItemRepository = new DeEnrolmentWorkItemMongoRepository(mongoRepository, appConfiguration)
   private val mockEspConnector = mock[EspConnector]

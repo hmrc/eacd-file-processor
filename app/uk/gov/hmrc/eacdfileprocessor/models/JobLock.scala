@@ -22,7 +22,12 @@ import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 import java.time.Instant
 
 
-case class JobLock(job : String, lockExpiration : Instant)
+case class JobLock(
+  job: String,
+  lockExpiration: Instant,
+  lockedBy: Option[String] = None,
+  lockedAt: Option[Instant] = None
+)
 
 object JobLock {
   private implicit val instantFormat: Format[Instant] = MongoJavatimeFormats.instantFormat
