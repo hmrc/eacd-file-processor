@@ -58,6 +58,7 @@ class FileController @Inject()(fileRecordValidationErrorRepository: FileRecordVa
             logger.info(s"No validation errors found for reference: $reference")
             NoContent
           } else {
+            auditService.auditDownloadFileEvent(uploadDetails = null, fileName = s"file-errors-$reference.csv")
             logger.info(s"Returning ${errors.size} validation error(s) as CSV for reference: $reference")
             Ok(toCsv(errors))
               .as("text/csv; charset=utf-8")
