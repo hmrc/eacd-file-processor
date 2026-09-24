@@ -14,7 +14,6 @@ dist
 eclipse
 *.eml
 .history
-.github/copilot-instructions.md
 .idea
 .idea_modules
 /.idea_modules
