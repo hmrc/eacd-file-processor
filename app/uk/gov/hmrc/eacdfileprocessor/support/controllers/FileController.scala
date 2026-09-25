@@ -19,7 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.support.controllers
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Request}
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRecordValidationErrorRepository
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.services.AuditService
 import uk.gov.hmrc.eacdfileprocessor.utils.InternalAuthBuilders
 import uk.gov.hmrc.internalauth.client.*
@@ -27,9 +27,10 @@ import uk.gov.hmrc.objectstore.client.play.PlayObjectStoreClient
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 
 import javax.inject.Inject
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class FileController @Inject()(fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
+                               fileUploadRepo: FileRepository,
                                val cc: ControllerComponents,
                                val configuration: Configuration,
                                val auth: BackendAuthComponents,
@@ -50,24 +51,31 @@ class FileController @Inject()(fileRecordValidationErrorRepository: FileRecordVa
     Predicate.or(emacSupportPermission, helpdeskPermission)
 
   def getFileErrors(reference: String): Action[AnyContent] =
-    authorisedEntity(allowedCallersPredicate, "getFileErrors")
-      .async { implicit request: Request[AnyContent] =>
-        logger.info(s"Received get file errors request for reference: $reference")
-        fileRecordValidationErrorRepository.findByReference(Reference(reference)).map { errors =>
-          if (errors.isEmpty) {
-            logger.info(s"No validation errors found for reference: $reference")
-            NoContent
-          } else {
-            auditService.auditDownloadFileEvent(uploadDetails = null, fileName = s"file-errors-$reference.csv")
+  authorisedEntity(allowedCallersPredicate, "getFileErrors")
+    .async { implicit request: Request[AnyContent] =>
+      logger.info(s"Received get file errors request for reference: $reference")
+      fileRecordValidationErrorRepository.findByReference(Reference(reference)).flatMap { errors =>
+        if (errors.isEmpty) {
+          logger.info(s"No validation errors found for reference: $reference")
+          Future.successful(NoContent)
+        } else {
+          fileUploadRepo.findByReference(Reference(reference)).flatMap {
+            case Some(uploadedDetails) =>
+              auditService.auditDownloadFileEvent(uploadedDetails, fileName = s"file-errors-$reference.csv")
+            case None =>
+              logger.warn(s"No file upload record found for reference: $reference; skipping audit event")
+              Future.unit
+          }.recover { case ex =>
+            logger.error(s"Failed to audit file download for reference: $reference", ex)
+          }.map { _ =>
             logger.info(s"Returning ${errors.size} validation error(s) as CSV for reference: $reference")
             Ok(toCsv(errors))
               .as("text/csv; charset=utf-8")
-              .withHeaders(
-                "Content-Disposition" -> s"""attachment; filename="file-errors-$reference.csv""""
-              )
+              .withHeaders("Content-Disposition" -> s"""attachment; filename="file-errors-$reference.csv"""")
           }
         }
       }
+    }
 
   private def toCsv(errors: Seq[FileRecordValidationError]): String = {
     val header = "reference,fileName,recordDetail,errorMessage,creationDateTime"
