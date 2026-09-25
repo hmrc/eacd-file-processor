@@ -26,8 +26,8 @@ import play.api.mvc.*
 import play.api.test.Helpers.*
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
-import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRecordValidationErrorRepository
+import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, FileStatus, Reference, UploadedDetails}
+import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.services.AuditService
 import uk.gov.hmrc.http.{Authorization, HeaderCarrier}
 import uk.gov.hmrc.internalauth.client.{BackendAuthComponents, Predicate, Retrieval}
@@ -40,6 +40,7 @@ import scala.concurrent.Future
 class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar with DefaultAwaitTimeout {
 
   private val mockFileRecordValidationErrorRepository = mock[FileRecordValidationErrorRepository]
+  private val fileUploadRepo = mock[FileRepository]
   private val mockCC: ControllerComponents = Helpers.stubControllerComponents()
   private val mockConfig: play.api.Configuration = mock[play.api.Configuration]
   private val mockAuth: BackendAuthComponents = mock[BackendAuthComponents]
@@ -50,6 +51,7 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
 
   object TestFileController extends FileController(
     mockFileRecordValidationErrorRepository,
+    fileUploadRepo,
     mockCC,
     mockConfig,
     mockAuth,
@@ -80,6 +82,15 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
     "getFileErrors" when {
       val testReference = "REF123"
       val testReference2 = "REF456"
+
+      def someFileUploadDetails(ref: String): UploadedDetails = UploadedDetails(
+        id = new ObjectId(),
+        reference = Reference(ref),
+        status = FileStatus.APPROVED, // pick whatever value is valid/neutral for your domain
+        requestorPID = "PID123",
+        requestorEmail = "test@example.com",
+        requestorName = "Test User"
+      )
 
       "authorization" should {
         "use correct permissions for EMAC support" in {
@@ -120,6 +131,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
             )
           )
 
+          when(fileUploadRepo.findByReference(Reference(testReference)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference)))
             .thenReturn(Future.successful(errors))
 
@@ -142,7 +157,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
               Instant.now()
             )
           )
-
+          when(fileUploadRepo.findByReference(Reference(testReference)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference)))
             .thenReturn(Future.successful(errors))
 
@@ -165,7 +183,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
               instant
             )
           )
-
+          when(fileUploadRepo.findByReference(Reference(testReference)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference)))
             .thenReturn(Future.successful(errors))
 
@@ -190,7 +211,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
               Instant.now()
             )
           )
-
+          when(fileUploadRepo.findByReference(Reference(testReference)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference)))
             .thenReturn(Future.successful(errors))
 
@@ -213,7 +237,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
               Instant.now()
             )
           )
-
+          when(fileUploadRepo.findByReference(Reference(testReference)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference)))
             .thenReturn(Future.successful(errors))
 
@@ -236,7 +263,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
               Instant.now()
             )
           )
-
+          when(fileUploadRepo.findByReference(Reference(testReference)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference)))
             .thenReturn(Future.successful(errors))
 
@@ -259,7 +289,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
               Instant.now()
             )
           )
-
+          when(fileUploadRepo.findByReference(Reference(testReference)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference)))
             .thenReturn(Future.successful(errors))
 
@@ -277,7 +310,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
             FileRecordValidationError(new ObjectId(), Reference(testReference), "file1.csv", "record2", "Error 2", Instant.now()),
             FileRecordValidationError(new ObjectId(), Reference(testReference), "file1.csv", "record3", "Error 3", Instant.now())
           )
-
+          when(fileUploadRepo.findByReference(Reference(testReference)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference)))
             .thenReturn(Future.successful(errors))
 
@@ -293,7 +329,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
           val errors = Seq(
             FileRecordValidationError(new ObjectId(), Reference(testReference2), "file1.csv", "record1", "Error", Instant.now())
           )
-
+          when(fileUploadRepo.findByReference(Reference(testReference2)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference2))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference2)))
             .thenReturn(Future.successful(errors))
 
@@ -307,7 +346,10 @@ class FileControllerSpec extends AnyWordSpec with Matchers with MockitoSugar wit
           val errors = Seq(
             FileRecordValidationError(new ObjectId(), Reference(testReference), null, "record1", "Error", Instant.now())
           )
-
+          when(fileUploadRepo.findByReference(Reference(testReference)))
+            .thenReturn(Future.successful(Some(someFileUploadDetails(testReference))))
+          when(mockAuditService.auditDownloadFileEvent(any(), any())(any()))
+            .thenReturn(Future.successful(uk.gov.hmrc.play.audit.http.connector.AuditResult.Success))
           when(mockFileRecordValidationErrorRepository.findByReference(Reference(testReference)))
             .thenReturn(Future.successful(errors))
 
