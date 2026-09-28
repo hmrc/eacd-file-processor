@@ -18,6 +18,7 @@ package uk.gov.hmrc.eacdfileprocessor.support.controllers
 
 import play.api.mvc.{Action, AnyContent, ControllerComponents, Request}
 import play.api.{Configuration, Logging}
+import uk.gov.hmrc.eacdfileprocessor.models.Details.getFileName
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
 import uk.gov.hmrc.eacdfileprocessor.repository.{FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.services.AuditService
@@ -61,7 +62,9 @@ class FileController @Inject()(fileRecordValidationErrorRepository: FileRecordVa
         } else {
           fileUploadRepo.findByReference(Reference(reference)).flatMap {
             case Some(uploadedDetails) =>
-              auditService.auditDownloadFileEvent(uploadedDetails, fileName = s"file-errors-$reference.csv")
+              auditService.auditDownloadFileEvent(uploadedDetails, fileName = s"${
+                uploadedDetails.details.map{ x => getFileName(x)
+                }}_errors.csv")
             case None =>
               logger.warn(s"No file upload record found for reference: $reference; skipping audit event")
               Future.unit
