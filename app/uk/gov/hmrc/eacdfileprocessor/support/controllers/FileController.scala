@@ -62,9 +62,11 @@ class FileController @Inject()(fileRecordValidationErrorRepository: FileRecordVa
         } else {
           fileUploadRepo.findByReference(Reference(reference)).flatMap {
             case Some(uploadedDetails) =>
-              auditService.auditDownloadFileEvent(uploadedDetails, fileName = s"${
-                uploadedDetails.details.map{ x => getFileName(x)
-                }}_errors.csv")
+              val baseFileName = uploadedDetails.details
+                .map(getFileName)
+                .map(name => name.stripSuffix(".csv"))
+                .getOrElse(reference)
+              auditService.auditDownloadFileEvent(uploadedDetails, fileName = s"${baseFileName}_errors.csv")
             case None =>
               logger.warn(s"No file upload record found for reference: $reference; skipping audit event")
               Future.unit
