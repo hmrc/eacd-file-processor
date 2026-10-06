@@ -16,11 +16,12 @@
 
 package uk.gov.hmrc.eacdfileprocessor.utils
 
-import com.codahale.metrics.MetricRegistry
+import com.codahale.metrics.{Gauge, MetricRegistry}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.concurrent.ScalaFutures
 import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter.MongoMetricReporter
+import uk.gov.hmrc.eacdfileprocessor.models.FileStatusCount
 import scala.concurrent.{ExecutionContext, Future}
 
 class MetricsReporterSpec extends AnyWordSpec with Matchers with ScalaFutures {
@@ -32,6 +33,17 @@ class MetricsReporterSpec extends AnyWordSpec with Matchers with ScalaFutures {
   }
 
   "MetricsReporter" should {
+    "publish current gauges, including zero for absent file statuses" in new Setup {
+      def value(name: String): Long = registry.getGauges.get(name).asInstanceOf[Gauge[Long]].getValue
+
+      reporter.reportFileStatusCounts(Seq(FileStatusCount("approved", 3)))
+      value("file.status.approved") shouldBe 3
+      value("file.status.scanned") shouldBe 0
+
+      reporter.reportFileStatusCounts(Seq.empty)
+      value("file.status.approved") shouldBe 0
+    }
+
     "increment counters for success and failure" in new Setup {
       reporter.markSuccessfulWrite()
       reporter.markFailedWrite()

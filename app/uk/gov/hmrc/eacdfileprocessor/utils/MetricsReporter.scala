@@ -16,13 +16,42 @@
 
 package uk.gov.hmrc.eacdfileprocessor.utils
 
-import com.codahale.metrics.MetricRegistry
+import com.codahale.metrics.{Gauge, MetricRegistry}
+import uk.gov.hmrc.eacdfileprocessor.models.{FileStatus, FileStatusCount}
 
-import javax.inject.Inject
+import java.util.concurrent.atomic.AtomicLong
+import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
+// Keep the registered gauges on one reporter instance across scheduled refreshes.
+@Singleton
 class MetricsReporter @Inject()(metrics: MetricRegistry) {
+
+  // Keep a mutable value behind each registered gauge so scheduled samples can update it
+  // while the metrics exporter reads it from the registry.
+  private def gauge(name: String): AtomicLong = {
+    val value = new AtomicLong(0)
+    metrics.register(name, new Gauge[Long] {
+      override def getValue: Long = value.get()
+    })
+    value
+  }
+
+  // Register every status up front; a status with no files still has a series to graph.
+  private val fileStatusGauges = FileStatus.values.map(status => status.value -> gauge(s"file.status.${status.value}")).toMap
+
+  def reportFileStatusCounts(counts: Seq[FileStatusCount]): Unit = {
+    val byStatus = counts.map(count => count.status -> count.count.toLong).toMap
+    // Reject unexpected database statuses rather than silently dropping their counts.
+    byStatus.keys.foreach { status =>
+      require(fileStatusGauges.contains(status), s"Unknown file status: $status")
+    }
+    // Reset missing statuses on every sample so previously nonzero values do not persist.
+    fileStatusGauges.foreach { case (status, value) =>
+      value.set(byStatus.getOrElse(status, 0L))
+    }
+  }
 
   private def incrementCounter(counterName: String): Unit = {
     metrics.counter(counterName).inc()

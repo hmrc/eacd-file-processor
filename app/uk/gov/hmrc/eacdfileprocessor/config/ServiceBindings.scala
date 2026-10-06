@@ -23,7 +23,7 @@ import play.inject.{Binding, Module}
 import uk.gov.hmrc.eacdfileprocessor.connectors.{EmailConnector, EmailConnectorImpl}
 import uk.gov.hmrc.eacdfileprocessor.controllers.{CallbackController, FileController, InitiateFileStorageController, StatusController}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, DeEnrolmentWorkItemRepository, FileRepository, JobLockRepository}
-import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{DeEnrolmentWorkItemPullJob, ExpiredFileDeletionJob, FileStatusUpdateJob, ProcessApprovedFileJob}
+import uk.gov.hmrc.eacdfileprocessor.scheduler.jobs.{DashboardMetricsJob, DeEnrolmentWorkItemPullJob, ExpiredFileDeletionJob, FileStatusUpdateJob, ProcessApprovedFileJob}
 import uk.gov.hmrc.eacdfileprocessor.services.*
 import uk.gov.hmrc.eacdfileprocessor.utils.DeEnrolmentWorkItemValidator
 
@@ -50,6 +50,7 @@ class ServiceBindings extends Module {
   )
 
   private def bindServices(): Seq[Binding[?]] = Seq(
+    bindClass(classOf[DashboardMetricsService]).toSelf.eagerly(),
     bindClass(classOf[LockService]).toSelf.eagerly(),
     bindClass(classOf[ProcessApprovedFileService]).to(classOf[DefaultProcessApprovedFileService]).eagerly(),
     bindClass(classOf[DeEnrolmentWorkItemValidator]).toSelf.eagerly(),
@@ -72,6 +73,7 @@ class ServiceBindings extends Module {
   )
 
   private def bindSchedulers(): Seq[Binding[?]] = Seq(
+    bindClass(classOf[DashboardMetricsJob]).toSelf.eagerly(),
     bindClass(classOf[ProcessApprovedFileJob]).toSelf.eagerly(),
     bindClass(classOf[FileStatusUpdateJob]).toSelf.eagerly(),
     bindClass(classOf[DeEnrolmentWorkItemPullJob]).toSelf.eagerly(),

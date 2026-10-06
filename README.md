@@ -289,6 +289,31 @@ Responses:
 - `200 OK` with JSON array of `{status, count}`
 - `204 No Content` when there are no file records
 
+## Grafana: files by status
+
+`DashboardMetricsJob` samples MongoDB every five minutes and publishes one
+Dropwizard gauge per file status, named `file.status.<status>`. Counts match the
+support endpoint's `lastUpdatedDateTime` filter (`fileExpiryDays`, default 60);
+the job also includes `initial` and publishes zero for absent statuses.
+
+The existing Envoy query establishes the service prefix
+`microservice.eacd-file-processor.*`, but Envoy request counters do not
+contain file-status counts. In Grafana Explore, search under that prefix for
+the application's exported `file.status.*` gauges. If the exporter preserves
+the registry names directly, use this Graphite expression in a time-series
+or bar panel:
+
+```text
+groupByNode(microservice.eacd-file-processor.*.file.status.*, -1, 'average')
+```
+
+If Explore returns no series, the application's Dropwizard gauges may have
+an extra path segment (such as `gauge`) or may not be exported to Graphite;
+use the actual exported path rather than the Envoy `counter` path. `-1`
+groups by the final status node; `average` deduplicates gauges reported by
+replicas, each of which samples the whole database. The Grafana dashboard
+and application metric exporter are configured outside this repository.
+
 ### `GET /eacd-file-processor/support-tool/file-detail/:reference`
 
 Controller: `uk.gov.hmrc.eacdfileprocessor.support.controllers.FileDetailsController.getFileDetail(reference: String)`
