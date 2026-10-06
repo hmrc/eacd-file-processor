@@ -289,6 +289,70 @@ Responses:
 - `200 OK` with JSON array of `{status, count}`
 - `204 No Content` when there are no file records
 
+### `GET /eacd-file-processor/support-tool/file-detail/:reference`
+
+Controller: `uk.gov.hmrc.eacdfileprocessor.support.controllers.FileDetailsController.getFileDetail(reference: String)`
+
+Returns detailed metadata for a file reference.
+
+Example response (`200 OK`):
+
+```json
+{
+  "id": "67b48d6f7e14f2a5c46d4f3e",
+  "reference": "08aad019-7f66-4456-8d52-93f12109876f",
+  "status": "approved",
+  "requestorPID": "12345678",
+  "requestorEmail": "test@hmrc.gov.uk",
+  "requestorName": "Test User",
+  "details": {
+    "name": "bulk-de-enrol.csv",
+    "mimeType": "text/csv",
+    "downloadUrl": "http://localhost:9570/upscan/download/c5da3bd6-f118-4cde-afff-93f763bf6448",
+    "size": 32270,
+    "checksum": "a0acaa6039c1a94c6f5c43f144c5add07de9381f98701cb14c7c6ce2be18020b"
+  },
+  "approverDetails": {
+    "approverEmail": "approverTest@hmrc.gov.uk",
+    "approverPID": "12345678",
+    "approverName": "Approver1",
+    "errorCode": "error code",
+    "errorMessage": "error message"
+  },
+  "totalEntryCount": 100,
+  "uploadedDateTime": null,
+  "lastUpdatedDateTime": null,
+  "approvedAtDateTime": "2026-02-18T12:43:58.342Z",
+  "creationDateTime": "2026-02-18T12:43:58.342Z",
+  "totalFailureCount": 5,
+  "totalSuccessCount": 95
+}
+```
+
+Responses:
+
+- `200 OK` with JSON file detail
+- `204 No Content` when no record exists for the reference
+- `500 Internal Server Error`: `Error retrieving details`
+
+### `GET /eacd-file-processor/support-tool/file-errors/:reference`
+
+Controller: `uk.gov.hmrc.eacdfileprocessor.support.controllers.FileController.getFileErrors(reference: String)`
+
+Returns file validation errors as downloadable CSV.
+
+CSV response format:
+
+```csv
+reference,fileName,recordDetail,errorMessage,creationDateTime
+08aad019-7f66-4456-8d52-93f12109876f,file1.csv,record1,Invalid format,2024-01-01T12:00:00Z
+```
+
+Responses:
+
+- `200 OK` with `text/csv; charset=utf-8` and `Content-Disposition` attachment header
+- `204 No Content` when no validation errors exist for the reference
+
 ## Error response model
 
 Where applicable, errors use:
