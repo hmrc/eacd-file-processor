@@ -40,6 +40,8 @@ class MetricsReporter @Inject()(metrics: MetricRegistry) {
 
   // Register every status up front; a status with no files still has a series to graph.
   private val fileStatusGauges = FileStatus.values.map(status => status.value -> gauge(s"file.status.${status.value}")).toMap
+  private val workItemPendingGauge = gauge("workItem.status.pending")
+  private val workItemCompletedGauge = gauge("workItem.status.completed")
 
   def reportFileStatusCounts(counts: Seq[FileStatusCount]): Unit = {
     val byStatus = counts.map(count => count.status -> count.count.toLong).toMap
@@ -51,6 +53,13 @@ class MetricsReporter @Inject()(metrics: MetricRegistry) {
     fileStatusGauges.foreach { case (status, value) =>
       value.set(byStatus.getOrElse(status, 0L))
     }
+  }
+
+  def reportWorkItemCounts(pending: Long, completed: Long): Unit = {
+    require(pending >= 0, s"Pending work-item count must be non-negative, got $pending")
+    require(completed >= 0, s"Completed work-item count must be non-negative, got $completed")
+    workItemPendingGauge.set(pending)
+    workItemCompletedGauge.set(completed)
   }
 
   private def incrementCounter(counterName: String): Unit = {
@@ -71,6 +80,13 @@ class MetricsReporter @Inject()(metrics: MetricRegistry) {
 
   def markFailedRead(): Unit = {
     incrementCounter("mongo.readFail")
+  }
+
+  def markDeletedWorkItems(count: Long): Unit = {
+    require(count >= 0, s"Deleted work-item count must be non-negative, got $count")
+    if (count > 0) {
+      metrics.counter("workItem.deleted").inc(count)
+    }
   }
 
   def timeCompletionOfFuture[T](timer: String, future: Future[T])(implicit ec: ExecutionContext): Future[T] = {

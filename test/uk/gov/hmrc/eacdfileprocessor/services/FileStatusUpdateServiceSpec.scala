@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import org.apache.pekko.stream.Materializer
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, anyLong}
 import org.mockito.Mockito.{times, verify, when}
 import org.scalactic.Prettifier.default
 import org.scalatest.matchers.should.Matchers.shouldBe
@@ -25,6 +25,7 @@ import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport, UnitSpec}
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.{FileStatus, Reference}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, FileRecordValidationErrorRepository, FileRepository}
+import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 
 import scala.concurrent.Future
 
@@ -37,8 +38,11 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
   trait Setup {
     val repository = mock[FileRepository]
     val mockEmailService: EmailService = mock[EmailService]
+    val metricsReporter: MetricsReporter = mock[MetricsReporter]
     val fileStatusUpdateService = FileStatusUpdateService(workItemRepository, validationErrorRepository, repository,
-      lockService, mockEmailService)
+      lockService, mockEmailService, metricsReporter)
+
+    when(workItemRepository.deleteWorkItemsByReference(any())).thenReturn(Future.successful(0L))
   }
 
   "FileStatusUpdateService" must {
@@ -58,6 +62,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
 
         await(fileStatusUpdateService.processProcessingFiles)
         verify(mockEmailService, org.mockito.Mockito.timeout(1000).times(1)).sendFileProcessedEmails(any())(any())
+        verify(metricsReporter, times(1)).markDeletedWorkItems(0L)
       }
       "transition file from PROCESSING to PROCESSEDWITHERRORS when validation errors exist" in new Setup {
         val file = initiateUploadDetails.copy(
@@ -74,6 +79,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
 
         await(fileStatusUpdateService.processProcessingFiles)
         verify(mockEmailService, org.mockito.Mockito.timeout(1000).times(1)).sendFileProcessedEmails(any())(any())
+        verify(metricsReporter, times(1)).markDeletedWorkItems(0L)
       }
       "not transition file when work items still remain incomplete" in new Setup {
         val file = initiateUploadDetails.copy(
@@ -87,6 +93,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
         await(fileStatusUpdateService.processProcessingFiles)
         verify(repository, times(0)).updateStatus(any(), any())
         verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
+        verify(metricsReporter, times(0)).markDeletedWorkItems(anyLong())
       }
       "handle reconciliation error when counts don't match" in new Setup {
         val file = initiateUploadDetails.copy(
@@ -103,6 +110,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
         await(fileStatusUpdateService.processProcessingFiles)
         verify(repository, times(1)).updateStatus(any(), any())
         verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
+        verify(metricsReporter, times(0)).markDeletedWorkItems(anyLong())
       }
       "throw exception when fail to update status" in new Setup {
         val file = initiateUploadDetails.copy(
@@ -123,6 +131,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
 
         exception.getMessage contains "Failed to update file status for reference" shouldBe true
         verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
+        verify(metricsReporter, times(0)).markDeletedWorkItems(anyLong())
       }
 
       "transition file to PROCESSEDWITHCOUNTMISMATCH when no remaining work items and totalEntryCount is 0" in new Setup {
@@ -142,6 +151,7 @@ class FileStatusUpdateServiceSpec extends TestSupport with TestData with UnitSpe
 
         verify(repository, times(1)).updateStatus(file.reference, PROCESSEDWITHCOUNTMISMATCH)
         verify(mockEmailService, times(0)).sendFileProcessedEmails(any())(any())
+        verify(metricsReporter, times(0)).markDeletedWorkItems(anyLong())
       }
     }
   }

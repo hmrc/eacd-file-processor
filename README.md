@@ -296,6 +296,14 @@ Dropwizard gauge per file status, named `file.status.<status>`. Counts match the
 support endpoint's `lastUpdatedDateTime` filter (`fileExpiryDays`, default 60);
 the job also includes `initial` and publishes zero for absent statuses.
 
+The same job also publishes de-enrolment work-item gauges:
+
+- `workItem.status.pending` (`ToDo` + `InProgress`)
+- `workItem.status.completed` (`Succeeded`)
+
+When a processed file is finalized, deleting its work items increments
+`workItem.deleted` by the number of deleted rows.
+
 The existing Envoy query establishes the service prefix
 `microservice.eacd-file-processor.*`, but Envoy request counters do not
 contain file-status counts. In Grafana Explore, search under that prefix for

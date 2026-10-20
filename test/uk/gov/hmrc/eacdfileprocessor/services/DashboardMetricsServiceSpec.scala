@@ -21,7 +21,7 @@ import org.scalatest.matchers.should.Matchers.shouldBe
 import play.api.test.Helpers.{await, defaultAwaitTimeout}
 import uk.gov.hmrc.eacdfileprocessor.helper.TestSupport
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatusCount
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
+import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -32,23 +32,29 @@ class DashboardMetricsServiceSpec extends TestSupport {
   "DashboardMetricsService" should {
     "refresh file status counts from the repository" in {
       val files = mock[FileRepository]
+      val workItems = mock[DeEnrolmentWorkItemRepository]
       val metrics = mock[MetricsReporter]
       val counts = Seq(FileStatusCount("approved", 2))
       when(files.getFileStatusCounts).thenReturn(Future.successful(counts))
+      when(workItems.countPendingItems).thenReturn(Future.successful(3L))
+      when(workItems.countCompletedItems).thenReturn(Future.successful(7L))
 
-      await(new DashboardMetricsService(files, metrics).invoke) shouldBe ()
+      await(new DashboardMetricsService(files, workItems, metrics).invoke) shouldBe ()
       verify(metrics).reportFileStatusCounts(counts)
+      verify(metrics).reportWorkItemCounts(3L, 7L)
     }
 
     "surface a failed snapshot rather than publishing stale counts" in {
       val files = mock[FileRepository]
+      val workItems = mock[DeEnrolmentWorkItemRepository]
       val metrics = mock[MetricsReporter]
       when(files.getFileStatusCounts).thenReturn(Future.failed(new RuntimeException("database unavailable")))
 
       intercept[RuntimeException] {
-        await(new DashboardMetricsService(files, metrics).invoke)
+        await(new DashboardMetricsService(files, workItems, metrics).invoke)
       }.getMessage shouldBe "database unavailable"
       verify(metrics, org.mockito.Mockito.never()).reportFileStatusCounts(Seq.empty)
+      verify(metrics, org.mockito.Mockito.never()).reportWorkItemCounts(0L, 0L)
     }
   }
 }

@@ -17,7 +17,7 @@
 package uk.gov.hmrc.eacdfileprocessor.services
 
 import play.api.Logging
-import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
+import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
 import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 
@@ -27,11 +27,17 @@ import scala.util.Failure
 
 @Singleton
 class DashboardMetricsService @Inject()(files: FileRepository,
+                                        workItems: DeEnrolmentWorkItemRepository,
                                         metrics: MetricsReporter) extends ScheduledService[Unit] with Logging {
 
   // Reuse the support endpoint's repository aggregation, including its expiry window.
   // A failed read leaves the previous gauge values intact and surfaces the failure.
   override def invoke(using ExecutionContext): Future[Unit] =
-    files.getFileStatusCounts.map(metrics.reportFileStatusCounts)
-      .andThen { case Failure(e) => logger.error("Failed to refresh file status metrics", e) }
+    (for {
+      fileStatusCounts <- files.getFileStatusCounts
+      _ = metrics.reportFileStatusCounts(fileStatusCounts)
+      workItemCounts <- workItems.countPendingItems.zip(workItems.countCompletedItems)
+      _ = metrics.reportWorkItemCounts(workItemCounts._1, workItemCounts._2)
+    } yield ()
+      ).andThen { case Failure(e) => logger.error("Failed to refresh file status metrics", e) }
 }

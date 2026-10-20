@@ -49,10 +49,21 @@ class MetricsReporterSpec extends AnyWordSpec with Matchers with ScalaFutures {
       reporter.markFailedWrite()
       reporter.markSuccessfulRead()
       reporter.markFailedRead()
+      reporter.markDeletedWorkItems(4)
       registry.counter("mongo.writeSuccess").getCount shouldBe 1
       registry.counter("mongo.writeFail").getCount shouldBe 1
       registry.counter("mongo.readSuccess").getCount shouldBe 1
       registry.counter("mongo.readFail").getCount shouldBe 1
+      registry.counter("workItem.deleted").getCount shouldBe 4
+    }
+
+    "publish current work-item gauges" in new Setup {
+      def value(name: String): Long = registry.getGauges.get(name).asInstanceOf[Gauge[Long]].getValue
+
+      reporter.reportWorkItemCounts(pending = 6, completed = 2)
+
+      value("workItem.status.pending") shouldBe 6
+      value("workItem.status.completed") shouldBe 2
     }
 
     "timeCompletionOfFuture should time a future" in new Setup {
