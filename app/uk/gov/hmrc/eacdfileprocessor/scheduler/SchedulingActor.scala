@@ -19,7 +19,7 @@ package uk.gov.hmrc.eacdfileprocessor.scheduler
 import org.apache.pekko.actor.{Actor, ActorLogging, Props}
 import org.slf4j.{Logger, LoggerFactory}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.SchedulingActor.ScheduledMessage
-import uk.gov.hmrc.eacdfileprocessor.services.{ExpiredFileDeletionService, LockResponse, ProcessApprovedFileService}
+import uk.gov.hmrc.eacdfileprocessor.services.{DashboardMetricsService, ExpiredFileDeletionService, LockResponse, ProcessApprovedFileService}
 
 class SchedulingActor extends Actor with ActorLogging {
   import context.dispatcher
@@ -67,6 +67,13 @@ object SchedulingActor {
     canRun: () => Boolean = () => true,
     skipReason: Option[String] = None
   ) extends ScheduledMessage[Either[Unit, LockResponse]]
+
+  // Allows the existing scheduling actor to invoke the metrics refresh job.
+  case class DashboardMetricsMessage(
+    service: DashboardMetricsService,
+    canRun: () => Boolean = () => true,
+    skipReason: Option[String] = None
+  ) extends ScheduledMessage[Unit]
 
   def props: Props = Props(classOf[SchedulingActor])
 }

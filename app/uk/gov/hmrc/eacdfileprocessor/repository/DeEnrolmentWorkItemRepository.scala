@@ -28,7 +28,7 @@ import uk.gov.hmrc.eacdfileprocessor.config.AppConfig
 import uk.gov.hmrc.eacdfileprocessor.models.DeEnrolmentWorkItem
 import uk.gov.hmrc.mongo.play.json.Codecs
 import uk.gov.hmrc.mongo.workitem.*
-import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, ToDo}
+import uk.gov.hmrc.mongo.workitem.ProcessingStatus.{InProgress, Succeeded, ToDo}
 import uk.gov.hmrc.mongo.{MongoComponent, MongoUtils}
 
 import java.time.temporal.ChronoUnit
@@ -43,7 +43,11 @@ trait DeEnrolmentWorkItemRepository {
 
   def countRemainingNonCompleteByReference(reference: String): Future[Int]
 
-  def deleteWorkItemsByReference(reference: String): Future[Unit]
+  def countPendingItems: Future[Long]
+
+  def countCompletedItems: Future[Long]
+
+  def deleteWorkItemsByReference(reference: String): Future[Long]
 
   def pullOutstandingBatch(limit: Int): Future[Seq[WorkItem[DeEnrolmentWorkItem]]]
 
@@ -123,9 +127,17 @@ class DeEnrolmentWorkItemMongoRepository @Inject()(mongo: MongoComponent,
     collection.countDocuments(selector).toFuture().map(_.toInt)
   }
 
-  override def deleteWorkItemsByReference(reference: String): Future[Unit] = {
-    collection.deleteMany(Filters.eq(s"${workItemFields.item}.reference", reference)).toFuture().map(_ => ())
-  }
+  override def countPendingItems: Future[Long] =
+    collection.countDocuments(in(workItemFields.status, ToDo, InProgress)).toFuture()
+
+  override def countCompletedItems: Future[Long] =
+    collection.countDocuments(equal(workItemFields.status, Succeeded.name)).toFuture()
+
+  override def deleteWorkItemsByReference(reference: String): Future[Long] =
+    collection
+      .deleteMany(Filters.eq(s"${workItemFields.item}.reference", reference))
+      .toFuture()
+      .map(_.getDeletedCount)
 
   override def saveRecordDetails(deEnrolmentWorkItems: Seq[DeEnrolmentWorkItem]): Future[Seq[WorkItem[DeEnrolmentWorkItem]]] =
     pushNewBatch(deEnrolmentWorkItems, now(), _ => ToDo)
