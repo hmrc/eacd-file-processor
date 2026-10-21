@@ -71,6 +71,8 @@ trait IntegrationSpec extends PlaySpec
     "schedules.DeEnrolmentWorkItemPullJob.enabled" -> false,
     "schedules.ExpiredFileDeletionJob.enabled" -> false,
     "schedules.FileStatusUpdateJob.enabled" -> false,
+    // Integration tests control Mongo data explicitly, so do not sample it in the background.
+    "schedules.DashboardMetricsJob.enabled" -> false,
     "work-item.retry-in-progress-after.seconds" -> 30,
     "work-item.ttlInHours" -> 720,
     "locking.timeoutMinutes" -> lockingTestTimeout,
