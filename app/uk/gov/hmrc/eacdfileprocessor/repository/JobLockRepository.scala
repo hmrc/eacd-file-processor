@@ -51,22 +51,35 @@ class JobLockRepository @Inject()(mongo: MongoComponent,
     )
   ) {
 
-  val lockDuration: Int = config.lockTimeoutMinutes
+  private val lockDuration: Int = config.lockTimeoutMinutes
+  private val instanceId: String = config.instanceId
+
+  private def formatLockOwner(lock: JobLock): String = {
+    val owner = lock.lockedBy.getOrElse("unknown-instance")
+    val startedAt = lock.lockedAt.map(_.toString).getOrElse("unknown-start-time")
+    s"instance=$owner startedAt=$startedAt"
+  }
 
   def lockJob(job: String): Future[Boolean] = {
     val now = Instant.now()
     val newExpiration = now.plus(lockDuration, ChronoUnit.MINUTES)
+    val newLock = JobLock(job, newExpiration, lockedBy = Some(instanceId), lockedAt = Some(now))
 
     metrics.timeCompletionOfFuture("lockJobFindMongoTimer", {
       collection.find(JobLockSelectors.jobLockedOf(job)).toFuture().map(_.toSeq).flatMap {
-        case Seq(JobLock(_, expiration)) if expiration.isAfter(now) =>
-          logger.warn(s"[lockJob] - $job is still locked")
+        case Seq(existingLock) if existingLock.lockExpiration.isAfter(now) =>
+          logger.warn(
+            s"[lockJob] - $job is still locked until ${existingLock.lockExpiration} by ${formatLockOwner(existingLock)}"
+          )
           Future.successful(false)
+
         case Seq(_) =>
           metrics.timeCompletionOfFuture("lockJobUpdateMongoTimer", {
-            collection.replaceOne(JobLockSelectors.jobLockedOf(job), JobLock(job, newExpiration)).toFuture() map { uwr =>
+            collection.replaceOne(JobLockSelectors.jobLockedOf(job), newLock).toFuture().map { uwr =>
               uwr.wasAcknowledged() -> uwr.getMatchedCount match {
-                case (true, 1) => true
+                case (true, 1) =>
+                  logger.info(s"[lockJob] - Locking $job for instance=$instanceId at $now until $newExpiration")
+                  true
                 case (_, 0) =>
                   logger.error(s"[lockJob] - $job was not locked")
                   false
@@ -76,11 +89,12 @@ class JobLockRepository @Inject()(mongo: MongoComponent,
               }
             }
           })
+
         case _ =>
           metrics.timeCompletionOfFuture("lockJobInsertMongoTimer", {
-            collection.insertOne(JobLock(job, newExpiration)).toFuture() map { wr =>
+            collection.insertOne(newLock).toFuture().map { wr =>
               if (wr.wasAcknowledged()) {
-                logger.info(s"[lockJob] - Locking $job")
+                logger.info(s"[lockJob] - Locking $job for instance=$instanceId at $now until $newExpiration")
                 true
               } else {
                 logger.error(s"[lockJob] - There was a problem locking $job")
@@ -95,8 +109,10 @@ class JobLockRepository @Inject()(mongo: MongoComponent,
   def isJobLocked(job: String): Future[Boolean] = {
     metrics.timeCompletionOfFuture("isJobLockedMongoTimer", {
       collection.find(JobLockSelectors.jobLockedOf(job)).toFuture().map(_.toSeq).map {
-        case Seq(JobLock(_, expiration)) if expiration.isAfter(Instant.now()) =>
-          logger.warn(s"[isJobLocked] - $job is currently locked")
+        case Seq(existingLock) if existingLock.lockExpiration.isAfter(Instant.now()) =>
+          logger.warn(
+            s"[isJobLocked] - $job is currently locked until ${existingLock.lockExpiration} by ${formatLockOwner(existingLock)}"
+          )
           true
         case _ =>
           false
@@ -108,10 +124,10 @@ class JobLockRepository @Inject()(mongo: MongoComponent,
     metrics.timeCompletionOfFuture("releaseLockMongoTimer", {
       collection.deleteOne(JobLockSelectors.jobLockedOf(job)).toFuture().map { wr =>
         if (wr.wasAcknowledged()) {
-          logger.info(s"[releaseLock] - Releasing lock on $job")
+          logger.info(s"[releaseLock] - Releasing lock on $job for instance=$instanceId")
           true
         } else {
-          logger.error(s"[releaseLock] - There was a problem release lock on $job")
+          logger.error(s"[releaseLock] - There was a problem release lock on $job for instance=$instanceId")
           false
         }
       }

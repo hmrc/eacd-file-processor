@@ -37,6 +37,10 @@ class JobLockRepositoryISpec extends AssertionHelpers with IntegrationSpec {
         awaitAndAssert(lockingRepo.lockJob("testJob")) {
           _ mustBe true
         }
+
+        awaitAndAssert(lockingRepo.collection.find(Document("job" -> "testJob")).headOption()) {
+          _.exists(lock => lock.lockedBy.exists(_.nonEmpty) && lock.lockedAt.nonEmpty) mustBe true
+        }
       }
       "its lock has expired" in {
         val expiredExpiration = Instant.now().minus(1, ChronoUnit.MINUTES)

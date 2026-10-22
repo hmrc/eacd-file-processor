@@ -96,7 +96,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
     when(mockAuditConnector.sendExtendedEvent(any())(any(), any()))
       .thenReturn(Future.successful(AuditResult.Success))
 
-    val lockService: LockService = new LockService(lockRepository) {
+    val lockService: LockService = new LockService(lockRepository, appConfig) {
       override def lockAndRelease[T](job: String)(f: => Future[T])(using ExecutionContext): Future[Either[T, LockResponse]] =
         f.map(Left(_))
     }
@@ -216,7 +216,7 @@ class DeEnrolmentWorkItemSchedulerServiceSpec extends AnyWordSpec with Matchers 
     }
 
     "skip processing when lock is already held" in new Setup {
-      override val lockService: LockService = new LockService(lockRepository) {
+      override val lockService: LockService = new LockService(lockRepository, appConfig) {
         override def lockAndRelease[T](job: String)(f: => Future[T])(using ExecutionContext): Future[Either[T, LockResponse]] =
           Future.successful(Right(MongoLocked))
       }
