@@ -28,9 +28,9 @@ import org.scalatest.matchers.should.Matchers.shouldBe
 import org.scalatestplus.mockito.MockitoSugar.mock
 import play.api.http.Status.{NO_CONTENT, OK}
 import play.api.mvc.*
-import play.api.test.Helpers.{contentAsString, status}
+import play.api.test.Helpers.{GET, contentAsString}
 import play.api.test.{DefaultAwaitTimeout, FakeRequest, Helpers}
-import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport}
+import uk.gov.hmrc.eacdfileprocessor.helper.{TestData, TestSupport, UnitSpec}
 import uk.gov.hmrc.eacdfileprocessor.models.auth.AuthRequest
 import uk.gov.hmrc.eacdfileprocessor.models.{Details, FileStatus, Reference, UploadedDetails}
 import uk.gov.hmrc.eacdfileprocessor.repository.FileRepository
@@ -45,7 +45,7 @@ import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTimeout {
+class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTimeout with UnitSpec {
   private val repository = mock[FileRepository]
   val mockCC: ControllerComponents = Helpers.stubControllerComponents()
   val mockConfig: play.api.Configuration = mock[play.api.Configuration]
@@ -114,9 +114,11 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
       when(repository.findByReference(any())).thenReturn(Future.successful(Some(uploadedDetails)))
       when(objectStoreClient.getObject[Source[ByteString, NotUsed]](any(), any())(any(), any()))
         .thenReturn(Future.successful(Some(o)))
-      val request = FakeRequest(routes.FileController.getFile("test-ref"))
+      
+      val request = FakeRequest(GET, "/file/test-ref")
       val result = TestStatusController.getFile("test-ref")(request)
-      status(result) shouldBe OK
+      
+      status(await(result)) shouldBe OK
       contentAsString(result) shouldBe "file content"
     }
 
@@ -141,16 +143,16 @@ class FileControllerSpec extends TestSupport with TestData with DefaultAwaitTime
       when(repository.findByReference(any())).thenReturn(Future.successful(Some(uploadedDetails)))
       when(objectStoreClient.getObject[Source[ByteString, NotUsed]](any(), any())(any(), any()))
         .thenReturn(Future.successful(None))
-      val request = FakeRequest(routes.FileController.getFile("test-ref"))
+      val request = FakeRequest(GET, "/file/test-ref")
       val result = TestStatusController.getFile("test-ref")(request)
-      status(result) shouldBe NO_CONTENT
+      status(await(result)) shouldBe NO_CONTENT
     }
 
     "return NO_CONTENT when file reference is not found" in {
       when(repository.findByReference(any())).thenReturn(Future.successful(None))
-      val request = FakeRequest(routes.FileController.getFile("test-ref"))
+      val request = FakeRequest(GET, "/file/test-ref")
       val result = TestStatusController.getFile("test-ref")(request)
-      status(result) shouldBe NO_CONTENT
+      status(await(result)) shouldBe NO_CONTENT
     }
 
   }

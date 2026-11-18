@@ -364,6 +364,17 @@ Where applicable, errors use:
 }
 ```
 
+### `GET /eacd-file-processor/support-tool/work-items/:reference`
+
+controller: `uk.gov.hmrc.eacdfileprocessor.support.controllers.WorkItemController.getWorkItems(reference: String)`
+
+Returns work items for a given file reference.
+
+Responses:
+- `200 OK` with JSON array of work items
+- `204 No Content` when no work items exist for the reference
+
+
 ## Test-only endpoints
 
 Defined in `conf/testOnlyDoNotUseInAppConf.routes` and only available when test routing is enabled:
