@@ -21,6 +21,7 @@ import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.{PROCESSEDSUCCESSFULLY, P
 import uk.gov.hmrc.eacdfileprocessor.models.UploadedDetails
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemRepository, FileRecordValidationErrorRepository, FileRepository}
 import uk.gov.hmrc.eacdfileprocessor.scheduler.ScheduledService
+import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 import uk.gov.hmrc.http.HeaderCarrier
 
 import javax.inject.{Inject, Singleton}
@@ -31,7 +32,8 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
                                         fileRecordValidationErrorRepository: FileRecordValidationErrorRepository,
                                         fileRepository: FileRepository,
                                         lockService: LockService,
-                                        emailService: EmailService
+                                         emailService: EmailService,
+                                         metrics: MetricsReporter
                                        ) extends ScheduledService[Either[Unit, LockResponse]] with Logging {
 
   override def invoke(using ExecutionContext): Future[Either[Unit, LockResponse]] =
@@ -68,14 +70,16 @@ class FileStatusUpdateService @Inject()(deEnrolmentWorkItemRepository: DeEnrolme
       for {
         errorCount <- fileRecordValidationErrorRepository.countByReference(file.reference)
         targetStatus = if (errorCount == 0 && totalFailureCount == 0) PROCESSEDSUCCESSFULLY else PROCESSEDWITHERRORS
-        _ <- fileRepository.updateStatus(file.reference, targetStatus).map {
+        _ <- fileRepository.updateStatus(file.reference, targetStatus).flatMap {
           case Some(uploadedDetails) =>
             logger.info(s"File reference ${file.reference.value} status updated to $targetStatus")
             emailService.sendFileProcessedEmails(uploadedDetails)(HeaderCarrier())
-            deEnrolmentWorkItemRepository.deleteWorkItemsByReference(uploadedDetails.reference.value)
+            deEnrolmentWorkItemRepository.deleteWorkItemsByReference(uploadedDetails.reference.value).map { deletedCount =>
+              metrics.markDeletedWorkItems(deletedCount)
+            }
           case None =>
             logger.error(s"Failed to update file status for reference ${file.reference.value}")
-            Future.successful(throw new RuntimeException(s"Failed to update file status for reference ${file.reference.value}"))
+            Future.failed(new RuntimeException(s"Failed to update file status for reference ${file.reference.value}"))
         }
       } yield ()
     }

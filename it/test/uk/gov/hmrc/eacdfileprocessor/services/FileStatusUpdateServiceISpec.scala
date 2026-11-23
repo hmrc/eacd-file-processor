@@ -26,6 +26,7 @@ import uk.gov.hmrc.eacdfileprocessor.helper.TestData
 import uk.gov.hmrc.eacdfileprocessor.models.FileStatus.*
 import uk.gov.hmrc.eacdfileprocessor.models.{FileRecordValidationError, Reference}
 import uk.gov.hmrc.eacdfileprocessor.repository.{DeEnrolmentWorkItemMongoRepository, FileRecordValidationErrorRepository, FileRepository}
+import uk.gov.hmrc.eacdfileprocessor.utils.MetricsReporter
 import uk.gov.hmrc.mongo.workitem.ProcessingStatus
 
 import java.time.Instant
@@ -38,13 +39,15 @@ class FileStatusUpdateServiceISpec extends TestData with IntegrationSpec:
   lazy val deEnrolmentWorkItemRepository: DeEnrolmentWorkItemMongoRepository = app.injector.instanceOf[DeEnrolmentWorkItemMongoRepository]
   lazy val fileRecordValidationErrorRepository: FileRecordValidationErrorRepository = app.injector.instanceOf[FileRecordValidationErrorRepository]
   lazy val lockService: LockService = app.injector.instanceOf[LockService]
+  lazy val metricsReporter: MetricsReporter = app.injector.instanceOf[MetricsReporter]
 
   lazy val fileStatusUpdateService = new FileStatusUpdateService(
     deEnrolmentWorkItemRepository = deEnrolmentWorkItemRepository,
     fileRecordValidationErrorRepository = fileRecordValidationErrorRepository,
     fileRepository = fileRepository,
     lockService = lockService,
-    emailService = emailService
+    emailService = emailService,
+    metrics = metricsReporter
   )
 
   private def uniqueRef(prefix: String): Reference =

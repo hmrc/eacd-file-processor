@@ -51,9 +51,21 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec w
     "delete work items by reference" in {
       await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
-      await(repository.deleteWorkItemsByReference("ref1"))
+      val deletedCount = await(repository.deleteWorkItemsByReference("ref1"))
       val count = await(repository.collection.countDocuments().toFuture())
+      deletedCount shouldBe 1
       count shouldBe 1
+    }
+
+    "count pending and completed work items" in {
+      await(repository.saveRecordDetails(deEnrolmentWorkItems))
+
+      val pulled = await(repository.pullOutstandingBatch(1))
+      pulled.size shouldBe 1
+      await(repository.markAsComplete(pulled.head.id)) shouldBe true
+
+      await(repository.countPendingItems) shouldBe 1
+      await(repository.countCompletedItems) shouldBe 1
     }
 
     "return the count of incomplete work items" in {
@@ -209,16 +221,17 @@ class DeEnrolmentWorkItemRepositoryISpec extends TestData with IntegrationSpec w
       await(repository.saveRecordDetails(deleteRefItems))
       await(repository.saveRecordDetails(otherRefItems))
 
-      await(repository.deleteWorkItemsByReference("ref-delete"))
+      val deletedCount = await(repository.deleteWorkItemsByReference("ref-delete"))
       val countOther = await(repository.collection.countDocuments(Filters.eq("item.reference", "ref-other")).toFuture())
 
+      deletedCount shouldBe 2
       countOther shouldBe 2
     }
 
     "deleteByReference should not fail when reference does not exist" in {
       await(repository.saveRecordDetails(deEnrolmentWorkItems))
 
-      await(repository.deleteWorkItemsByReference("nonexistent-ref-delete")) shouldBe()
+      await(repository.deleteWorkItemsByReference("nonexistent-ref-delete")) shouldBe 0
       val count = await(repository.collection.countDocuments().toFuture())
       count shouldBe 2
     }
