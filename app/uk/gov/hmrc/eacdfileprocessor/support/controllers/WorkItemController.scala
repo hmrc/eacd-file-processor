@@ -36,11 +36,11 @@ class WorkItemController @Inject()(
                                     val auth: BackendAuthComponents,
                                  )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
   val providedPermission = Predicate.Permission(
-    Resource(ResourceType("eacd-file-processor"), ResourceLocation("file")),
+    Resource(ResourceType("eacd-file-processor"), ResourceLocation("workItem")),
     IAAction("ADMIN")
   )
 
-  def getWorkItem(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "WorkItem")
+  def getWorkItem(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "workItem")
     .async { implicit request: AuthRequest[AnyContent] =>
       workItemRepo.findByReference(reference).map {
         case workItems if workItems.isEmpty =>

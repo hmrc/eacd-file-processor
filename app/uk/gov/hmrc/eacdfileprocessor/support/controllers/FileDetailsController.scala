@@ -40,11 +40,11 @@ class FileDetailsController @Inject()(
                                      )(implicit ec: ExecutionContext) extends BackendController(cc) with InternalAuthBuilders with Logging {
 
   val providedPermission = Predicate.Permission(
-    Resource(ResourceType("eacd-file-processor"), ResourceLocation("file-detail")),
+    Resource(ResourceType("eacd-file-processor"), ResourceLocation("fileDetail")),
     IAAction("ADMIN")
   )
 
-  def getFileDetail(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "file-detail")
+  def getFileDetail(reference: String): Action[AnyContent] = authorisedEntity(providedPermission, "fileDetail")
     .async { implicit request: AuthRequest[AnyContent] =>
       fileDetailService.getFileDetail(reference)
         .map {
